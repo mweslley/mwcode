@@ -16,13 +16,13 @@ export function Dashboard() {
 
   return (
     <div>
-      <h1>Dashboard</h1>
+      <h1>Painel</h1>
 
       <div className="stats-grid">
         <StatsCard title="Agentes Ativos" value={stats?.agentesAtivos ?? 0} icon="👥" />
         <StatsCard title="Tarefas Concluídas" value={stats?.tarefasConcluidas ?? 0} icon="✅" />
         <StatsCard title="Custo Total" value={`R$ ${(stats?.custoTotal ?? 0).toFixed(2)}`} icon="💰" />
-        <StatsCard title="Performance Média" value={`${stats?.performanceMedia ?? 0}%`} icon="📈" />
+        <StatsCard title="Desempenho Médio" value={`${stats?.performanceMedia ?? 0}%`} icon="📈" />
       </div>
 
       <h2>Agentes Ativos</h2>

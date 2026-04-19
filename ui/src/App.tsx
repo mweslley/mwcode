@@ -14,10 +14,10 @@ export function App() {
         <h1 className="logo">MWCode</h1>
         <nav>
           <NavLink to="/" end>Início</NavLink>
-          <NavLink to="/single">Modo Single</NavLink>
+          <NavLink to="/single">Modo Pessoal</NavLink>
           <hr />
-          <span className="section">Enterprise</span>
-          <NavLink to="/dashboard">Dashboard</NavLink>
+          <span className="section">Empresa</span>
+          <NavLink to="/dashboard">Painel</NavLink>
           <NavLink to="/agentes">Agentes</NavLink>
           <NavLink to="/contratar">Contratar</NavLink>
           <NavLink to="/chat">Chat</NavLink>

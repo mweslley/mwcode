@@ -16,7 +16,7 @@ export function Chat() {
   if (!currentId) {
     return (
       <div>
-        <h1>Chat com Agente</h1>
+        <h1>Conversar com Agente</h1>
         <p style={{ color: 'var(--muted)', marginBottom: 12 }}>Selecione um agente:</p>
         {agents.length === 0 ? (
           <p>Nenhum agente disponível. Contrate um primeiro.</p>

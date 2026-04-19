@@ -20,13 +20,13 @@ export function AgentCard({ agent, onFire }: Props) {
 
       <div style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)' }}>
         <div>Provedor: {agent.adapter} / {agent.model}</div>
-        <div>Tarefas: {agent.tasksCompleted} — Performance: {agent.performance}%</div>
+        <div>Tarefas: {agent.tasksCompleted} — Desempenho: {agent.performance}%</div>
       </div>
 
       {agent.status === 'active' && (
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <Link to={`/chat/${agent.id}`}>
-            <button>Chat</button>
+            <button>Conversar</button>
           </Link>
           {onFire && (
             <button className="danger" onClick={() => onFire(agent.id)}>Demitir</button>

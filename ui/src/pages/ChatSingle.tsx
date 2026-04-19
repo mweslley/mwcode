@@ -9,7 +9,7 @@ export function ChatSingle() {
 
   return (
     <div>
-      <h1>Modo Single — Chat Direto</h1>
+      <h1>Modo Pessoal — Conversa Direta</h1>
       <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
         Converse direto com um provedor sem contratar agente.
       </p>

@@ -1,6 +1,69 @@
 # MWCode
 
-Um sistema flexível de agentes de IA, construído em **React** + **Node.js**, que opera em dois modos: **Single** (pessoal) ou **Enterprise** (empresa).
+Um sistema flexível de agentes de IA, construído em **React** + **Node.js**, que opera em dois modos: **Pessoal** (1 usuário) ou **Empresa** (múltiplos agentes).
+
+[![License](https://img.shields.io/badge/license-MIT-2563eb)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-6366f1)](https://github.com/mweslley/mwcode/releases)
+
+---
+
+## 🚀 Como Instalar
+
+### Pré-requisitos
+- **Node.js** 20 ou superior ([baixar](https://nodejs.org/))
+- **pnpm** 8 ou superior
+- (opcional) **PostgreSQL** 16+ para produção — em desenvolvimento o sistema roda em memória
+
+### Instalação passo a passo
+
+```bash
+# 1. Clonar o repositório
+git clone https://github.com/mweslley/mwcode.git
+cd mwcode
+
+# 2. Instalar pnpm (se ainda não tiver)
+npm install -g pnpm
+
+# 3. Instalar dependências
+pnpm install
+
+# 4. Configurar variáveis de ambiente
+cp .env.example .env
+# Abra o arquivo .env e coloque pelo menos uma chave de API.
+# Recomendado: OPENROUTER_API_KEY (tem modelos gratuitos)
+
+# 5. Rodar em modo desenvolvimento (API + interface)
+pnpm dev
+```
+
+Pronto! Acesse:
+- **Interface web:** http://localhost:5173
+- **API:** http://localhost:3100
+- **Saúde da API:** http://localhost:3100/api/health
+
+### Rodar só a API ou só a interface
+
+```bash
+pnpm dev:server   # só a API (porta 3100)
+pnpm dev:ui       # só a interface (porta 5173)
+```
+
+### Build de produção
+
+```bash
+pnpm build
+pnpm start
+```
+
+### Rodar com Docker
+
+```bash
+cd docker
+docker compose up -d
+# Acesse http://localhost:3100
+```
+
+---
 
 ## Modos de Uso
 
@@ -43,10 +106,6 @@ Empresa → Dashboard → Múltiplos Agentes → Chat → Tarefas
 | Contratar/Demitir | ❌ | ✅ |
 | Custos | ❌ | ✅ |
 | Multi-empresa | ❌ | ✅ |
-
-[![License](https://img.shields.io/badge/license-MIT-2563eb)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-10b981)](https://github.com/mweslley/MWCode)
-[![Version](https://img.shields.io/badge/version-0.1.0-6366f1)](https://github.com/mweslley/MWCode/releases)
 
 ## 🎯 Visão
 
@@ -1531,13 +1590,7 @@ Este projeto é independente e não afiliado a qualquer empresa de IA existente.
 
 ## 🤝 Comunidade
 
-- [GitHub Issues](https://github.com/mweslley/MWCode/issues) - Bugs e features
-- [GitHub Discussions](https://github.com/mweslley/MWCode/discussions) - Discussões
-- [Discord](https://discord.gg/mwcode) - Comunidade
-
-## 🙏 Reconhecimentos
-
-Inspirado na necessidade de ferramentas de IA mais eficientes e bem projetadas. Agradecimentos à comunidade Zig e aos projetos que demonstram que performance e design podem coexistir.
+- [GitHub Issues](https://github.com/mweslley/mwcode/issues) — Reportar bugs e sugerir features
 
 ---
 
