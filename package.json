@@ -1,0 +1,31 @@
+{
+  "name": "mwcode",
+  "version": "0.1.0",
+  "description": "Sistema flexível de agentes de IA — modo Single ou Enterprise",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @mwcode/server --filter @mwcode/ui dev",
+    "dev:server": "pnpm --filter @mwcode/server dev",
+    "dev:ui": "pnpm --filter @mwcode/ui dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @mwcode/server start",
+    "db:generate": "pnpm --filter @mwcode/db generate",
+    "db:migrate": "pnpm --filter @mwcode/db migrate",
+    "db:push": "pnpm --filter @mwcode/db push",
+    "mwcode": "tsx cli/index.ts",
+    "lint": "echo 'lint não configurado'",
+    "test": "echo 'testes não configurados'"
+  },
+  "keywords": ["ai", "agents", "chat", "openrouter", "openai", "gemini", "ollama"],
+  "author": "mweslley",
+  "license": "MIT",
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=8"
+  }
+}

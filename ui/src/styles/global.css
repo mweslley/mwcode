@@ -1,0 +1,171 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0b0b12;
+  --bg-2: #151521;
+  --fg: #e8e8f0;
+  --muted: #8b8ba0;
+  --primary: #6366f1;
+  --success: #10b981;
+  --danger: #ef4444;
+  --border: #2a2a3a;
+}
+
+body, html, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar .logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 16px;
+}
+
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+
+.sidebar a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.sidebar a:hover { background: rgba(99,102,241,0.1); color: var(--fg); }
+.sidebar a.active { background: var(--primary); color: #fff; }
+.sidebar hr { border: 0; border-top: 1px solid var(--border); margin: 12px 0; }
+.sidebar .section {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 4px 12px;
+}
+
+.content { padding: 32px; overflow-y: auto; }
+
+h1 { font-size: 24px; margin-bottom: 20px; }
+h2 { font-size: 18px; margin: 16px 0 12px; }
+
+button {
+  background: var(--primary);
+  color: #fff;
+  border: 0;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+button:hover { opacity: 0.9; }
+button.ghost { background: transparent; border: 1px solid var(--border); color: var(--fg); }
+button.danger { background: var(--danger); }
+
+input, textarea, select {
+  background: var(--bg-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  width: 100%;
+  font-family: inherit;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.stat .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.chat-container { display: flex; flex-direction: column; height: calc(100vh - 64px); }
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+.message {
+  padding: 12px 16px;
+  border-radius: 10px;
+  max-width: 75%;
+  white-space: pre-wrap;
+}
+.message.user { align-self: flex-end; background: var(--primary); color: #fff; }
+.message.agent, .message.system { align-self: flex-start; background: var(--bg-2); border: 1px solid var(--border); }
+
+.input-area { display: flex; gap: 8px; padding: 12px 0; }
+.input-area textarea { flex: 1; resize: none; min-height: 44px; max-height: 160px; }
+
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; }
+
+.mode-select {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 900px;
+  margin: 60px auto;
+}
+.mode-card {
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.mode-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+.mode-card h3 { font-size: 20px; margin-bottom: 8px; }
+.mode-card p { color: var(--muted); line-height: 1.5; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge.active { background: rgba(16,185,129,0.2); color: var(--success); }
+.badge.fired { background: rgba(239,68,68,0.2); color: var(--danger); }

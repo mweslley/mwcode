@@ -1,0 +1,43 @@
+import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { ModeSelect } from './pages/ModeSelect';
+import { ChatSingle } from './pages/ChatSingle';
+import { Dashboard } from './pages/Dashboard';
+import { Agents } from './pages/Agents';
+import { Hire } from './pages/Hire';
+import { Chat } from './pages/Chat';
+import { Settings } from './pages/Settings';
+
+export function App() {
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <h1 className="logo">MWCode</h1>
+        <nav>
+          <NavLink to="/" end>Início</NavLink>
+          <NavLink to="/single">Modo Single</NavLink>
+          <hr />
+          <span className="section">Enterprise</span>
+          <NavLink to="/dashboard">Dashboard</NavLink>
+          <NavLink to="/agentes">Agentes</NavLink>
+          <NavLink to="/contratar">Contratar</NavLink>
+          <NavLink to="/chat">Chat</NavLink>
+          <NavLink to="/config">Configurações</NavLink>
+        </nav>
+      </aside>
+
+      <main className="content">
+        <Routes>
+          <Route path="/" element={<ModeSelect />} />
+          <Route path="/single" element={<ChatSingle />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/agentes" element={<Agents />} />
+          <Route path="/contratar" element={<Hire />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:agentId" element={<Chat />} />
+          <Route path="/config" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}

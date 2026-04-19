@@ -1,0 +1,46 @@
+{
+  "name": "mwcode-vscode",
+  "displayName": "MWCode",
+  "description": "Chat com agentes de IA do MWCode direto no VS Code",
+  "version": "0.1.0",
+  "publisher": "mweslley",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other", "Machine Learning"],
+  "main": "./out/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "mwcode.openChat", "title": "MWCode: Abrir Chat" },
+      { "command": "mwcode.newChat", "title": "MWCode: Novo Chat" },
+      { "command": "mwcode.sendSelection", "title": "MWCode: Enviar Seleção" }
+    ],
+    "keybindings": [
+      { "command": "mwcode.openChat", "key": "ctrl+shift+m", "mac": "cmd+shift+m" },
+      { "command": "mwcode.sendSelection", "key": "ctrl+shift+enter", "when": "editorTextFocus" },
+      { "command": "mwcode.newChat", "key": "ctrl+shift+n" }
+    ],
+    "configuration": {
+      "title": "MWCode",
+      "properties": {
+        "mwcode.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:3100",
+          "description": "URL da API do MWCode"
+        },
+        "mwcode.provider": {
+          "type": "string",
+          "default": "openrouter",
+          "enum": ["openrouter", "openai", "gemini", "ollama", "deepseek"]
+        },
+        "mwcode.model": {
+          "type": "string",
+          "default": "openrouter/auto"
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.7.0"
+  }
+}

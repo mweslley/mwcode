@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mwcode
+      POSTGRES_PASSWORD: mwcode
+      POSTGRES_DB: mwcode
+    ports:
+      - '5432:5432'
+    volumes:
+      - mwcode-db:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      DATABASE_URL: postgres://mwcode:mwcode@db:5432/mwcode
+      PORT: 3100
+      MWCODE_PROVIDER: openrouter
+      MWCODE_MODEL: openrouter/auto
+    ports:
+      - '3100:3100'
+    depends_on:
+      - db
+
+volumes:
+  mwcode-db:
