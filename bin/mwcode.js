@@ -45,7 +45,29 @@ function getPkg() {
 }
 
 function run(cmd, args, opts = {}) {
-  return spawn(cmd, args, { cwd: projectRoot, stdio: 'inherit', shell: true, ...opts });
+  // No Windows precisa shell + string única (evita DeprecationWarning DEP0190).
+  // No Linux/macOS chama direto sem shell.
+  if (process.platform === 'win32') {
+    return spawn(`${cmd} ${args.join(' ')}`, {
+      cwd: projectRoot,
+      stdio: 'inherit',
+      shell: true,
+      ...opts,
+    });
+  }
+  return spawn(cmd, args, { cwd: projectRoot, stdio: 'inherit', ...opts });
+}
+
+function getLocalIPs() {
+  const ips = [];
+  const ifaces = os.networkInterfaces();
+  for (const addrs of Object.values(ifaces)) {
+    if (!addrs) continue;
+    for (const addr of addrs) {
+      if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
+    }
+  }
+  return ips;
 }
 
 function runSync(cmd) {
@@ -119,9 +141,26 @@ const commands = {
       commands.setup(() => commands.start());
       return;
     }
-    log(`${BOLD}🚀 MWCode iniciando...${RESET}`);
-    log(`   API:  http://localhost:${process.env.PORT || 3100}`);
-    log(`   UI:   http://localhost:5173`);
+
+    const port = process.env.PORT || 3100;
+    const ips = getLocalIPs();
+
+    log(`${BOLD}🚀 MWCode iniciando...${RESET}\n`);
+    log(`${BOLD}Acesso local${RESET} (mesma máquina):`);
+    log(`  UI:   ${GREEN}http://localhost:5173${RESET}`);
+    log(`  API:  ${GREEN}http://localhost:${port}${RESET}`);
+
+    if (ips.length) {
+      log(`\n${BOLD}Acesso na rede${RESET} (outros dispositivos / internet):`);
+      for (const ip of ips) {
+        log(`  UI:   ${GREEN}http://${ip}:5173${RESET}`);
+        log(`  API:  ${GREEN}http://${ip}:${port}${RESET}`);
+      }
+      log(`\n${YELLOW}⚠${RESET}  Em VPS, libere as portas no firewall:`);
+      log(`     ${BOLD}ufw allow 5173 && ufw allow ${port}${RESET}`);
+      log(`     (pra produção com HTTPS veja doc/VPS.md — use nginx + porta 443)\n`);
+    }
+
     run('pnpm', ['dev']);
   },
 

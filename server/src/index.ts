@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,7 +52,23 @@ app.get('*', (_req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 MWCode API em http://localhost:${PORT}`);
-  console.log(`📘 Docs: http://localhost:${PORT}/api/health`);
+function getLocalIPs(): string[] {
+  const ips: string[] = [];
+  const ifaces = os.networkInterfaces();
+  for (const addrs of Object.values(ifaces)) {
+    if (!addrs) continue;
+    for (const addr of addrs) {
+      if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
+    }
+  }
+  return ips;
+}
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 MWCode API rodando na porta ${PORT}`);
+  console.log(`   Local:    http://localhost:${PORT}`);
+  for (const ip of getLocalIPs()) {
+    console.log(`   Rede:     http://${ip}:${PORT}`);
+  }
+  console.log(`   Saúde:    http://localhost:${PORT}/api/health\n`);
 });
