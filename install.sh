@@ -23,11 +23,14 @@ INSTALL_DIR="${MWCODE_HOME:-$HOME/.mwcode}"
 REPO_URL="https://github.com/mweslley/mwcode.git"
 BRANCH="${MWCODE_BRANCH:-main}"
 
+# Instalações apt em modo não-interativo
+export DEBIAN_FRONTEND=noninteractive
+
 echo -e "${BOLD}🚀 MWCode — Instalador${RESET}"
 echo ""
 
 # ============================================================
-# Detectar sudo
+# Detectar sudo (vazio se já é root)
 # ============================================================
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then
@@ -39,20 +42,25 @@ if [ "$(id -u)" -ne 0 ]; then
     fi
 fi
 
+# Helper: roda comando como root (com ou sem sudo)
+run_root() {
+    if [ -n "$SUDO" ]; then
+        sudo "$@"
+    else
+        "$@"
+    fi
+}
+
 # ============================================================
 # Detectar sistema operacional e gerenciador de pacotes
 # ============================================================
 OS="unknown"
 PKG_MGR=""
-PKG_UPDATE=""
-PKG_INSTALL=""
 
 if [ "$(uname)" = "Darwin" ]; then
     OS="macos"
     if command -v brew &> /dev/null; then
         PKG_MGR="brew"
-        PKG_UPDATE="brew update"
-        PKG_INSTALL="brew install"
     fi
 elif [ -f /etc/os-release ]; then
     . /etc/os-release
@@ -60,28 +68,16 @@ elif [ -f /etc/os-release ]; then
 
     if command -v apt-get &> /dev/null; then
         PKG_MGR="apt"
-        PKG_UPDATE="$SUDO apt-get update -qq"
-        PKG_INSTALL="$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq"
     elif command -v dnf &> /dev/null; then
         PKG_MGR="dnf"
-        PKG_UPDATE="$SUDO dnf check-update -q || true"
-        PKG_INSTALL="$SUDO dnf install -y -q"
     elif command -v yum &> /dev/null; then
         PKG_MGR="yum"
-        PKG_UPDATE="$SUDO yum check-update -q || true"
-        PKG_INSTALL="$SUDO yum install -y -q"
     elif command -v pacman &> /dev/null; then
         PKG_MGR="pacman"
-        PKG_UPDATE="$SUDO pacman -Sy --noconfirm"
-        PKG_INSTALL="$SUDO pacman -S --noconfirm --needed"
     elif command -v apk &> /dev/null; then
         PKG_MGR="apk"
-        PKG_UPDATE="$SUDO apk update"
-        PKG_INSTALL="$SUDO apk add --no-cache"
     elif command -v zypper &> /dev/null; then
         PKG_MGR="zypper"
-        PKG_UPDATE="$SUDO zypper refresh"
-        PKG_INSTALL="$SUDO zypper install -y"
     fi
 fi
 
@@ -93,9 +89,38 @@ fi
 echo ""
 
 # ============================================================
-# Função: instalar pacote se não existir
+# Wrappers: pkg_update e pkg_install
 # ============================================================
-install_pkg() {
+pkg_update() {
+    case "$PKG_MGR" in
+        apt)     run_root apt-get update -qq ;;
+        dnf)     run_root dnf check-update -q || true ;;
+        yum)     run_root yum check-update -q || true ;;
+        pacman)  run_root pacman -Sy --noconfirm ;;
+        apk)     run_root apk update ;;
+        zypper)  run_root zypper --non-interactive refresh ;;
+        brew)    brew update ;;
+        *)       return 0 ;;
+    esac
+}
+
+pkg_install() {
+    case "$PKG_MGR" in
+        apt)     run_root apt-get install -y -qq "$@" ;;
+        dnf)     run_root dnf install -y -q "$@" ;;
+        yum)     run_root yum install -y -q "$@" ;;
+        pacman)  run_root pacman -S --noconfirm --needed "$@" ;;
+        apk)     run_root apk add --no-cache "$@" ;;
+        zypper)  run_root zypper --non-interactive install -y "$@" ;;
+        brew)    brew install "$@" ;;
+        *)       return 1 ;;
+    esac
+}
+
+# ============================================================
+# Função: instalar um comando se não existir, mapeando nomes de pacote por gerenciador
+# ============================================================
+ensure_cmd() {
     local cmd="$1"
     local pkg_apt="${2:-$1}"
     local pkg_dnf="${3:-$pkg_apt}"
@@ -113,20 +138,21 @@ install_pkg() {
         return 1
     fi
 
+    if [ -z "$PKG_MGR" ]; then
+        echo -e "${RED}✗${RESET} Não sei instalar '$cmd' nesse sistema. Instale manualmente."
+        return 1
+    fi
+
     echo -e "${YELLOW}📦${RESET} Instalando $cmd..."
 
     case "$PKG_MGR" in
-        apt)     $PKG_INSTALL "$pkg_apt" ;;
-        dnf)     $PKG_INSTALL "$pkg_dnf" ;;
-        yum)     $PKG_INSTALL "$pkg_dnf" ;;
-        pacman)  $PKG_INSTALL "$pkg_pacman" ;;
-        apk)     $PKG_INSTALL "$pkg_apk" ;;
-        brew)    $PKG_INSTALL "$pkg_brew" ;;
-        zypper)  $PKG_INSTALL "$pkg_zypper" ;;
-        *)
-            echo -e "${RED}✗${RESET} Não sei instalar '$cmd' nesse sistema. Instale manualmente."
-            return 1
-            ;;
+        apt)     pkg_install "$pkg_apt" ;;
+        dnf)     pkg_install "$pkg_dnf" ;;
+        yum)     pkg_install "$pkg_dnf" ;;
+        pacman)  pkg_install "$pkg_pacman" ;;
+        apk)     pkg_install "$pkg_apk" ;;
+        brew)    pkg_install "$pkg_brew" ;;
+        zypper)  pkg_install "$pkg_zypper" ;;
     esac
 }
 
@@ -135,49 +161,45 @@ install_pkg() {
 # ============================================================
 if [ -n "$PKG_MGR" ] && [ "${MWCODE_SKIP_DEPS:-0}" != "1" ]; then
     echo -e "${BLUE}🔄${RESET} Atualizando índice de pacotes..."
-    eval "$PKG_UPDATE" >/dev/null 2>&1 || echo -e "${YELLOW}⚠${RESET}  Falha ao atualizar (continuando)"
+    pkg_update >/dev/null 2>&1 || echo -e "${YELLOW}⚠${RESET}  Falha ao atualizar (continuando)"
 fi
 
 # ============================================================
 # 2. Dependências básicas do sistema
 # ============================================================
-# curl (geralmente já existe, mas garante)
-install_pkg curl curl curl curl curl curl curl
-
-# git — essencial pra clonar
-install_pkg git git git git git git git
+ensure_cmd curl
+ensure_cmd git
 echo -e "${GREEN}✓${RESET} git $(git --version | awk '{print $3}')"
 
-# ca-certificates — SSL pra Node baixar coisas
+# ca-certificates — SSL
 if [ "$PKG_MGR" = "apt" ] || [ "$PKG_MGR" = "apk" ]; then
-    $PKG_INSTALL ca-certificates >/dev/null 2>&1 || true
+    pkg_install ca-certificates >/dev/null 2>&1 || true
 fi
 
-# build tools (pra compilar módulos nativos do npm, ex: bcrypt, sqlite3)
-echo -e "${BLUE}🔧${RESET} Verificando ferramentas de build (pra módulos nativos)..."
+# Build tools (pra compilar módulos nativos do npm)
+echo -e "${BLUE}🔧${RESET} Verificando ferramentas de build..."
 case "$PKG_MGR" in
     apt)
         if ! dpkg -s build-essential >/dev/null 2>&1; then
             echo -e "${YELLOW}📦${RESET} Instalando build-essential + python3..."
-            $PKG_INSTALL build-essential python3 >/dev/null 2>&1 || true
+            pkg_install build-essential python3 >/dev/null 2>&1 || true
         fi
         ;;
     dnf|yum)
-        $PKG_INSTALL gcc gcc-c++ make python3 >/dev/null 2>&1 || true
+        pkg_install gcc gcc-c++ make python3 >/dev/null 2>&1 || true
         ;;
     pacman)
-        $PKG_INSTALL base-devel python >/dev/null 2>&1 || true
+        pkg_install base-devel python >/dev/null 2>&1 || true
         ;;
     apk)
-        $PKG_INSTALL build-base python3 >/dev/null 2>&1 || true
+        pkg_install build-base python3 >/dev/null 2>&1 || true
         ;;
     brew)
-        # macOS já tem Xcode Command Line Tools (ou pede pra instalar)
         xcode-select --install >/dev/null 2>&1 || true
         ;;
     zypper)
-        $PKG_INSTALL -t pattern devel_basis >/dev/null 2>&1 || true
-        $PKG_INSTALL python3 >/dev/null 2>&1 || true
+        run_root zypper --non-interactive install -t pattern devel_basis >/dev/null 2>&1 || true
+        pkg_install python3 >/dev/null 2>&1 || true
         ;;
 esac
 
@@ -189,30 +211,28 @@ install_node() {
 
     case "$PKG_MGR" in
         apt)
-            # NodeSource (oficial)
-            curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO bash - >/dev/null 2>&1
-            $PKG_INSTALL nodejs
+            curl -fsSL https://deb.nodesource.com/setup_20.x | run_root bash - >/dev/null 2>&1
+            pkg_install nodejs
             ;;
         dnf|yum)
-            curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash - >/dev/null 2>&1
-            $PKG_INSTALL nodejs
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | run_root bash - >/dev/null 2>&1
+            pkg_install nodejs
             ;;
         pacman)
-            $PKG_INSTALL nodejs npm
+            pkg_install nodejs npm
             ;;
         apk)
-            $PKG_INSTALL nodejs npm
+            pkg_install nodejs npm
             ;;
         brew)
-            $PKG_INSTALL node@20
+            pkg_install node@20
             brew link --overwrite --force node@20 2>/dev/null || true
             ;;
         zypper)
-            $PKG_INSTALL nodejs20 npm20
+            pkg_install nodejs20 npm20
             ;;
         *)
             echo -e "${RED}✗${RESET} Instale Node 20+ manualmente: https://nodejs.org"
-            echo "   Ou via nvm: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash"
             exit 1
             ;;
     esac
@@ -229,9 +249,8 @@ else
 fi
 echo -e "${GREEN}✓${RESET} Node $(node -v)"
 
-# npm (geralmente vem com Node, mas confere)
 if ! command -v npm &> /dev/null; then
-    echo -e "${RED}✗${RESET} npm não encontrado após instalar Node. Algo deu errado."
+    echo -e "${RED}✗${RESET} npm não encontrado após instalar Node."
     exit 1
 fi
 echo -e "${GREEN}✓${RESET} npm $(npm --version)"
@@ -241,10 +260,9 @@ echo -e "${GREEN}✓${RESET} npm $(npm --version)"
 # ============================================================
 if ! command -v pnpm &> /dev/null; then
     echo -e "${YELLOW}📦${RESET} Instalando pnpm..."
-    if $SUDO npm install -g pnpm@latest >/dev/null 2>&1; then
+    if run_root npm install -g pnpm@latest >/dev/null 2>&1; then
         :
     else
-        # fallback: instalador oficial
         curl -fsSL https://get.pnpm.io/install.sh | sh - >/dev/null 2>&1
         export PATH="$HOME/.local/share/pnpm:$PATH"
     fi
@@ -304,7 +322,7 @@ if [ -w "$BIN_DIR" ]; then
     echo -e "${GREEN}✓${RESET} Comando 'mwcode' disponível em $BIN_DIR"
 elif [ -n "$SUDO" ]; then
     echo -e "${YELLOW}🔐${RESET} Criando link em $BIN_DIR (requer sudo)..."
-    $SUDO ln -sf "$INSTALL_DIR/bin/mwcode.js" "$BIN_DIR/mwcode"
+    run_root ln -sf "$INSTALL_DIR/bin/mwcode.js" "$BIN_DIR/mwcode"
     echo -e "${GREEN}✓${RESET} Comando 'mwcode' instalado"
 else
     LOCAL_BIN="$HOME/.local/bin"
