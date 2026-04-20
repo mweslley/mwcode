@@ -76,20 +76,62 @@ pnpm dev
 
 ## ▶️ Começando
 
-Depois de instalar, rode:
+O MWCode tem **dois modos** de execução. Escolha o que se encaixa no seu uso:
+
+### 🧪 Modo Desenvolvimento (testar na sua máquina)
 
 ```bash
-mwcode                # abre servidor + interface web
-mwcode chat           # chat no terminal
-mwcode setup          # reconfigura instalação
-mwcode update         # atualiza para última versão
-mwcode help           # lista todos os comandos
+mwcode                # ou: mwcode dev
 ```
 
-Acesse:
-- **Interface web:** http://localhost:5173
-- **API:** http://localhost:3100
-- **Saúde da API:** http://localhost:3100/api/health
+- Hot reload (Vite) — vê mudanças no código na hora
+- 2 portas: `5173` (UI) + `3100` (API)
+- Pare com Ctrl+C
+- **Use quando:** desenvolvendo, testando localmente, hospedando só pra você
+
+**Acesse em:**
+- Interface: http://localhost:5173
+- API: http://localhost:3100
+
+### 🌍 Modo Produção (VPS com usuários reais)
+
+```bash
+mwcode serve          # faz build + roda via PM2 (reinicia sozinho se cair)
+```
+
+- Build otimizado (mais rápido)
+- **1 porta só:** `3100` (UI + API juntos)
+- PM2 mantém rodando mesmo se fechar o terminal
+- **Use quando:** hospedando em VPS, expondo pra outros usuários, produção
+
+**Acesse em:**
+- Local: http://localhost:3100
+- Via IP: http://SEU-IP-DO-VPS:3100
+- Com domínio + HTTPS: use nginx (veja [doc/VPS.md](doc/VPS.md))
+
+**Comandos úteis em produção:**
+```bash
+mwcode logs           # ver logs em tempo real
+mwcode status         # ver estado do processo
+mwcode restart        # reiniciar
+mwcode stop           # parar
+```
+
+### 💬 Chat no terminal
+
+```bash
+mwcode chat           # chat interativo sem abrir navegador
+```
+
+### ⚙️ Outros comandos
+
+```bash
+mwcode setup          # reinstala dependências + recria .env
+mwcode update         # git pull + pnpm install (+ rebuild se em produção)
+mwcode reinstall      # desinstala e instala tudo do zero (preserva .env)
+mwcode uninstall      # desinstala (--purge remove também pnpm e PM2)
+mwcode help           # ajuda completa em português
+```
 
 ### Pré-requisitos
 
@@ -119,27 +161,24 @@ OPENROUTER_API_KEY=sk-or-v1-...   # recomendado (tem modelos grátis)
 
 ## 🌐 Rodando em VPS / Produção
 
-Guia completo em [doc/VPS.md](doc/VPS.md). Resumo:
+Com o MWCode instalado no VPS, **3 comandos** te colocam no ar:
 
 ```bash
-# 1. No servidor (Ubuntu 22.04+)
-curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install.sh | bash
-
-# 2. Configurar .env e build
+# 1. Configurar chave de API
 nano ~/.mwcode/.env
-cd ~/.mwcode && pnpm build
 
-# 3. Rodar com PM2 (reinicia sozinho)
-sudo npm install -g pm2
-pm2 start ecosystem.config.cjs
-pm2 save && pm2 startup
+# 2. Subir em produção (build + PM2 + reinício automático)
+mwcode serve
 
-# 4. nginx + HTTPS (opcional, recomendado)
-sudo apt install -y nginx certbot python3-certbot-nginx
-# configurar reverse proxy + certbot --nginx -d seudominio.com
+# 3. Liberar porta no firewall
+sudo ufw allow 3100
 ```
 
-> 🔒 Antes de expor em produção, leia [SECURITY.md](SECURITY.md) — habilitar autenticação, rate limiting e HTTPS é obrigatório.
+Pronto! Acesse `http://SEU-IP-DO-VPS:3100`.
+
+**Pra adicionar HTTPS + domínio próprio (recomendado):** veja o guia completo em [doc/VPS.md](doc/VPS.md) — configura nginx como reverse proxy + Let's Encrypt (grátis).
+
+> 🔒 Antes de expor em produção, leia [SECURITY.md](SECURITY.md) — autenticação, rate limiting e HTTPS são obrigatórios.
 
 ---
 
