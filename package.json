@@ -1,9 +1,27 @@
 {
-  "name": "mwcode",
+  "name": "@mweslley/mwcode",
   "version": "0.1.0",
-  "description": "Sistema flexível de agentes de IA — modo Single ou Enterprise",
-  "private": true,
+  "description": "Sistema flexível de agentes de IA — modo Pessoal ou Empresa. 100% português brasileiro.",
   "type": "module",
+  "bin": {
+    "mwcode": "./bin/mwcode.js"
+  },
+  "files": [
+    "bin",
+    "install.sh",
+    "cli",
+    "server",
+    "ui",
+    "packages",
+    "docker",
+    "doc",
+    ".env.example",
+    "LICENSE",
+    "README.md",
+    "pnpm-workspace.yaml",
+    "tsconfig.base.json",
+    "drizzle.config.ts"
+  ],
   "scripts": {
     "dev": "pnpm --parallel --filter @mwcode/server --filter @mwcode/ui dev",
     "dev:server": "pnpm --filter @mwcode/server dev",
@@ -14,12 +32,33 @@
     "db:migrate": "pnpm --filter @mwcode/db migrate",
     "db:push": "pnpm --filter @mwcode/db push",
     "mwcode": "tsx cli/index.ts",
-    "lint": "echo 'lint não configurado'",
-    "test": "echo 'testes não configurados'"
+    "postinstall": "node bin/mwcode.js version >/dev/null 2>&1 || true"
   },
-  "keywords": ["ai", "agents", "chat", "openrouter", "openai", "gemini", "ollama"],
-  "author": "mweslley",
+  "keywords": [
+    "ai",
+    "agents",
+    "chat",
+    "cli",
+    "openrouter",
+    "openai",
+    "gemini",
+    "ollama",
+    "portugues",
+    "brasil"
+  ],
+  "author": "Michel Weslley <suporte@lojamwo.com.br>",
   "license": "MIT",
+  "homepage": "https://github.com/mweslley/mwcode#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mweslley/mwcode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mweslley/mwcode/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

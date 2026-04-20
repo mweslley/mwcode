@@ -1,66 +1,158 @@
 # MWCode
 
-Um sistema flexível de agentes de IA, construído em **React** + **Node.js**, que opera em dois modos: **Pessoal** (1 usuário) ou **Empresa** (múltiplos agentes).
+Um sistema flexível de agentes de IA, construído em **React** + **Node.js**, que opera em dois modos: **Pessoal** (1 usuário) ou **Empresa** (múltiplos agentes). 100% em **português brasileiro**.
 
 [![License](https://img.shields.io/badge/license-MIT-2563eb)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-6366f1)](https://github.com/mweslley/mwcode/releases)
+[![Node](https://img.shields.io/badge/node-20+-339933)](https://nodejs.org/)
 
 ---
 
-## 🚀 Como Instalar
+## 🚀 Instalação rápida
 
-### Pré-requisitos
-- **Node.js** 20 ou superior ([baixar](https://nodejs.org/))
-- **pnpm** 8 ou superior
-- (opcional) **PostgreSQL** 16+ para produção — em desenvolvimento o sistema roda em memória
+Escolha o método que preferir:
 
-### Instalação passo a passo
+### curl (Linux/macOS — recomendado)
 
 ```bash
-# 1. Clonar o repositório
+curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install.sh | bash
+```
+
+### npm
+
+```bash
+npm install -g @mweslley/mwcode
+```
+
+### pnpm
+
+```bash
+pnpm add -g @mweslley/mwcode
+```
+
+### bun
+
+```bash
+bun add -g @mweslley/mwcode
+```
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew tap mweslley/tap
+brew install mwcode
+```
+
+### Arch Linux (AUR)
+
+```bash
+paru -S mwcode
+# ou
+yay -S mwcode
+```
+
+### Docker
+
+```bash
+git clone https://github.com/mweslley/mwcode.git
+cd mwcode/docker
+cp ../.env.example ../.env   # edite com suas chaves
+docker compose up -d
+```
+
+### Manual (qualquer sistema)
+
+```bash
 git clone https://github.com/mweslley/mwcode.git
 cd mwcode
-
-# 2. Instalar pnpm (se ainda não tiver)
-npm install -g pnpm
-
-# 3. Instalar dependências
 pnpm install
-
-# 4. Configurar variáveis de ambiente
-cp .env.example .env
-# Abra o arquivo .env e coloque pelo menos uma chave de API.
-# Recomendado: OPENROUTER_API_KEY (tem modelos gratuitos)
-
-# 5. Rodar em modo desenvolvimento (API + interface)
+cp .env.example .env   # edite com suas chaves
 pnpm dev
 ```
 
-Pronto! Acesse:
+> 📘 **Detalhes completos:** [doc/INSTALL.md](doc/INSTALL.md) · [doc/VPS.md](doc/VPS.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## ▶️ Começando
+
+Depois de instalar, rode:
+
+```bash
+mwcode                # abre servidor + interface web
+mwcode chat           # chat no terminal
+mwcode setup          # reconfigura instalação
+mwcode update         # atualiza para última versão
+mwcode help           # lista todos os comandos
+```
+
+Acesse:
 - **Interface web:** http://localhost:5173
 - **API:** http://localhost:3100
 - **Saúde da API:** http://localhost:3100/api/health
 
-### Rodar só a API ou só a interface
+### Pré-requisitos
 
-```bash
-pnpm dev:server   # só a API (porta 3100)
-pnpm dev:ui       # só a interface (porta 5173)
+- **Node.js** 20+ ([baixar](https://nodejs.org/))
+- **pnpm** 8+ (instalado automaticamente pelo instalador)
+- (opcional) **PostgreSQL** 16+ para produção — em dev roda em memória
+
+### Configurar chave de API
+
+Edite `~/.mwcode/.env` e coloque **ao menos uma** chave:
+
+```env
+OPENROUTER_API_KEY=sk-or-v1-...   # recomendado (tem modelos grátis)
+# OPENAI_API_KEY=sk-...
+# GEMINI_API_KEY=...
+# DEEPSEEK_API_KEY=...
+# OLLAMA_BASE_URL=http://localhost:11434   # modelos locais
 ```
 
-### Build de produção
+**De onde pegar:**
+- OpenRouter: https://openrouter.ai/keys (grátis)
+- OpenAI: https://platform.openai.com/api-keys
+- Gemini: https://aistudio.google.com/apikey (grátis)
+- Ollama: https://ollama.com/download (local, sem chave)
+
+---
+
+## 🌐 Rodando em VPS / Produção
+
+Guia completo em [doc/VPS.md](doc/VPS.md). Resumo:
 
 ```bash
-pnpm build
-pnpm start
+# 1. No servidor (Ubuntu 22.04+)
+curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install.sh | bash
+
+# 2. Configurar .env e build
+nano ~/.mwcode/.env
+cd ~/.mwcode && pnpm build
+
+# 3. Rodar com PM2 (reinicia sozinho)
+sudo npm install -g pm2
+pm2 start ecosystem.config.cjs
+pm2 save && pm2 startup
+
+# 4. nginx + HTTPS (opcional, recomendado)
+sudo apt install -y nginx certbot python3-certbot-nginx
+# configurar reverse proxy + certbot --nginx -d seudominio.com
 ```
 
-### Rodar com Docker
+> 🔒 Antes de expor em produção, leia [SECURITY.md](SECURITY.md) — habilitar autenticação, rate limiting e HTTPS é obrigatório.
+
+---
+
+## 🔁 Atualizar
 
 ```bash
-cd docker
-docker compose up -d
-# Acesse http://localhost:3100
+mwcode update
+```
+
+Ou manualmente:
+
+```bash
+cd ~/.mwcode && git pull && pnpm install
 ```
 
 ---
@@ -1588,9 +1680,12 @@ MIT License - veja [LICENSE](LICENSE) para detalhes.
 
 Este projeto é independente e não afiliado a qualquer empresa de IA existente.
 
-## 🤝 Comunidade
+## 🤝 Comunidade & Contribuir
 
 - [GitHub Issues](https://github.com/mweslley/mwcode/issues) — Reportar bugs e sugerir features
+- [CONTRIBUTING.md](CONTRIBUTING.md) — Como fazer fork, abrir PR e contribuir
+- [SECURITY.md](SECURITY.md) — Reportar vulnerabilidades e práticas de segurança
+- E-mail: suporte@lojamwo.com.br
 
 ---
 

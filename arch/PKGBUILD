@@ -1,0 +1,48 @@
+# MWCode — AUR Package
+#
+# Para publicar no AUR:
+#   1. Crie conta em https://aur.archlinux.org
+#   2. Clone: git clone ssh://aur@aur.archlinux.org/mwcode.git
+#   3. Copie este PKGBUILD para dentro
+#   4. Gere .SRCINFO: makepkg --printsrcinfo > .SRCINFO
+#   5. Commit e push
+#
+# Usuários instalam com:
+#   paru -S mwcode
+#   # ou
+#   yay -S mwcode
+
+# Maintainer: Michel Weslley <suporte@lojamwo.com.br>
+pkgname=mwcode
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Sistema flexível de agentes de IA — modo Pessoal ou Empresa. 100% pt-BR."
+arch=('any')
+url="https://github.com/mweslley/mwcode"
+license=('MIT')
+depends=('nodejs>=20' 'pnpm' 'git')
+makedepends=('git')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/mweslley/mwcode/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')  # Ao publicar, substitua pelo sha256 real
+
+build() {
+    cd "$pkgname-$pkgver"
+    pnpm install --frozen-lockfile
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+
+    install -dm755 "$pkgdir/usr/lib/mwcode"
+    cp -r ./* "$pkgdir/usr/lib/mwcode/"
+
+    install -dm755 "$pkgdir/usr/bin"
+    cat > "$pkgdir/usr/bin/mwcode" <<EOF
+#!/bin/bash
+exec node /usr/lib/mwcode/bin/mwcode.js "\$@"
+EOF
+    chmod 755 "$pkgdir/usr/bin/mwcode"
+
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
