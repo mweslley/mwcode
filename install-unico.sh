@@ -2,10 +2,14 @@
 #
 # MWCode — Instalador Único (Sempre Interativo)
 # Execute:
-#   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
+#   curl -fsSL -o install-mwcode.sh https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh
+#   bash install-mwcode.sh
+#
+# Ou um linha:
+#   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
 #
 
-set +u  # Não sair por erros - permitir interação
+set +u
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -19,7 +23,6 @@ ok() { echo -e "${GREEN}✓${RESET} ${1}"; }
 warn() { echo -e "${YELLOW}⚠${RESET} ${1}"; }
 err() { echo -e "${RED}✗${RESET} ${1}"; }
 
-# Mudar para diretório válido
 mudar_dir() {
     for dir in /tmp /var/tmp "$HOME" /; do
         [ -d "$dir" ] && [ -w "$dir" 2>/dev/null && { cd "$dir" 2>/dev/null; return 0; }
@@ -142,7 +145,7 @@ ok "Dependências instaladas"
 ok ".env criado"
 
 # ============================================================
-# 9. SEMPRE - Menu de Escolha de PROVEDOR
+# 9. ESCOLHER PROVEDOR (sempre perguntar)
 # ============================================================
 echo ""
 echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
@@ -153,10 +156,8 @@ echo -e "  3. Gemini       (Google)"
 echo -e "  4. DeepSeek    (Barato)"
 echo -e "  5. Ollama       (Local)"
 echo ""
-printf "Digite o número (1-5): "
-read -r escolha
+read -p "Digite o número (1-5): " escolha
 
-# Processar escolha (sempre pergunta!)
 case "$escolha" in
     1) PROVIDER_NAME="openrouter" ;;
     2) PROVIDER_NAME="openai" ;;
@@ -170,7 +171,7 @@ echo -e "Provedor: ${YELLOW}$PROVIDER_NAME${RESET}"
 echo ""
 
 # ============================================================
-# 10. SEMPRE - Pedir CHAVE API
+# 10. CHAVE API (sempre perguntar)
 # ============================================================
 if [ "$PROVIDER_NAME" != "ollama" ]; then
     case "$PROVIDER_NAME" in
@@ -183,11 +184,9 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
     echo "  Pegue em: $LINK"
     echo ""
-    printf "Cole sua chave API: "
-    read -r API_KEY
+    read -p "Cole sua chave API: " API_KEY
     
     if [ -n "$API_KEY" ]; then
-        # Salvar no .env
         case "$PROVIDER_NAME" in
             openrouter) echo "OPENROUTER_API_KEY=$API_KEY" >> .env ;;
             openai)     echo "OPENAI_API_KEY=$API_KEY" >> .env ;;
@@ -252,6 +251,6 @@ if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
     echo ""
     echo "Acesse: ${YELLOW}http://localhost:5173${RESET}"
 else
-    warn "Use: cd $INSTALL_DIR && pnpm dev"
+    warn "Verifique manualmente: cd $INSTALL_DIR && pnpm dev"
     echo "Logs: tail /tmp/mwcode.log"
 fi
