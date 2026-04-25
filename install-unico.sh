@@ -104,17 +104,11 @@ y
 y
 y" | pnpm approve-builds 2>/dev/null || true
 
-# Install com rebuild forçada
-pnpm install --force || pnpm rebuild || true
+# Install normal
 pnpm install || { err "Falha ao instalar dependências"; exit 1; }
 
-# Reinstalar tsx com force
-pnpm add tsx@latest -D --force 2>/dev/null || true
-
-# Se tsx ainda não funcionar, usar npx
-if [ ! -f "$INSTALL_DIR/node_modules/.bin/tsx" ]; then
-    log "tsx não disponível, usando npx..."
-fi
+# Configurar pnpm para não avisar sobre adicionar ao root
+pnpm config set ignore-workspace-root-check true 2>/dev/null || true
 
 ok "Dependências instaladas"
 
