@@ -6,6 +6,9 @@
 #
 set -euo pipefail
 
+# IMPORTANTE: Mudar para diretório seguro antes de tudo
+cd /tmp || cd ~ || cd /
+
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -102,9 +105,15 @@ ok "Node.js: $(node -v)"
 # ============================================================
 log "Instalando pnpm..."
 
+# IMPORTANTE: Mudar para diretório válido antes de instalar
+cd /tmp 2>/dev/null || cd ~ || cd /
+
 if ! has pnpm; then
-    npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm
+    npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm 2>/dev/null || true
 fi
+
+# VOLTAR PARA DIRETÓRIO SEGURO APÓS INSTALAR
+cd /tmp 2>/dev/null || cd ~ || cd /
 
 has pnpm || die "pnpm não instalado"
 ok "pnpm: $(pnpm -v)"
@@ -114,6 +123,11 @@ ok "pnpm: $(pnpm -v)"
 # ============================================================
 log "Baixando MWCode..."
 
+# IMPORTANTE: Garantir que estamos em diretório válido
+cd /tmp 2>/dev/null || cd ~ || cd /
+
+# Remover diretório anterior com segurança
+rm -rf "$INSTALL_DIR" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR"
 git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$INSTALL_DIR" || die "Falha ao clonar"
 
