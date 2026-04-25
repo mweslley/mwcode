@@ -1,10 +1,12 @@
 const BASE = '/api';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem('token');
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {})
     }
   });
@@ -17,6 +19,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   health: () => request<{ status: string; version: string }>('/health'),
+  
+  // AUTH
+  post: <T = any>(path: string, data: any) => 
+    request<T>(path, { method: 'POST', body: JSON.stringify(data) }),
+  get: <T = any>(path: string) => request<T>(path),
+  put: <T = any>(path: string, data: any) => 
+    request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: <T = any>(path: string) => request<T>(path, { method: 'DELETE' }),
 
   listCompanies: () => request<any[]>('/empresas'),
   createCompany: (data: any) => request('/empresas', { method: 'POST', body: JSON.stringify(data) }),
