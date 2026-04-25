@@ -48,40 +48,26 @@ MODO_INSTALACAO="nova"   # "nova" | "atualizar"
 
 if [ -d "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR/.git" ]; then
     echo ""
-    echo -e "${BOLD}${YELLOW}⚠ Instalação existente detectada${RESET} em ${BOLD}$INSTALL_DIR${RESET}"
+    echo -e "${YELLOW}MWCode já está instalado${RESET} em $INSTALL_DIR"
     echo ""
-    echo "  O que você quer fazer?"
+    echo -e "  ${GREEN}1)${RESET} Atualizar    ${CYAN}(recomendado — preserva seus dados)${RESET}"
+    echo -e "  ${YELLOW}2)${RESET} Reinstalar   ${RED}(apaga tudo)${RESET}"
+    echo -e "  ${RED}3)${RESET} Cancelar"
     echo ""
-    echo "    ${GREEN}1${RESET}) ${BOLD}Atualizar${RESET}    — baixa código novo, mantém .env, dados e usuários"
-    echo "                    ${CYAN}(recomendado se já está usando)${RESET}"
-    echo ""
-    echo "    ${YELLOW}2${RESET}) ${BOLD}Reinstalar${RESET}   — APAGA tudo e instala do zero (perde todos os dados!)"
-    echo ""
-    echo "    ${RED}3${RESET}) ${BOLD}Cancelar${RESET}     — sai sem fazer nada"
-    echo ""
-    read -p "Digite 1, 2 ou 3 [1]: " escolha_existente
+    read -p "Escolha [1]: " escolha_existente
     escolha_existente=${escolha_existente:-1}
 
     case "$escolha_existente" in
         1)
             MODO_INSTALACAO="atualizar"
-            ok "Modo: ATUALIZAR (preserva dados)"
-            # Backup do .env antes de qualquer coisa
-            if [ -f "$INSTALL_DIR/.env" ]; then
-                cp "$INSTALL_DIR/.env" "/tmp/mwcode.env.backup"
-                ok ".env salvo em /tmp/mwcode.env.backup"
-            fi
-            # Backup do data/
-            if [ -d "$INSTALL_DIR/data" ]; then
-                cp -r "$INSTALL_DIR/data" "/tmp/mwcode.data.backup"
-                ok "Pasta data/ salva em /tmp/mwcode.data.backup"
-            fi
+            ok "Modo atualizar — seus dados serão preservados"
+            [ -f "$INSTALL_DIR/.env" ] && cp "$INSTALL_DIR/.env" "/tmp/mwcode.env.backup"
+            [ -d "$INSTALL_DIR/data" ] && cp -r "$INSTALL_DIR/data" "/tmp/mwcode.data.backup"
             ;;
         2)
-            log "Modo: REINSTALAÇÃO completa"
-            read -p "Tem CERTEZA? Isso apaga seus usuários e memórias. Digite 'sim' pra confirmar: " conf
+            read -p "Confirma apagar tudo? Digite 'sim': " conf
             if [ "$conf" != "sim" ]; then
-                err "Cancelado."
+                log "Cancelado."
                 exit 0
             fi
             rm -rf "$INSTALL_DIR"
@@ -89,7 +75,7 @@ if [ -d "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR/.git" ]; then
             ok "Instalação anterior removida"
             ;;
         3|*)
-            log "Cancelado pelo usuário."
+            log "Cancelado."
             exit 0
             ;;
     esac
