@@ -115,11 +115,30 @@ ok "Dependências instaladas"
 # 8. Criar .env (sempre em INSTALL_DIR)
 cd "$INSTALL_DIR"
 > .env
-[ -f .env.example ] && cp .env.example .env
+[ -f .env-example ] && cp .env-example .env
 chmod 600 .env
 ok ".env criado"
 
-# 9. ESCOLHER PROVEDOR
+# 9. CONFIGURAR EMPRESA
+echo ""
+echo -e "${BOLD}🏢 Vamos configurar sua empresa!${RESET}"
+echo ""
+read -p "Nome da empresa: " NOME_EMPRESA
+read -p "Área de atuação: " AREA_ATUACAO
+read -p "Missão/Valores: " MISSAO
+echo ""
+echo "Empresa: $NOME_EMPRESA"
+echo "Área: $AREA_ATUACAO"
+echo "Missão: $MISSAO"
+echo ""
+
+# Salvar dados da empresa
+cd "$INSTALL_DIR"
+echo "MWCODE_EMPRESA=$NOME_EMPRESA" > .env
+echo "MWCODE_AREA=$AREA_ATUACAO" >> .env
+echo "MWCODE_MISSAO=$MISSAO" >> .env
+
+# 9b. ESCOLHER PROVEDOR
 echo ""
 echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
 echo ""
@@ -145,20 +164,19 @@ esac
 
 echo "Provedor: $PROVIDER_NAME"
 
-# 9b. ESCOLHER MODELO (se OpenRouter)
+# 9b. ESCOLHER MODELO
+echo ""
+echo -e "${BOLD}🤖 Escolha o Modelo:${RESET}"
+echo ""
+
 if [ "$PROVIDER_NAME" = "openrouter" ]; then
-    echo ""
-    echo -e "${BOLD}🤖 Escolha o Modelo:${RESET}"
-    echo ""
     echo "  1. Auto       (tenta melhor disponível)"
     echo "  2. DeepSeek Coder (grátis - bom para código)"
     echo "  3. Llama 3.2  (grátis - boa qualidade)"
     echo "  4. Qwen 2.5    (grátis - melhor qualidade)"
     echo "  5. GPT-4o Mini  (pago - melhor geral)"
-    echo ""
-    read -p "Digite o número (1-5) [1]: " escolha_modelo
-    
-    escolha_modelo=${escolha_modelo:-1}
+    read -p "Digite o número (1-5) [2]: " escolha_modelo
+    escolha_modelo=${escolha_modelo:-2}
     case "$escolha_modelo" in
         1) MODELO="openrouter/auto" ;;
         2) MODELO="deepseek/deepseek-coder" ;;
@@ -167,11 +185,25 @@ if [ "$PROVIDER_NAME" = "openrouter" ]; then
         5) MODELO="openai/gpt-4o-mini" ;;
         *) MODELO="deepseek/deepseek-coder" ;;
     esac
-    echo "Modelo: $MODELO"
-    echo ""
+elif [ "$PROVIDER_NAME" = "ollama" ]; then
+    echo "  1. llama3.3    (mais recente)"
+    echo "  2. llama3.2    (grande)"
+    echo "  3. llama3      (medio)"
+    echo "  4. mistral     (rapido)"
+    echo "  5. codellama  (para codigo)"
+    read -p "Digite o número (1-5) [1]: " escolha_modelo
+    escolha_modelo=${escolha_modelo:-1}
+    case "$escolha_modelo" in
+        1) MODELO="llama3.3" ;;
+        2) MODELO="llama3.2" ;;
+        3) MODELO="llama3" ;;
+        4) MODELO="mistral" ;;
+        5) MODELO="codellama" ;;
+        *) MODELO="llama3.3" ;;
+    esac
 fi
 
-echo "Provedor: $PROVIDER_NAME"
+echo "Modelo: $MODELO"
 echo ""
 
 # 10. CHAVE API (invisível)

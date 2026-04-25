@@ -31,6 +31,7 @@ const provider = process.env.MWCODE_PROVIDER || 'openrouter';
 const apiKeyVar = `${provider.toUpperCase()}_API_KEY`;
 const apiKey = process.env[apiKeyVar];
 console.log(`[MWCode] Provider: ${provider}`);
+console.log(`[MWCode] Empresa: ${process.env.MWCODE_EMPRESA || 'não definida'}`);
 console.log(`[MWCode] Var de API Key: ${apiKeyVar}`);
 console.log(`[MWCode] API Key: ${apiKey ? 'SIM (' + apiKey.substring(0, 8) + '...)' : 'NÃO'}`);
 if (!apiKey) {
@@ -43,8 +44,10 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     version: '0.1.0',
-    modo: process.env.MWCODE_MODE || 'flex',
+    empresa: process.env.MWCODE_EMPRESA || null,
+    area: process.env.MWCODE_AREA || null,
     provider: process.env.MWCODE_PROVIDER || null,
+    model: process.env.MWCODE_MODEL || null,
     db: dbStatus,
     timestamp: new Date().toISOString()
   });
