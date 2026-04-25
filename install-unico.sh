@@ -4,11 +4,9 @@
 # Execute:
 #   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
 #
-# Para garantir diretório válido:
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh)"
-#
+# Com variáveis:
+#   PROVEDOR=openrouter API_KEY=sk-or-v1-... bash install-unico.sh
 
-# NÃO usar exit on error - precisa ser interativo
 set -u
 
 BOLD='\033[1m'
@@ -24,9 +22,8 @@ ok() { echo -e "${GREEN}✓${RESET} ${1}"; }
 warn() { echo -e "${YELLOW}⚠${RESET} ${1}"; }
 err() { echo -e "${RED}✗${RESET} ${1}"; }
 
-# Função para mudar para diretório válido
 mudar_dir() {
-    for dir in /tmp /var/tmp "$HOME" "$HOME/.mwcode" /; do
+    for dir in /tmp /var/tmp "$HOME" /; do
         if [ -d "$dir" ] && [ -w "$dir" ] 2>/dev/null; then
             cd "$dir" 2>/dev/null && return 0
         fi
@@ -34,9 +31,7 @@ mudar_dir() {
     cd / 2>/dev/null && return 0
 }
 
-# MUDAR PARA DIRETÓRIO VÁLIDO PRIMEIRO
 mudar_dir
-
 has() { command -v "$1" &>/dev/null; }
 
 INSTALL_DIR="${MWCODE_HOME:-$HOME/.mwcode}"
@@ -53,12 +48,8 @@ echo ""
 log "Verificando instalação anterior..."
 mudar_dir
 
-if [ -d "$INSTALL_DIR" ]; then
-    rm -rf "$INSTALL_DIR"
-    ok "Instalação anterior removida"
-else
-    ok "Nenhuma instalação anterior"
-fi
+[ -d "$INSTALL_DIR" ] && rm -rf "$INSTALL_DIR"
+ok "Instalação anterior removida"
 
 rm -f "$BIN_DIR/mwcode" 2>/dev/null || true
 rm -f "/usr/local/bin/mwcode" 2>/dev/null || true
@@ -74,18 +65,14 @@ mudar_dir
 NODE_OK=false
 if has node; then
     NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
-    if [ "$NODE_VER" -ge 20 ] 2>/dev/null; then
-        NODE_OK=true
-    fi
+    [ "$NODE_VER" -ge 20 ] 2>/dev/null && NODE_OK=true
 fi
 
-if [ "$NODE_OK" = false ]; then
+[ "$NODE_OK" = false ] && {
     warn "Node.js 20+ não encontrado."
-    echo "Por favor, instale o Node.js 20+ primeiro:"
-    echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
-    echo "  sudo apt-get install -y nodejs"
+    echo "Instale primeiro: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
     exit 1
-fi
+}
 
 ok "Node.js: $(node -v)"
 
@@ -97,14 +84,8 @@ mudar_dir
 log "Instalando pnpm..."
 mudar_dir
 
-if ! has pnpm; then
-    npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm 2>/dev/null || true
-fi
-
-if ! has pnpm; then
-    err "pnpm não instalado"
-    exit 1
-fi
+! has pnpm && npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm 2>/dev/null || true
+! has pnpm && { err "pnpm não instalado"; exit 1; }
 
 ok "pnpm: $(pnpm -v)"
 
@@ -116,14 +97,13 @@ mudar_dir
 log "Baixando MWCode..."
 mudar_dir
 
-# Criar diretório temporário alternativo
 TEMP_DIR="/tmp"
 [ ! -w "$TEMP_DIR" ] && TEMP_DIR="$HOME"
 [ ! -w "$TEMP_DIR" ] && TEMP_DIR="/var/tmp"
 
 rm -rf "$TEMP_DIR/mwcode-temp" 2>/dev/null || true
 git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$TEMP_DIR/mwcode-temp" || {
-    err "Falha ao baixar do GitHub"
+    err "Falha ao baixar"
     exit 1
 }
 
@@ -149,7 +129,6 @@ ok "MWCode instalado: $INSTALL_DIR"
 # ============================================================
 log "Verificando correções..."
 cd "$INSTALL_DIR"
-
 sed -i 's/mkdir_safe/mkdir -p/g' install.sh 2>/dev/null || true
 ok "Correções aplicadas"
 
@@ -158,10 +137,7 @@ ok "Correções aplicadas"
 # ============================================================
 log "Instalando dependências..."
 cd "$INSTALL_DIR"
-pnpm install || {
-    err "Falha ao instalar dependências"
-    exit 1
-}
+pnpm install || { err "Falha ao instalar dependências"; exit 1; }
 ok "Dependências instaladas"
 
 # ============================================================
@@ -170,105 +146,90 @@ ok "Dependências instaladas"
 [ ! -f .env ] && cp .env.example .env && chmod 600 .env
 ok ".env criado"
 
-# O problema é que `read` não funciona bem com pipe
-# Por isso vamos usar uma abordagem alternativa
-
 # ============================================================
-# 9. MENU INTERATIVO DE PROVEDOR (corrigido para funcionar com pipe)
+# 9. ESCOLHER PROVEDOR
 # ============================================================
 
-# Verificar se podemos usar modo interativo
-if [ -t 0 ]; then
-    # Terminal interativo - usar read normal
-    echo ""
-    echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
-    echo ""
-    echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
-    echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
-    echo -e "  3. Gemini       (Google - gratuito)"
-    echo -e "  4. DeepSeek    (IA chinesa)"
-    echo -e "  5. Ollama       (modelos locais)"
-    echo ""
-    printf "Digite o número (1-5): "
-    read -r escolha
-else
-    # Modo não-interativo (pipe) - usar argumento ou padrão
-    echo ""
-    echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
-    echo ""
-    echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
-    echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
-    echo -e "  3. Gemini       (Google - gratuito)"
-    echo -e "  4. DeepSeek    (IA chinesa)"
-    echo -e "  5. Ollama       (modelos locais)"
-    echo ""
-    echo "  Passing with pipe detected. Using OpenRouter by default."
-    echo "  To choose another provider, run with: PROVEDOR=openai bash install-unico.sh"
-    echo ""
-    escolha="1"
+# Se PROVEDOR não está definido, verificar se há entrada do usuário
+if [ -z "${PROVEDOR:-}" ]; then
+    # Tentar detectar modo interativo
+    if [ -t 0 ] || [ -t 1 ]; then
+        echo ""
+        echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
+        echo ""
+        echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
+        echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
+        echo -e "  3. Gemini       (Google)"
+        echo -e "  4. DeepSeek    (Barato)"
+        echo -e "  5. Ollama       (Local)"
+        echo ""
+        printf "Digite o número (1-5): "
+        read -r escolha
+    else
+        # Pipe - usar padrão ou variável de ambiente
+        echo ""
+        echo -e "${BOLD}🤖 Provedor:${RESET}"
+        echo ""
+        echo -e "  Usando: ${GREEN}OpenRouter${RESET} (padrão)"
+        echo -e "  Para mudar: PROVEDOR=gemini bash install-unico.sh"
+        echo ""
+        escolha="1"
+    fi
 fi
 
-case "$escolha" in
-    1) PROVEDOR="${PROVEDOR:-openrouter}";;
-    2) PROVEDOR="${PROVEDOR:-openai}";;
-    3) PROVEDOR="${PROVEDOR:-gemini}";;
-    4) PROVEDOR="${PROVEDOR:-deepseek}";;
-    5) PROVEDOR="${PROVEDOR:-ollama}";;
-    *) PROVEDOR="openrouter";;
+# Processar escolha
+case "${escolha:-1}" in
+    1) PROVIDER_NAME="openrouter" ;;
+    2) PROVIDER_NAME="openai" ;;
+    3) PROVIDER_NAME="gemini" ;;
+    4) PROVIDER_NAME="deepseek" ;;
+    5) PROVIDER_NAME="ollama" ;;
+    *) PROVIDER_NAME="${PROVEDOR:-openrouter}" ;;
 esac
 
-echo ""
-echo -e "Provedor selecionado: ${YELLOW}$PROVEDOR${RESET}"
+# Se PROVEDOR foi definido via variável, usar ele
+[ -n "${PROVEDOR:-}" ] && PROVIDER_NAME="$PROVEDOR"
+
+echo -e "Provedor: ${YELLOW}$PROVIDER_NAME${RESET}"
 echo ""
 
 # ============================================================
-# 10. PEDIR CHAVE API (corrigido para funcionar com pipe)
+# 10. CONFIGURAR CHAVE API
 # ============================================================
-if [ "$PROVEDOR" != "ollama" ]; then
-    echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
-    
-    case "$PROVEDOR" in
-        openrouter) echo "  PEGUE SUA CHAVE EM: ${CYAN}https://openrouter.ai/keys${RESET}";;
-        openai)    echo "  PEGUE SUA CHAVE EM: ${CYAN}https://platform.openai.com/api-keys${RESET}";;
-        gemini)    echo "  PEGUE SUA CHAVE EM: ${CYAN}https://aistudio.google.com/app/apikey${RESET}";;
-        deepseek) echo "  PEGUE SUA CHAVE EM: ${CYAN}https://platform.deepseek.com/api-keys${RESET}";;
+if [ "$PROVIDER_NAME" != "ollama" ]; then
+    case "$PROVIDER_NAME" in
+        openrouter) LINK="https://openrouter.ai/keys" ;;
+        openai)    LINK="https://platform.openai.com/api-keys" ;;
+        gemini)   LINK="https://aistudio.google.com/app/apikey" ;;
+        deepseek) LINK="https://platform.deepseek.com/api-keys" ;;
     esac
     
-    # Verificar se tem chave via variável de ambiente
-    if [ -n "$API_KEY" ]; then
-        echo ""
-        echo "Usando chave API da variável de ambiente."
-    elif [ -t 0 ]; then
-        # Terminal interativo
+    # Verificar se tem API_KEY da variável
+    if [ -n "${API_KEY:-}" ]; then
+        echo "Usando API_KEY da variável de ambiente."
+    elif [ -t 0 ] || [ -t 1 ]; then
+        echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
+        echo "  Pegue em: $LINK"
         echo ""
         printf "Cole sua chave API: "
         read -r API_KEY
     else
-        # Modo pipe
-        echo ""
-        echo "Nenhuma chave API fornecida (use API_KEY=chave bash install-unico.sh)"
-        echo "Configure manualmente depois: nano $INSTALL_DIR/.env"
+        echo -e "${YELLOW}⚠ Sem chave API. Configure manualmente depois.${RESET}"
+        echo "  Edite: nano $INSTALL_DIR/.env"
         API_KEY=""
     fi
     
     if [ -n "$API_KEY" ]; then
-        # Atualizar .env
-        case "$PROVEDOR" in
+        case "$PROVIDER_NAME" in
             openrouter) echo "OPENROUTER_API_KEY=$API_KEY" >> .env ;;
             openai)     echo "OPENAI_API_KEY=$API_KEY" >> .env ;;
             gemini)    echo "GEMINI_API_KEY=$API_KEY" >> .env ;;
             deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" >> .env ;;
         esac
-        
-        # Definir provedor padrão
-        echo "MWCODE_PROVIDER=$PROVEDOR" >> .env
-        
+        echo "MWCODE_PROVIDER=$PROVIDER_NAME" >> .env
         ok "Chave API salva!"
-    else
-        warn "Nenhuma chave inserida. Configure manualmente depois."
     fi
 else
-    # Para Ollama
     echo "OLLAMA_BASE_URL=http://localhost:11434" >> .env
     echo "MWCODE_PROVIDER=ollama" >> .env
     ok "Ollama configurado"
@@ -298,49 +259,36 @@ echo ""
 echo "Acesso:"
 echo -e "  UI:    ${GREEN}http://localhost:5173${RESET}"
 echo -e "  API:   ${GREEN}http://localhost:3100${RESET}"
-echo -e "  Saúde: ${GREEN}http://localhost:3100/api/health${RESET}"
 echo ""
 
 # ============================================================
-# 13. INICIAR AUTOMATICAMENTE
+# 13. INICIAR
 # ============================================================
 echo -e "${CYAN}🚀 Iniciando MWCode...${RESET}"
 echo ""
 
 cd "$INSTALL_DIR"
-
-# Iniciar em background
 nohup pnpm dev > /tmp/mwcode.log 2>&1 &
-PID=$!
 
-# Aguardar inicialização
 for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 2
-    if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
-        break
-    fi
+    curl -s http://localhost:3100/api/health > /dev/null 2>&1 && break
 done
 
-# Verificar se iniciou
 if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
-    ok "MWCode iniciado com sucesso!"
+    ok "MWCode iniciado!"
     echo ""
     echo -e "${GREEN}🎉 Tudo pronto!${RESET}"
     echo ""
-    echo "Acesse no navegador:"
-    echo -e "  ${YELLOW}http://localhost:5173${RESET}"
-    echo ""
+    echo "Acesse: ${YELLOW}http://localhost:5173${RESET}"
 else
-    warn "Verificando início..."
+    warn "Verificando..."
     sleep 5
     if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
         ok "MWCode iniciado!"
-        echo ""
         echo "Acesse: ${YELLOW}http://localhost:5173${RESET}"
     else
-        warn "Servidor pode estar iniciando. Verifique manualmente:"
-        echo "  cd $INSTALL_DIR && pnpm dev"
-        echo ""
+        warn "Use: cd $INSTALL_DIR && pnpm dev"
         echo "Logs: tail /tmp/mwcode.log"
     fi
 fi
