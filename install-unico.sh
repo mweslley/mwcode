@@ -105,9 +105,13 @@ y" | pnpm approve-builds 2>/dev/null || true
 pnpm install --force || pnpm rebuild || true
 pnpm install || { err "Falha ao instalar dependências"; exit 1; }
 
-# Reinstalar tsx para garantir
-pnpm add tsx -D 2>/dev/null || true
-pnpm rebuild tsx 2>/dev/null || true
+# Reinstalar tsx com force
+pnpm add tsx@latest -D --force 2>/dev/null || true
+
+# Se tsx ainda não funcionar, usar npx
+if [ ! -f "$INSTALL_DIR/node_modules/.bin/tsx" ]; then
+    log "tsx não disponível, usando npx..."
+fi
 
 ok "Dependências instaladas"
 
@@ -393,8 +397,15 @@ pnpm --filter @mwcode/ui build || { err "UI nao compilada"; exit 1; }
 export PORT="$PORTA_API"
 export UI_PORT="$PORTA_UI"
 
-# Iniciar server diretamente (sem nohup)
-pnpm dev:server &
+# Iniciar server
+cd "$INSTALL_DIR/server"
+
+# Usar npx se tsx local não funcionar
+if [ -f "$INSTALL_DIR/node_modules/.bin/tsx" ]; then
+    ./node_modules/.bin/tsx src/index.ts &
+else
+    npx tsx src/index.ts &
+fi
 SERVER_PID=$!
 
 # Esperar ate iniciar
