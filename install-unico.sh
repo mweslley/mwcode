@@ -50,7 +50,7 @@ mudar_dir
 # 2. Node.js
 log "Verificando Node.js..."
 mudar_dir
-has() { command -v "$1" &>/dev/null; }
+has() { command -v "$1" > /dev/null 2>&1; }
 NODE_OK=false
 if has node; then
     NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)

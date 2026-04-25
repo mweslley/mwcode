@@ -6,21 +6,28 @@ import { createOllamaAdapter } from './ollama.js';
 import { createApiAdapter } from './api.js';
 import { createGitHubAdapter } from './github.js';
 
+function getApiKey(envVar: string | undefined): string {
+  if (!envVar || envVar.trim() === '') {
+    throw new Error(`API key não configurada: ${envVar}`);
+  }
+  return envVar;
+}
+
 export function getAdapter(name: AdapterName, model: string): Adapter {
   switch (name) {
     case 'openai':
       return createOpenAIAdapter({
-        apiKey: process.env.OPENAI_API_KEY || '',
+        apiKey: getApiKey(process.env.OPENAI_API_KEY),
         model
       });
     case 'openrouter':
       return createOpenRouterAdapter({
-        apiKey: process.env.OPENROUTER_API_KEY || '',
+        apiKey: getApiKey(process.env.OPENROUTER_API_KEY),
         model
       });
     case 'gemini':
       return createGeminiAdapter({
-        apiKey: process.env.GEMINI_API_KEY || '',
+        apiKey: getApiKey(process.env.GEMINI_API_KEY),
         model
       });
     case 'ollama':
@@ -30,18 +37,18 @@ export function getAdapter(name: AdapterName, model: string): Adapter {
       });
     case 'api':
       return createApiAdapter({
-        apiKey: process.env.MWCODE_API_KEY || '',
+        apiKey: getApiKey(process.env.MWCODE_API_KEY),
         baseUrl: process.env.MWCODE_API_BASE_URL || '',
         model
       });
     case 'github':
       return createGitHubAdapter({
-        token: process.env.GITHUB_TOKEN || '',
+        token: getApiKey(process.env.GITHUB_TOKEN),
         model
       });
     case 'deepseek':
       return createOpenAIAdapter({
-        apiKey: process.env.DEEPSEEK_API_KEY || '',
+        apiKey: getApiKey(process.env.DEEPSEEK_API_KEY),
         baseUrl: 'https://api.deepseek.com/v1',
         model
       });

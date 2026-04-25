@@ -26,6 +26,16 @@ app.use(express.json());
 app.use(authMiddleware);
 app.use(companyMiddleware);
 
+// Validar API key no startup
+const provider = process.env.MWCODE_PROVIDER || 'openrouter';
+const apiKeyVar = `${provider.toUpperCase()}_API_KEY`;
+const apiKey = process.env[apiKeyVar];
+console.log(`[MWCode] Provider: ${provider}`);
+console.log(`[MWCode] API Key configurada: ${apiKey ? 'SIM' : 'NÃO'}`);
+if (!apiKey) {
+  console.error(`[MWCode] ERRO: ${apiKeyVar} não encontrada!`);
+}
+
 app.get('/api/health', (_req, res) => {
   const dbStatus = process.env.DATABASE_URL ? 'configured' : 'not_configured';
   
