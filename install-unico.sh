@@ -207,6 +207,32 @@ else
     ok "Ollama configurado"
 fi
 
+# Funções de porta DEVEM vir antes do uso
+test_porta_uso() {
+    local PORTA=$1
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z localhost $PORTA 2>/dev/null; then
+            return 1
+        fi
+    fi
+    if command -v timeout >/dev/null 2>&1; then
+        if timeout 1 bash -c "echo >/dev/tcp/localhost/$PORTA" 2>/dev/null; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+achar_porta_livre() {
+    local PORTA_BASE=$1
+    local PORTA=$PORTA_BASE
+    while test_porta_uso $PORTA; do
+        PORTA=$((PORTA + 1))
+        [ $PORTA -gt $((PORTA_BASE + 10)) ] && return 0
+    done
+    echo "$PORTA"
+}
+
 # 11. Criar comando
 log "Criando comando..."
 cd "$INSTALL_DIR"
@@ -231,22 +257,6 @@ test_porta_uso() {
         fi
     fi
     return 0
-}
-
-# Encontrar porta livre
-achar_porta_livre() {
-    local PORTA_BASE=$1
-    local PORTA=$PORTA_BASE
-    
-    while test_porta_uso $PORTA; do
-        PORTA=$((PORTA + 1))
-        if [ $PORTA -gt $((PORTA_BASE + 10)) ]; then
-            # Tentou 10 portas, dar erro
-            return 0
-        fi
-    done
-    
-    echo "$PORTA"
 }
 
 # ============================================================
