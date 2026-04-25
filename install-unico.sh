@@ -371,6 +371,11 @@ log "Isso pode levar alguns segundos..."
 echo ""
 
 cd "$INSTALL_DIR"
+
+# Build da UI primeiro
+log "Compilando UI..."
+pnpm --filter @mwcode/ui build || { err "UI nao compilada"; exit 1; }
+
 export PORT="$PORTA_API"
 export UI_PORT="$PORTA_UI"
 
