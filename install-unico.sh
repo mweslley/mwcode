@@ -150,31 +150,35 @@ ok ".env criado"
 # 9. ESCOLHER PROVEDOR
 # ============================================================
 
-# Se PROVEDOR não está definido, verificar se há entrada do usuário
-if [ -z "${PROVEDOR:-}" ]; then
-    # Tentar detectar modo interativo
-    if [ -t 0 ] || [ -t 1 ]; then
-        echo ""
-        echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
-        echo ""
-        echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
-        echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
-        echo -e "  3. Gemini       (Google)"
-        echo -e "  4. DeepSeek    (Barato)"
-        echo -e "  5. Ollama       (Local)"
-        echo ""
-        printf "Digite o número (1-5): "
-        read -r escolha
-    else
-        # Pipe - usar padrão ou variável de ambiente
-        echo ""
-        echo -e "${BOLD}🤖 Provedor:${RESET}"
-        echo ""
-        echo -e "  Usando: ${GREEN}OpenRouter${RESET} (padrão)"
-        echo -e "  Para mudar: PROVEDOR=gemini bash install-unico.sh"
-        echo ""
-        escolha="1"
-    fi
+# Se PROVEDOR não está definido e não é interativo, usar padrão
+if [ -n "${PROVEDOR:-}" ]; then
+    PROVIDER_NAME="$PROVEDOR"
+    escolha="1"
+elif ! [ -t 0 ] && ! [ -t 1 ]; then
+    # Modo pipe - usar variáveis ou padrão
+    echo ""
+    echo -e "${BOLD}🤖 Modo não-interativo detectado${RESET}"
+    echo ""
+    echo -e "  Provedor: ${GREEN}openrouter${RESET} (padrão)"
+    echo "  Para mudar: PROVEDOR=openai bash install-unico.sh"
+    echo ""
+    PROVIDER_NAME="openrouter"
+    escolha="1"
+elif [ -z "${PROVEDOR:-}" ]; then
+    # Tentar modo interativo
+    echo ""
+    echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
+    echo ""
+    echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
+    echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
+    echo -e "  3. Gemini       (Google)"
+    echo -e "  4. DeepSeek    (Barato)"
+    echo -e "  5. Ollama       (Local)"
+    echo ""
+    printf "Digite o número (1-5): "
+    read -r escolha
+else
+    escolha="1"
 fi
 
 # Processar escolha
@@ -204,18 +208,23 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
         deepseek) LINK="https://platform.deepseek.com/api-keys" ;;
     esac
     
-    # Verificar se tem API_KEY da variável
+    # Verificar se tem API_KEY da variável de ambiente
     if [ -n "${API_KEY:-}" ]; then
         echo "Usando API_KEY da variável de ambiente."
+    elif ! [ -t 0 ] && ! [ -t 1 ]; then
+        # Modo não-interativo - avisar para configurar manualmente
+        echo -e "${YELLOW}⚠ Sem chave API configurada.${RESET}"
+        echo "  Edite manualmente: nano $INSTALL_DIR/.env"
+        echo "  Depois adicione: OPENROUTER_API_KEY=sua-chave"
+        API_KEY=""
     elif [ -t 0 ] || [ -t 1 ]; then
+        # Modo interativo - pedir chave
         echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
         echo "  Pegue em: $LINK"
         echo ""
         printf "Cole sua chave API: "
         read -r API_KEY
     else
-        echo -e "${YELLOW}⚠ Sem chave API. Configure manualmente depois.${RESET}"
-        echo "  Edite: nano $INSTALL_DIR/.env"
         API_KEY=""
     fi
     
