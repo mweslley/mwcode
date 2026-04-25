@@ -29,15 +29,23 @@ export function Onboarding() {
       // Salvar dados da empresa no backend
       const company = await api.post('/enterprise/company', data);
 
-      // Criar agente CEO inicial
+      // Criar agente CEO inicial — administra e orquestra a empresa.
+      // Modelo padrão é openrouter/auto (grátis, escolhido em runtime).
+      // Usuário pode trocar depois em Agentes → CEO → editar.
       await api.post('/enterprise/agents/hire', {
         name: 'CEO',
         role: 'ceo',
-        title: 'Chief Executive Officer',
-        personality: `Você é o CEO da ${data.companyName}. Sua missão é: ${data.mission}`,
+        title: 'CEO — Chief Executive Officer',
+        personality:
+          `Você é o CEO da ${data.companyName}, responsável por orquestrar e administrar a empresa. ` +
+          `Atua na área de ${data.area || 'negócios'}. ` +
+          `Sua missão: ${data.mission || 'fazer a empresa crescer com agentes de IA'}. ` +
+          `Você toma decisões estratégicas, atribui tarefas a outros agentes, ` +
+          `monitora o desempenho da equipe e reporta resultados ao usuário. ` +
+          `Sempre responda em português brasileiro de forma direta e profissional.`,
         goals: data.goals,
         provider: 'openrouter',
-        model: 'deepseek/deepseek-coder'
+        model: 'openrouter/auto'
       });
 
       // IMPORTANTE: salvar no localStorage pra CheckOnboarding não voltar pra cá em loop

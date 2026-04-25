@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ModelPicker } from './ModelPicker';
 
 interface Props {
   onSubmit: (data: any) => Promise<void>;
@@ -61,8 +62,21 @@ export function HireModal({ onSubmit, onClose }: Props) {
           </select>
         </div>
         <div className="form-group">
-          <label>Modelo</label>
-          <input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} />
+          {form.adapter === 'openrouter' ? (
+            <ModelPicker
+              value={form.model}
+              onChange={(model) => setForm({ ...form, model })}
+            />
+          ) : (
+            <>
+              <label>Modelo</label>
+              <input
+                value={form.model}
+                onChange={(e) => setForm({ ...form, model: e.target.value })}
+                placeholder="ex: gpt-4o-mini"
+              />
+            </>
+          )}
         </div>
         <div className="form-group">
           <label>Habilidades (separadas por vírgula)</label>

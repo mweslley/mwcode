@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useChat } from '../hooks/useChat';
 import { ChatWindow } from '../components/ChatWindow';
 import { ModeSwitcher } from '../components/ModeSwitcher';
+import { ModelPicker } from '../components/ModelPicker';
 
 export function ChatSingle() {
   const [provider, setProvider] = useState('openrouter');
@@ -11,33 +12,48 @@ export function ChatSingle() {
   return (
     <div>
       <ModeSwitcher />
-      <h1>Modo Pessoal — Conversa Direta</h1>
-      <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
-        Converse direto com um provedor sem contratar agente.
+      <h1>Conversa Direta</h1>
+      <p style={{ color: 'var(--muted)', marginBottom: 16 }}>
+        Converse direto com a IA sem contratar agente. Escolha o provedor e o modelo abaixo.
       </p>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 12, color: 'var(--muted)' }}>Provedor</label>
-          <select value={provider} onChange={e => setProvider(e.target.value)}>
-            <option value="openrouter">OpenRouter</option>
+      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 12, marginBottom: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            Provedor
+          </label>
+          <select value={provider} onChange={(e) => setProvider(e.target.value)} style={{ width: '100%' }}>
+            <option value="openrouter">OpenRouter (recomendado)</option>
             <option value="openai">OpenAI</option>
             <option value="gemini">Gemini</option>
-            <option value="ollama">Ollama</option>
+            <option value="ollama">Ollama (local)</option>
             <option value="deepseek">DeepSeek</option>
           </select>
         </div>
-        <div style={{ flex: 2 }}>
-          <label style={{ fontSize: 12, color: 'var(--muted)' }}>Modelo</label>
-          <input value={model} onChange={e => setModel(e.target.value)} />
+        <div>
+          {provider === 'openrouter' ? (
+            <ModelPicker value={model} onChange={setModel} mostrarPagos />
+          ) : (
+            <>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Modelo
+              </label>
+              <input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="ex: gpt-4o-mini"
+                style={{ width: '100%' }}
+              />
+            </>
+          )}
         </div>
       </div>
 
       <ChatWindow
         messages={messages}
         loading={loading}
-        onSend={t => sendSingle(t, provider, model)}
-        placeholder="Digite sua mensagem (português brasileiro)..."
+        onSend={(t) => sendSingle(t, provider, model)}
+        placeholder="Digite sua mensagem em português brasileiro..."
       />
     </div>
   );
