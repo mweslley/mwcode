@@ -147,48 +147,9 @@ case "$escolha" in
 esac
 
 echo "Provedor: $PROVIDER_NAME"
-
-# 9b. ESCOLHER MODELO
-echo ""
-echo -e "${BOLD}🤖 Escolha o Modelo:${RESET}"
 echo ""
 
-if [ "$PROVIDER_NAME" = "openrouter" ]; then
-    echo "  1. Auto       (tenta melhor disponível)"
-    echo "  2. DeepSeek Coder (grátis - bom para código)"
-    echo "  3. Llama 3.2  (grátis - boa qualidade)"
-    echo "  4. Qwen 2.5    (grátis - melhor qualidade)"
-    echo "  5. GPT-4o Mini  (pago - melhor geral)"
-    read -p "Digite o número (1-5) [2]: " escolha_modelo
-    escolha_modelo=${escolha_modelo:-2}
-    case "$escolha_modelo" in
-        1) MODELO="openrouter/auto" ;;
-        2) MODELO="deepseek/deepseek-coder" ;;
-        3) MODELO="meta-llama/llama-3.2-90b-instruct" ;;
-        4) MODELO="qwen/qwen-2.5-72b-instruct" ;;
-        5) MODELO="openai/gpt-4o-mini" ;;
-        *) MODELO="deepseek/deepseek-coder" ;;
-    esac
-elif [ "$PROVIDER_NAME" = "ollama" ]; then
-    echo "  1. llama3.3    (mais recente)"
-    echo "  2. llama3.2    (grande)"
-    echo "  3. llama3      (medio)"
-    echo "  4. mistral     (rapido)"
-    echo "  5. codellama  (para codigo)"
-    read -p "Digite o número (1-5) [1]: " escolha_modelo
-    escolha_modelo=${escolha_modelo:-1}
-    case "$escolha_modelo" in
-        1) MODELO="llama3.3" ;;
-        2) MODELO="llama3.2" ;;
-        3) MODELO="llama3" ;;
-        4) MODELO="mistral" ;;
-        5) MODELO="codellama" ;;
-        *) MODELO="llama3.3" ;;
-    esac
-fi
-
-echo "Modelo: $MODELO"
-echo ""
+# 9b. MODELO (opcional - pode escolher por agente na Dashboard)
 
 # 10. CHAVE API (invisível)
 if [ "$PROVIDER_NAME" != "ollama" ]; then
