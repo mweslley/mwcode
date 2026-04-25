@@ -1,20 +1,17 @@
 #!/bin/bash
 #
-# MWCode — Instalador Único + Launcher Interativo
+# MWCode — Instalador Único (Sempre Interativo)
 # Execute:
 #   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
 #
-# Com variáveis:
-#   PROVEDOR=openrouter API_KEY=sk-or-v1-... bash install-unico.sh
 
-set -u
+set +u  # Não sair por erros - permitir interação
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
-DIM='\033[2m'
 RESET='\033[0m'
 
 log() { echo -e "${CYAN}ℹ${RESET} ${1}"; }
@@ -22,13 +19,12 @@ ok() { echo -e "${GREEN}✓${RESET} ${1}"; }
 warn() { echo -e "${YELLOW}⚠${RESET} ${1}"; }
 err() { echo -e "${RED}✗${RESET} ${1}"; }
 
+# Mudar para diretório válido
 mudar_dir() {
     for dir in /tmp /var/tmp "$HOME" /; do
-        if [ -d "$dir" ] && [ -w "$dir" ] 2>/dev/null; then
-            cd "$dir" 2>/dev/null && return 0
-        fi
+        [ -d "$dir" ] && [ -w "$dir" 2>/dev/null && { cd "$dir" 2>/dev/null; return 0; }
     done
-    cd / 2>/dev/null && return 0
+    cd / 2>/dev/null
 }
 
 mudar_dir
@@ -69,8 +65,7 @@ if has node; then
 fi
 
 [ "$NODE_OK" = false ] && {
-    warn "Node.js 20+ não encontrado."
-    echo "Instale primeiro: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
+    warn "Node.js 20+ não encontrado. Instale primeiro."
     exit 1
 }
 
@@ -147,58 +142,35 @@ ok "Dependências instaladas"
 ok ".env criado"
 
 # ============================================================
-# 9. ESCOLHER PROVEDOR
+# 9. SEMPRE - Menu de Escolha de PROVEDOR
 # ============================================================
+echo ""
+echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
+echo ""
+echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
+echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
+echo -e "  3. Gemini       (Google)"
+echo -e "  4. DeepSeek    (Barato)"
+echo -e "  5. Ollama       (Local)"
+echo ""
+printf "Digite o número (1-5): "
+read -r escolha
 
-# Se PROVEDOR não está definido e não é interativo, usar padrão
-if [ -n "${PROVEDOR:-}" ]; then
-    PROVIDER_NAME="$PROVEDOR"
-    escolha="1"
-elif ! [ -t 0 ] && ! [ -t 1 ]; then
-    # Modo pipe - usar variáveis ou padrão
-    echo ""
-    echo -e "${BOLD}🤖 Modo não-interativo detectado${RESET}"
-    echo ""
-    echo -e "  Provedor: ${GREEN}openrouter${RESET} (padrão)"
-    echo "  Para mudar: PROVEDOR=openai bash install-unico.sh"
-    echo ""
-    PROVIDER_NAME="openrouter"
-    escolha="1"
-elif [ -z "${PROVEDOR:-}" ]; then
-    # Tentar modo interativo
-    echo ""
-    echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
-    echo ""
-    echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
-    echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
-    echo -e "  3. Gemini       (Google)"
-    echo -e "  4. DeepSeek    (Barato)"
-    echo -e "  5. Ollama       (Local)"
-    echo ""
-    printf "Digite o número (1-5): "
-    read -r escolha
-else
-    escolha="1"
-fi
-
-# Processar escolha
-case "${escolha:-1}" in
+# Processar escolha (sempre pergunta!)
+case "$escolha" in
     1) PROVIDER_NAME="openrouter" ;;
     2) PROVIDER_NAME="openai" ;;
     3) PROVIDER_NAME="gemini" ;;
     4) PROVIDER_NAME="deepseek" ;;
     5) PROVIDER_NAME="ollama" ;;
-    *) PROVIDER_NAME="${PROVEDOR:-openrouter}" ;;
+    *) PROVIDER_NAME="openrouter" ;;
 esac
-
-# Se PROVEDOR foi definido via variável, usar ele
-[ -n "${PROVEDOR:-}" ] && PROVIDER_NAME="$PROVEDOR"
 
 echo -e "Provedor: ${YELLOW}$PROVIDER_NAME${RESET}"
 echo ""
 
 # ============================================================
-# 10. CONFIGURAR CHAVE API
+# 10. SEMPRE - Pedir CHAVE API
 # ============================================================
 if [ "$PROVIDER_NAME" != "ollama" ]; then
     case "$PROVIDER_NAME" in
@@ -208,27 +180,14 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
         deepseek) LINK="https://platform.deepseek.com/api-keys" ;;
     esac
     
-    # Verificar se tem API_KEY da variável de ambiente
-    if [ -n "${API_KEY:-}" ]; then
-        echo "Usando API_KEY da variável de ambiente."
-    elif ! [ -t 0 ] && ! [ -t 1 ]; then
-        # Modo não-interativo - avisar para configurar manualmente
-        echo -e "${YELLOW}⚠ Sem chave API configurada.${RESET}"
-        echo "  Edite manualmente: nano $INSTALL_DIR/.env"
-        echo "  Depois adicione: OPENROUTER_API_KEY=sua-chave"
-        API_KEY=""
-    elif [ -t 0 ] || [ -t 1 ]; then
-        # Modo interativo - pedir chave
-        echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
-        echo "  Pegue em: $LINK"
-        echo ""
-        printf "Cole sua chave API: "
-        read -r API_KEY
-    else
-        API_KEY=""
-    fi
+    echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
+    echo "  Pegue em: $LINK"
+    echo ""
+    printf "Cole sua chave API: "
+    read -r API_KEY
     
     if [ -n "$API_KEY" ]; then
+        # Salvar no .env
         case "$PROVIDER_NAME" in
             openrouter) echo "OPENROUTER_API_KEY=$API_KEY" >> .env ;;
             openai)     echo "OPENAI_API_KEY=$API_KEY" >> .env ;;
@@ -237,6 +196,8 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
         esac
         echo "MWCODE_PROVIDER=$PROVIDER_NAME" >> .env
         ok "Chave API salva!"
+    else
+        warn "Nenhuma chave inserida."
     fi
 else
     echo "OLLAMA_BASE_URL=http://localhost:11434" >> .env
@@ -291,13 +252,6 @@ if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
     echo ""
     echo "Acesse: ${YELLOW}http://localhost:5173${RESET}"
 else
-    warn "Verificando..."
-    sleep 5
-    if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
-        ok "MWCode iniciado!"
-        echo "Acesse: ${YELLOW}http://localhost:5173${RESET}"
-    else
-        warn "Use: cd $INSTALL_DIR && pnpm dev"
-        echo "Logs: tail /tmp/mwcode.log"
-    fi
+    warn "Use: cd $INSTALL_DIR && pnpm dev"
+    echo "Logs: tail /tmp/mwcode.log"
 fi
