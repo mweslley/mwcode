@@ -119,26 +119,7 @@ cd "$INSTALL_DIR"
 chmod 600 .env
 ok ".env criado"
 
-# 9. CONFIGURAR EMPRESA
-echo ""
-echo -e "${BOLD}🏢 Vamos configurar sua empresa!${RESET}"
-echo ""
-read -p "Nome da empresa: " NOME_EMPRESA
-read -p "Área de atuação: " AREA_ATUACAO
-read -p "Missão/Valores: " MISSAO
-echo ""
-echo "Empresa: $NOME_EMPRESA"
-echo "Área: $AREA_ATUACAO"
-echo "Missão: $MISSAO"
-echo ""
-
-# Salvar dados da empresa
-cd "$INSTALL_DIR"
-echo "MWCODE_EMPRESA=$NOME_EMPRESA" > .env
-echo "MWCODE_AREA=$AREA_ATUACAO" >> .env
-echo "MWCODE_MISSAO=$MISSAO" >> .env
-
-# 9b. ESCOLHER PROVEDOR
+# 9. ESCOLHER PROVEDOR (empresa configurada na UI)
 echo ""
 echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
 echo ""
