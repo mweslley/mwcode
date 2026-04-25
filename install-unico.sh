@@ -25,6 +25,9 @@ die() { err "$1"; exit 1; }
 INSTALL_DIR="${MWCODE_HOME:-$HOME/.mwcode}"
 BIN_DIR="${MWCODE_BIN:-$HOME/.local/bin}"
 
+# Função has definida aqui para usar depois
+has() { command -v "$1" &>/dev/null; }
+
 log "${BOLD}🚀 MWCode — Instalador Único${RESET}"
 log "Sistema: Linux"
 log ""
@@ -53,9 +56,6 @@ cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 # 2. Node.js 20+
 # ============================================================
 log "Verificando Node.js..."
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
-
-has() { command -v "$1" &>/dev/null; }
 
 NODE_OK=false
 if has node; then
@@ -78,7 +78,6 @@ cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 # 3. pnpm
 # ============================================================
 log "Instalando pnpm..."
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
 if ! has pnpm; then
     npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm 2>/dev/null || true
