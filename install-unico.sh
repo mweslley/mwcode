@@ -223,16 +223,6 @@ test_porta_uso() {
     return 0
 }
 
-achar_porta_livre() {
-    local PORTA_BASE=$1
-    local PORTA=$PORTA_BASE
-    while test_porta_uso $PORTA; do
-        PORTA=$((PORTA + 1))
-        [ $PORTA -gt $((PORTA_BASE + 10)) ] && return 0
-    done
-    echo "$PORTA"
-}
-
 # 11. Criar comando
 log "Criando comando..."
 cd "$INSTALL_DIR"
@@ -242,43 +232,19 @@ ok "Comando 'mwcode' disponível"
 
 mudar_dir
 
-# Testar se a porta está em uso
-test_porta_uso() {
-    local PORTA=$1
-    # Verificar se alguma coisa já está usando a porta
-    if command -v nc >/dev/null 2>&1; then
-        if nc -z localhost $PORTA 2>/dev/null; then
-            return 1  # Porta em uso
-        fi
-    fi
-    if command -v timeout >/dev/null 2>&1; then
-        if timeout 1 bash -c "echo >/dev/tcp/localhost/$PORTA" 2>/dev/null; then
-            return 1  # Porta em uso
-        fi
-    fi
-    return 0
-}
-
 # ============================================================
 # 12. INSTALAR UFW E LIBERAR PORTAS
 # ============================================================
 log "Verificando portas..."
 
-# Detectar qual porta usar para UI
-if test_porta_uso 5173; then
-    PORTA_UI=$(achar_porta_livre 5173)
-    log "Porta 5173 em uso, usando: $PORTA_UI"
-else
-    PORTA_UI=5173
-fi
+# Matar processos existentes primeiro
+pkill -f "node.*3100" 2>/dev/null || true
+pkill -f "vite" 2>/dev/null || true
+sleep 1
 
-# Detectar qual porta usar para API
-if test_porta_uso 3100; then
-    PORTA_API=$(achar_porta_livre 3100)
-    log "Porta 3100 em uso, usando: $PORTA_API"
-else
-    PORTA_API=3100
-fi
+# Usar portas fixas (3100 para API, 5173 para UI)
+PORTA_UI=5173
+PORTA_API=3100
 
 # Salvar as portas no .env
 echo "PORT=$PORTA_API" >> .env
