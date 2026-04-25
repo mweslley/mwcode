@@ -9,6 +9,7 @@ import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Onboarding } from './pages/Onboarding';
+import { Skills } from './pages/Skills';
 
 /** Bloqueia rota se não tiver token (redireciona pra /login). */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -62,6 +63,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           <nav>
             <span className="section">Modo Pessoal</span>
             <NavLink to="/single">💬 Chat</NavLink>
+            <NavLink to="/skills">🎯 Skills</NavLink>
             <NavLink to="/config">⚙️ Configurações</NavLink>
             <hr />
             <a onClick={trocarModo} style={{ cursor: 'pointer' }}>🔄 Trocar modo</a>
@@ -76,6 +78,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
             <NavLink to="/agentes">👥 Agentes</NavLink>
             <NavLink to="/contratar">➕ Contratar</NavLink>
             <NavLink to="/chat">💬 Chat</NavLink>
+            <NavLink to="/skills">🎯 Skills</NavLink>
             <NavLink to="/config">⚙️ Configurações</NavLink>
             <hr />
             <a onClick={trocarModo} style={{ cursor: 'pointer' }}>🔄 Trocar modo</a>
@@ -176,6 +179,7 @@ export function App() {
                   />
 
                   {/* Comum a ambos os modos */}
+                  <Route path="/skills" element={<Skills />} />
                   <Route path="/config" element={<Settings />} />
 
                   {/* Fallback: vai pra tela inicial do modo */}
