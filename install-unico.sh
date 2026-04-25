@@ -162,9 +162,9 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo ""
     echo -n "Cole sua chave API: "
     read -s API_KEY
-    echo ""
     
     if [ -n "$API_KEY" ]; then
+        echo ""
         # SALVAR (substituir, nao append)
         cd "$INSTALL_DIR"
         case "$PROVIDER_NAME" in
