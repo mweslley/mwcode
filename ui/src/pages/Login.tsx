@@ -19,7 +19,15 @@ export function Login() {
       if (res.token) {
         localStorage.setItem('token', res.token);
         localStorage.setItem('user', JSON.stringify(res.user));
-        navigate('/dashboard');
+        // Se já escolheu modo antes, mantém; senão, vai pra escolha
+        const modo = localStorage.getItem('mode');
+        if (modo === 'personal') {
+          navigate('/single');
+        } else if (modo === 'enterprise') {
+          navigate('/dashboard');
+        } else {
+          navigate('/mode');
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login');

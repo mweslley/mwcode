@@ -20,7 +20,8 @@ export function Register() {
       if (res.token) {
         localStorage.setItem('token', res.token);
         localStorage.setItem('user', JSON.stringify(res.user));
-        navigate('/dashboard');
+        // Conta nova → sempre escolher modo
+        navigate('/mode');
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao criar conta');

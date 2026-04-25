@@ -1,17 +1,52 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
 export function Settings() {
+  const navigate = useNavigate();
   const [health, setHealth] = useState<any>(null);
   const [failoverOn, setFailoverOn] = useState(true);
+  const mode = localStorage.getItem('mode');
 
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
   }, []);
 
+  function trocarModo() {
+    if (
+      confirm(
+        'Trocar de modo? Você voltará pra tela de escolha (Pessoal ou Empresa).\n\nSeus dados não serão apagados — só o modo de uso.'
+      )
+    ) {
+      localStorage.removeItem('mode');
+      navigate('/mode');
+    }
+  }
+
   return (
     <div>
       <h1>Configurações</h1>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2>Modo de uso</h2>
+        <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>
+          Você está usando o MWCode como{' '}
+          <strong>{mode === 'personal' ? '👤 Pessoal' : '🏢 Empresa'}</strong>.
+        </p>
+        <button
+          onClick={trocarModo}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          🔄 Trocar modo
+        </button>
+      </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2>Sistema</h2>
