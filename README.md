@@ -1,6 +1,6 @@
-# MWCode - Sistema Unico de Agentes de IA
+# MWCode - Sistema Único de Agentes de IA
 
-Um sistema flexível de agentes de IAopen-source, construido com React + Node.js.
+Um sistema de agentes de IA open-source, construído com React + Node.js.
 
 ## 🇧🇷 100% Português Brasileiro
 
@@ -9,55 +9,57 @@ Um sistema flexível de agentes de IAopen-source, construido com React + Node.js
 ## 🚀 Instalação Rápida
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install.sh && bash /tmp/install.sh
+curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
 ```
+
+O instalador pergunta:
+1. Provedor de IA
+2. Chave API (escondida)
+
+---
+
+## 🌐 Acessos
+
+| Serviço | Porta | URL |
+|--------|-------|-----|
+| UI (Frontend) | 5173 | http://localhost:5173 |
+| API (Backend) | 3100 | http://localhost:3100 |
 
 ---
 
 ## ✨ Funcionalidades
 
-### Para Usuários
-- **Modo Pessoal** - Seu assistente de IA pessoal
-- **Interface Moderna** - UI bonita e intuitiva
-- **Multi-Provedor** - OpenRouter, OpenAI, Gemini, DeepSeek, Ollama
+### Modo Pessoal
+- Chat com IA
+- Múltiplos provedores (OpenRouter, OpenAI, Gemini, DeepSeek, Ollama)
+- Memórias persistidas
+- Skills customizáveis
 
-### Para Empresas
-- **Dashboard Corporativa** - Gestão completa
-- **Sistema de Agentes** - Contrate agentes como funcionários
-- **Hierarquia** - CEO → CTO → Engs → etc
-- **Orçamento** - Controle de custos por agente
-- **Skills** - Customize seu agente
-
-### Segurança
-- **Login Seguro** - JWT + bcrypt
-- **Auth middleware** - Todas rotas protegidas
-- **Multi-usuário** - Cada empresa com seus dados
+### Modo Empresa (Dashboard)
+- Sistema de agentes como funcionários
+- Hierarquia: CEO → CTO → Engs → etc
+- Controle de orçamento
+- Contratar/demitir agentes
+- Login JWT
 
 ---
 
-## 📱 Screenshots
-
-![Dashboard](./docs/dashboard.png)
-
----
-
-## 🏗️ Arquitetura
+## 📁 Estrutura
 
 ```
 mwcode/
 ├── server/          # API REST (Express)
 │   └── src/
-│       ├── routes/   # /auth, /chat, /agents, /skills
-│       └── services/
+│       ├── routes/   # /auth, /chat, /agents, /enterprise
+│       └── middleware/
 ├── ui/             # Frontend (React + Vite)
 │   └── src/
-│       ├── pages/   # Login, Dashboard, Chat
-│       └── components/
-├── packages/       # Workspace compartilhado
-│   ├── adapters/   # OpenRouter, OpenAI, etc
-│   ├── shared/     # Types, validators
-│   └── db/         # Schema (futuro)
-└── data/           # Dados persistidos
+│       ├── pages/   # Login, Register, Dashboard, Chat
+│       └── lib/     # API client
+├── packages/       # Workspace
+│   ├── adapters/   # Provedores de IA
+│   └── shared/     # Types
+└── data/          # Dados (JSON)
     ├── users.json
     ├── memories/
     ├── skills/
@@ -74,9 +76,8 @@ mwcode/
 | POST | /api/auth/login | Login |
 | GET | /api/chat/single | Chat modo pessoal |
 | POST | /api/chat/:agentId | Chat com agente |
-| GET | /api/enterprise/agents | Listar agentes |
+| GET | /api/enterprise/company | Dados da empresa |
 | POST | /api/enterprise/agents/hire | Contratar agente |
-| DELETE | /api/enterprise/agents/:id | Demitir agente |
 | GET | /api/skills | Listar skills |
 | POST | /api/skills | Criar skill |
 | GET | /api/memories | Listar memórias |
@@ -86,26 +87,38 @@ mwcode/
 
 ## 🤖 Modelos Gratuitos
 
-| Modelo | Custo | Melhor para |
-|--------|------|-------------|
-| deepseek/deepseek-coder | Grátis | Código |
-| meta-llama/llama-3.2-90b | Grátis | Qualidade |
-| qwen/qwen-2.5-72b | Grátis | Melhor qualidade |
+| Modelo | Provider | Uso |
+|--------|----------|-----|
+| deepseek/deepseek-coder | OpenRouter | Código |
+| meta-llama/llama-3.2-90b | OpenRouter | Qualidade |
+| qwen/qwen-2.5-72b | OpenRouter | Melhor qualidade |
 
 ---
 
-## 🛠️ Développement
+## 🔧 Desenvolvimento
 
 ```bash
 # Clone
 git clone https://github.com/mweslley/mwcode.git
 cd mwcode
 
-# Install
+# Instalar
 pnpm install
 
 # Dev
 pnpm dev
+```
+
+---
+
+## ⚙️ Variáveis de Ambiente
+
+```bash
+OPENROUTER_API_KEY=sk-...    # OpenRouter
+OPENAI_API_KEY=sk-...    # OpenAI
+GEMINI_API_KEY=...        # Google
+MWCODE_PROVIDER=openrouter
+MWCODE_MODEL=qwen/qwen-2.5-72b-instruct
 ```
 
 ---
@@ -119,6 +132,6 @@ MIT
 ## 🙏 Agradecimentos
 
 Inspirado em:
-- [Paperclip](https://github.com/peakcool/paperclip) - Sistema de agentes empresariales
-- [OpenCode](https://github.com/opencode-ai/opencode) - IA agent
-- [OpenClaude](https://github.com/nickcarlos/OpenClaude) - Claude CLI
+- [Paperclip](https://github.com/peakcool/paperclip)
+- [OpenCode](https://github.com/opencode-ai/opencode)
+- [OpenClaude](https://github.com/nickcarlos/OpenClaude)
