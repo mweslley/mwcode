@@ -1,14 +1,29 @@
-import type { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 
-declare global {
-  namespace Express {
-    interface Request {
-      userId?: string;
-    }
-  }
+const JWT_SECRET = process.env.JWT_SECRET || 'mwcode-secret-key-change-in-production';
+
+export interface AuthRequest extends Request {
+  userId?: string;
+  userEmail?: string;
 }
 
-export function authMiddleware(req: Request, _res: Response, next: NextFunction) {
-  req.userId = (req.header('x-user-id') as string) || 'user-default';
-  next();
+export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+  const auth = req.headers.authorization;
+  
+  if (!auth) {
+    return res.status(401).json({ error: 'Token não fornecido' });
+  }
+  
+  try {
+    const token = auth.replace('Bearer ', '');
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    
+    req.userId = decoded.userId;
+    req.userEmail = decoded.email;
+    
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
+  }
 }

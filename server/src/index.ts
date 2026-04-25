@@ -52,12 +52,23 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+import { authRouter } from './routes/auth.js';
+import { memoriesRouter } from './routes/memories.js';
+import { skillsRouter } from './routes/skills.js';
+import { enterpriseAgentsRouter } from './routes/enterprise-agents.js';
+import { authMiddleware } from './middleware/auth.js';
 
-app.use('/api/empresas', companiesRouter);
-app.use('/api/agentes', agentsRouter);
-app.use('/api/chat', chatRouter);
-app.use('/api/dashboard', dashboardRouter);
-app.use('/api/tarefas', tasksRouter);
+app.use('/api/auth', authRouter);
+
+// Aplicar auth middleware nas rotas protegidas
+app.use('/api/empresas', authMiddleware, companiesRouter);
+app.use('/api/agentes', authMiddleware, agentsRouter);
+app.use('/api/chat', authMiddleware, chatRouter);
+app.use('/api/dashboard', authMiddleware, dashboardRouter);
+app.use('/api/tarefas', authMiddleware, tasksRouter);
+app.use('/api/memories', authMiddleware, memoriesRouter);
+app.use('/api/skills', authMiddleware, skillsRouter);
+app.use('/api/enterprise/agents', authMiddleware, enterpriseAgentsRouter);
 
 // Servir UI compilada em produção
 const uiDist = path.resolve(__dirname, '../../ui/dist');
