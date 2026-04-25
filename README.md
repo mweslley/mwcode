@@ -10,23 +10,24 @@ Um sistema flexível de agentes de IA, construído em **React** + **Node.js**, q
 
 ## 🚀 Instalação rápida (1 comando!)
 
-Este instalador faz TUDO automaticamente: instala, configura provedor de IA, e inicia o servidor!
+Este instalador faz TUDO automaticamente e **SEMPRE** pergunta ao usuário!
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
 ```
 
-O instalador vai pedir para você:
-1. Escolher qual provedor de IA usar (OpenRouter, OpenAI, Gemini, DeepSeek, Ollama)
+O instalador vai perguntar:
+1. Escolher qual provedor de IA (OpenRouter, OpenAI, Gemini, DeepSeek, Ollama)
 2. Colar sua chave API
 3. Iniciar automaticamente o servidor
 
 ---
 
-### Com variáveis (modo não-interativo)
+### Outros método (baixo e executar):
 
 ```bash
-PROVEDOR=openrouter API_KEY=sk-or-v1-minha-chave curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o install-mwcode.sh
+bash install-mwcode.sh
 ```
 
 ### npm
