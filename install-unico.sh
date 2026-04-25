@@ -95,10 +95,20 @@ ok "Correções aplicadas"
 log "Instalando dependências..."
 cd "$INSTALL_DIR"
 
-# Aprovar builds do esbuild
-echo "y" | pnpm approve-builds 2>/dev/null || true
+# Aprovar todos os builds
+echo "y
+y
+y
+y" | pnpm approve-builds 2>/dev/null || true
 
+# Install com rebuild forçada
+pnpm install --force || pnpm rebuild || true
 pnpm install || { err "Falha ao instalar dependências"; exit 1; }
+
+# Reinstalar tsx para garantir
+pnpm add tsx -D 2>/dev/null || true
+pnpm rebuild tsx 2>/dev/null || true
+
 ok "Dependências instaladas"
 
 # 8. Criar .env
