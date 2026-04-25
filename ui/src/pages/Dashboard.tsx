@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { StatsCard } from '../components/StatsCard';
 import { AgentCard } from '../components/AgentCard';
 import { UpdateBadge } from '../components/UpdateBadge';
+import { ModeSwitcher } from '../components/ModeSwitcher';
 import { useAgents } from '../hooks/useAgents';
 
 export function Dashboard() {
@@ -17,6 +18,8 @@ export function Dashboard() {
 
   return (
     <div>
+      <ModeSwitcher />
+
       <h1>Painel</h1>
 
       <UpdateBadge />

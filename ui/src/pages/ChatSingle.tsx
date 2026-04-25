@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useChat } from '../hooks/useChat';
 import { ChatWindow } from '../components/ChatWindow';
+import { ModeSwitcher } from '../components/ModeSwitcher';
 
 export function ChatSingle() {
   const [provider, setProvider] = useState('openrouter');
@@ -9,6 +10,7 @@ export function ChatSingle() {
 
   return (
     <div>
+      <ModeSwitcher />
       <h1>Modo Pessoal — Conversa Direta</h1>
       <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
         Converse direto com um provedor sem contratar agente.
