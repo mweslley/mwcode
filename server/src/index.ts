@@ -29,7 +29,8 @@ const PORT = Number(process.env.PORT) || 3100;
 
 app.use(cors());
 app.use(express.json());
-app.use(authMiddleware);
+// IMPORTANTE: authMiddleware NÃO pode ser global — bloquearia /api/auth/register e /api/auth/login.
+// Cada rota protegida abaixo aplica authMiddleware individualmente.
 app.use(companyMiddleware);
 
 // Validar API key no startup
