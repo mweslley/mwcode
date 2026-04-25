@@ -27,11 +27,14 @@ app.use(authMiddleware);
 app.use(companyMiddleware);
 
 app.get('/api/health', (_req, res) => {
+  const dbStatus = process.env.DATABASE_URL ? 'configured' : 'not_configured';
+  
   res.json({
     status: 'ok',
     version: '0.1.0',
     modo: process.env.MWCODE_MODE || 'flex',
     provider: process.env.MWCODE_PROVIDER || null,
+    db: dbStatus,
     timestamp: new Date().toISOString()
   });
 });

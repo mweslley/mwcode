@@ -174,7 +174,7 @@ step "Baixando MWCode..."
 log "   Diretório: $INSTALL_DIR"
 
 if [ "$LOCAL" = true ]; then
-    mkdir_safe "$INSTALL_DIR"
+    mkdir -p "$INSTALL_DIR"
     cp -r "$SOURCE_DIR"/* "$INSTALL_DIR/"
     # Copiar arquivos ocultos
     for f in "$SOURCE_DIR"/.*; do

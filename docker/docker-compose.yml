@@ -11,6 +11,11 @@ services:
       - '5432:5432'
     volumes:
       - mwcode-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mwcode"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   app:
     build:
@@ -24,7 +29,9 @@ services:
     ports:
       - '3100:3100'
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   mwcode-db:
