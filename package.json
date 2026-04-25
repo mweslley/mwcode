@@ -9,6 +9,7 @@
   "files": [
     "bin",
     "install.sh",
+    "install.ps1",
     "cli",
     "server",
     "ui",
