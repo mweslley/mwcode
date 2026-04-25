@@ -216,10 +216,48 @@ ok "Comando 'mwcode' disponível"
 
 mudar_dir
 
+# Testar se a porta está em uso
+test_porta_uso() {
+    local PORTA=$1
+    # Verificar se alguma coisa já está usando a porta
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z localhost $PORTA 2>/dev/null; then
+            return 1  # Porta em uso
+        fi
+    fi
+    if command -v timeout >/dev/null 2>&1; then
+        if timeout 1 bash -c "echo >/dev/tcp/localhost/$PORTA" 2>/dev/null; then
+            return 1  # Porta em uso
+        fi
+    fi
+    # Se não conseguir testar, assumir que está livre
+    return 0
+}
+
 # ============================================================
 # 12. INSTALAR UFW E LIBERAR PORTAS
 # ============================================================
-log "Instalando UFW e configurando firewall..."
+log "Verificando portas..."
+
+# Verificar se as portas estão em uso
+if test_porta_uso 3100; then
+    PORTA_3100_OK=true
+    log "Porta 3100 livre"
+else
+    warn "Porta 3100 ja esta em uso! Verifique com: ss -tlnp | grep 3100"
+    warn " continuando mesmo assim..."
+fi
+
+if test_porta_uso 5173; then
+    PORTA_5173_OK=true
+    log "Porta 5173 livre"
+else
+    warn "Porta 5173 ja esta em uso! Verifique com: ss -tlnp | grep 5173"
+    warn " continuando mesmo assim..."
+fi
+
+# Instalar UFW
+log "Instalando UFW..."
 
 # Atualizar pacotes primeiro
 apt update -qq 2>/dev/null || apt update 2>/dev/null || true
