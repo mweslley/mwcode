@@ -2,12 +2,14 @@
 #
 # MWCode — Instalador Único + Launcher Interativo
 # Execute:
-#   cd /tmp && curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
 #
-set -euo pipefail
+# Para garantir diretório válido:
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh)"
+#
 
-# IMPORTANTE: Mudar para diretório seguro ANTES DE TUDO
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+# NÃO usar exit on error - precisa ser interativo
+set -u
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -21,96 +23,123 @@ log() { echo -e "${CYAN}ℹ${RESET} ${1}"; }
 ok() { echo -e "${GREEN}✓${RESET} ${1}"; }
 warn() { echo -e "${YELLOW}⚠${RESET} ${1}"; }
 err() { echo -e "${RED}✗${RESET} ${1}"; }
-die() { err "$1"; exit 1; }
+
+# Função para mudar para diretório válido
+mudar_dir() {
+    for dir in /tmp /var/tmp "$HOME" "$HOME/.mwcode" /; do
+        if [ -d "$dir" ] && [ -w "$dir" ] 2>/dev/null; then
+            cd "$dir" 2>/dev/null && return 0
+        fi
+    done
+    cd / 2>/dev/null && return 0
+}
+
+# MUDAR PARA DIRETÓRIO VÁLIDO PRIMEIRO
+mudar_dir
 
 has() { command -v "$1" &>/dev/null; }
 
 INSTALL_DIR="${MWCODE_HOME:-$HOME/.mwcode}"
 BIN_DIR="${MWCODE_BIN:-$HOME/.local/bin}"
 
-log "${BOLD}🚀 MWCode — Instalador Único${RESET}"
-log "Sistema: Linux"
-log ""
-
-# ============================================================
-# 0. Garantir diretório válido
-# ============================================================
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+echo ""
+echo -e "${BOLD}🚀 MWCode — Instalador Único${RESET}"
+echo -e "Sistema: $(uname -s)"
+echo ""
 
 # ============================================================
 # 1. Limpar instalação anterior
 # ============================================================
 log "Verificando instalação anterior..."
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
-[ -d "$INSTALL_DIR" ] && rm -rf "$INSTALL_DIR"
-ok "Instalação anterior removida"
+if [ -d "$INSTALL_DIR" ]; then
+    rm -rf "$INSTALL_DIR"
+    ok "Instalação anterior removida"
+else
+    ok "Nenhuma instalação anterior"
+fi
 
 rm -f "$BIN_DIR/mwcode" 2>/dev/null || true
 rm -f "/usr/local/bin/mwcode" 2>/dev/null || true
 
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
 # ============================================================
 # 2. Node.js 20+
 # ============================================================
 log "Verificando Node.js..."
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
 NODE_OK=false
 if has node; then
     NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
-    [ "$NODE_VER" -ge 20 ] && NODE_OK=true
+    if [ "$NODE_VER" -ge 20 ] 2>/dev/null; then
+        NODE_OK=true
+    fi
 fi
 
 if [ "$NODE_OK" = false ]; then
-    warn "Node.js 20+ não encontrado. Instalando..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash - || true
-    sudo apt-get install -y nodejs 2>/dev/null || true
+    warn "Node.js 20+ não encontrado."
+    echo "Por favor, instale o Node.js 20+ primeiro:"
+    echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
+    echo "  sudo apt-get install -y nodejs"
+    exit 1
 fi
 
-has node || die "Node.js não instalado"
 ok "Node.js: $(node -v)"
 
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
 # ============================================================
 # 3. pnpm
 # ============================================================
 log "Instalando pnpm..."
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
 if ! has pnpm; then
     npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm 2>/dev/null || true
 fi
 
-has pnpm || die "pnpm não instalado"
+if ! has pnpm; then
+    err "pnpm não instalado"
+    exit 1
+fi
+
 ok "pnpm: $(pnpm -v)"
 
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
 # ============================================================
 # 4. Baixar MWCode
 # ============================================================
 log "Baixando MWCode..."
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
-rm -rf /tmp/mwcode-temp 2>/dev/null || true
-git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git /tmp/mwcode-temp || die "Falha ao baixar"
+# Criar diretório temporário alternativo
+TEMP_DIR="/tmp"
+[ ! -w "$TEMP_DIR" ] && TEMP_DIR="$HOME"
+[ ! -w "$TEMP_DIR" ] && TEMP_DIR="/var/tmp"
 
-cd /tmp/mwcode-temp
+rm -rf "$TEMP_DIR/mwcode-temp" 2>/dev/null || true
+git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$TEMP_DIR/mwcode-temp" || {
+    err "Falha ao baixar do GitHub"
+    exit 1
+}
+
+cd "$TEMP_DIR/mwcode-temp"
 ok "MWCode baixado"
 
 # ============================================================
 # 5. Mover para diretório final
 # ============================================================
 log "Instalando..."
-cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+mudar_dir
 
 mkdir -p "$INSTALL_DIR"
-cp -r /tmp/mwcode-temp/* "$INSTALL_DIR/"
-cp -r /tmp/mwcode-temp/.* "$INSTALL_DIR/" 2>/dev/null || true
-rm -rf /tmp/mwcode-temp
+cp -r "$TEMP_DIR/mwcode-temp/"* "$INSTALL_DIR/" 2>/dev/null || true
+cp -r "$TEMP_DIR/mwcode-temp/."* "$INSTALL_DIR/" 2>/dev/null || true
+rm -rf "$TEMP_DIR/mwcode-temp"
 
 cd "$INSTALL_DIR"
 ok "MWCode instalado: $INSTALL_DIR"
@@ -129,7 +158,10 @@ ok "Correções aplicadas"
 # ============================================================
 log "Instalando dependências..."
 cd "$INSTALL_DIR"
-pnpm install || die "Falha ao instalar dependências"
+pnpm install || {
+    err "Falha ao instalar dependências"
+    exit 1
+}
 ok "Dependências instaladas"
 
 # ============================================================
@@ -139,17 +171,17 @@ ok "Dependências instaladas"
 ok ".env criado"
 
 # ============================================================
-# 9. Menu Interativo de Provedor
+# 9. MENU INTERATIVO DE PROVEDOR
 # ============================================================
-log ""
-log "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
-log ""
-log "  1. ${GREEN}OpenRouter${RESET}   (推荐 - modelos gratuitos disponíveis)"
-log "  2. OpenAI       (GPT-4, GPT-4o)"
-log "  3. Gemini       (Google - gratuito)"
-log "  4. DeepSeek    (IA chinesa - económico)"
-log "  5. Ollama      (modelos locais - offline)"
-log ""
+echo ""
+echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
+echo ""
+echo -e "  1. ${GREEN}OpenRouter${RESET}   (推荐 - modelos gratuitos disponíveis)"
+echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
+echo -e "  3. Gemini       (Google - gratuito)"
+echo -e "  4. DeepSeek    (IA chinesa - económico)"
+echo -e "  5. Ollama      (modelos locais - offline)"
+echo ""
 
 printf "Digite o número (1-5): "
 read -r escolha
@@ -163,48 +195,48 @@ case "$escolha" in
     *) PROVEDOR="openrouter";;
 esac
 
-log ""
-log "Provedor selecionado: ${YELLOW}$PROVEDOR${RESET}"
-log ""
+echo ""
+echo -e "Provedor selecionado: ${YELLOW}$PROVEDOR${RESET}"
+echo ""
 
 # ============================================================
-# 10. Pedir chave API
+# 10. PEDIR CHAVE API
 # ============================================================
 if [ "$PROVEDOR" != "ollama" ]; then
-    log "${BOLD}🔑 Configure sua chave API:${RESET}"
+    echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
     
     case "$PROVEDOR" in
-        openrouter) log "  PEGUE SUA CHAVE EM: ${CYAN}https://openrouter.ai/keys${RESET}";;
-        openai)    log "  PEGUE SUA CHAVE EM: ${CYAN}https://platform.openai.com/api-keys${RESET}";;
-        gemini)    log "  PEGUE SUA CHAVE EM: ${CYAN}https://aistudio.google.com/app/apikey${RESET}";;
-        deepseek) log "  PEGUE SUA CHAVE EM: ${CYAN}https://platform.deepseek.com/api-keys${RESET}";;
+        openrouter) echo "  PEGUE SUA CHAVE EM: ${CYAN}https://openrouter.ai/keys${RESET}";;
+        openai)    echo "  PEGUE SUA CHAVE EM: ${CYAN}https://platform.openai.com/api-keys${RESET}";;
+        gemini)    echo "  PEGUE SUA CHAVE EM: ${CYAN}https://aistudio.google.com/app/apikey${RESET}";;
+        deepseek) echo "  PEGUE SUA CHAVE EM: ${CYAN}https://platform.deepseek.com/api-keys${RESET}";;
     esac
     
-    log ""
+    echo ""
     printf "Cole sua chave API: "
     read -r API_KEY
     
-    # Atualizar .env
-    sed -i "/^${PROVEDOR^^}_API_KEY=/d" .env 2>/dev/null || true
-    
-    case "$PROVEDOR" in
-        openrouter) echo "OPENROUTER_API_KEY=$API_KEY" >> .env ;;
-        openai)     echo "OPENAI_API_KEY=$API_KEY" >> .env ;;
-        gemini)    echo "GEMINI_API_KEY=$API_KEY" >> .env ;;
-        deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" >> .env ;;
-    esac
-    
-    # Definir provedor padrão
-    sed -i '/^MWCODE_PROVIDER=/d' .env
-    echo "MWCODE_PROVIDER=$PROVEDOR" >> .env
-    
-    ok "Chave API salva!"
+    if [ -n "$API_KEY" ]; then
+        # Atualizar .env
+        case "$PROVEDOR" in
+            openrouter) echo "OPENROUTER_API_KEY=$API_KEY" >> .env ;;
+            openai)     echo "OPENAI_API_KEY=$API_KEY" >> .env ;;
+            gemini)    echo "GEMINI_API_KEY=$API_KEY" >> .env ;;
+            deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" >> .env ;;
+        esac
+        
+        # Definir provedor padrão
+        echo "MWCODE_PROVIDER=$PROVEDOR" >> .env
+        
+        ok "Chave API salva!"
+    else
+        warn "Nenhuma chave inserida. Configure manualmente depois."
+    fi
 else
-    # Para Ollama, definir URL local
-    sed -i '/^MWCODE_PROVIDER=/d' .env
-    echo "MWCODE_PROVIDER=ollama" >> .env
+    # Para Ollama
     echo "OLLAMA_BASE_URL=http://localhost:11434" >> .env
-    ok "Ollama configurado (certifique-se que está rodando em localhost:11434)"
+    echo "MWCODE_PROVIDER=ollama" >> .env
+    ok "Ollama configurado"
 fi
 
 # ============================================================
@@ -225,55 +257,55 @@ ok "Porta 3100 liberada"
 
 cd "$INSTALL_DIR"
 
-log ""
-log "${GREEN}${BOLD}🎉 Instalação concluída!${RESET}"
-log ""
-log "Acesso:"
-log "  UI:    ${GREEN}http://localhost:5173${RESET}"
-log "  API:   ${GREEN}http://localhost:3100${RESET}"
-log "  Saúde: ${GREEN}http://localhost:3100/api/health${RESET}"
-log ""
+echo ""
+echo -e "${GREEN}${BOLD}🎉 Instalação concluída!${RESET}"
+echo ""
+echo "Acesso:"
+echo -e "  UI:    ${GREEN}http://localhost:5173${RESET}"
+echo -e "  API:   ${GREEN}http://localhost:3100${RESET}"
+echo -e "  Saúde: ${GREEN}http://localhost:3100/api/health${RESET}"
+echo ""
 
 # ============================================================
-# 13. Iniciar automaticamente
+# 13. INICIAR AUTOMATICAMENTE
 # ============================================================
-log "${CYAN}🚀 Iniciando MWCode...${RESET}"
-log ""
+echo -e "${CYAN}🚀 Iniciando MWCode...${RESET}"
+echo ""
 
 cd "$INSTALL_DIR"
+
+# Iniciar em background
 nohup pnpm dev > /tmp/mwcode.log 2>&1 &
-sleep 8
+PID=$!
+
+# Aguardar inicialização
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 2
+    if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
+        break
+    fi
+done
 
 # Verificar se iniciou
-sleep 2
 if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
     ok "MWCode iniciado com sucesso!"
-    log ""
-    log "${GREEN}🎉 Tudo pronto!${RESET}"
-    log ""
-    log "Acesse no navegador:"
-    log "  ${YELLOW}http://localhost:5173${RESET}"
-    log ""
-    
-    # Tentar abrir navegador
-    if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open http://localhost:5173 &
-    elif command -v firefox >/dev/null 2>&1; then
-        firefox http://localhost:5173 &
-    elif command -v chromium >/dev/null 2>&1; then
-        chromium http://localhost:5173 &
-    fi
+    echo ""
+    echo -e "${GREEN}🎉 Tudo pronto!${RESET}"
+    echo ""
+    echo "Acesse no navegador:"
+    echo -e "  ${YELLOW}http://localhost:5173${RESET}"
+    echo ""
 else
     warn "Verificando início..."
-    sleep 3
+    sleep 5
     if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
         ok "MWCode iniciado!"
-        log ""
-        log "Acesse: ${YELLOW}http://localhost:5173${RESET}"
+        echo ""
+        echo "Acesse: ${YELLOW}http://localhost:5173${RESET}"
     else
         warn "Servidor pode estar iniciando. Verifique manualmente:"
-        log "  cd $INSTALL_DIR && pnpm dev"
-        log ""
-        log "Logs: tail /tmp/mwcode.log"
+        echo "  cd $INSTALL_DIR && pnpm dev"
+        echo ""
+        echo "Logs: tail /tmp/mwcode.log"
     fi
 fi
