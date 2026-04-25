@@ -76,6 +76,17 @@ export function Skills() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Skill | 'new' | null>(null);
+  // Skill padrão: aplicada automaticamente em novos chats.
+  // Guardada em localStorage (não vai pro backend, é por dispositivo).
+  const [skillPadrao, setSkillPadrao] = useState<string | null>(
+    localStorage.getItem('skillPadrao')
+  );
+
+  function definirPadrao(id: string | null) {
+    if (id) localStorage.setItem('skillPadrao', id);
+    else localStorage.removeItem('skillPadrao');
+    setSkillPadrao(id);
+  }
 
   async function load() {
     setLoading(true);
@@ -139,28 +150,52 @@ export function Skills() {
             </div>
           ) : (
             <div className="agents-grid" style={{ marginBottom: 32 }}>
-              {skills.map((s) => (
-                <div key={s.id} className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <h3 style={{ margin: 0 }}>{s.name}</h3>
-                    <button
-                      className="ghost"
-                      onClick={() => deletar(s.id)}
-                      style={{ padding: '4px 8px', fontSize: 12 }}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                  <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 8 }}>
-                    {s.description}
-                  </p>
-                  <div style={{ marginTop: 12, fontSize: 11, color: 'var(--muted)' }}>
-                    {s.tools && s.tools.length > 0 && (
-                      <span>🔧 {s.tools.join(', ')}</span>
+              {skills.map((s) => {
+                const ehPadrao = skillPadrao === s.id;
+                return (
+                  <div key={s.id} className={`card ${ehPadrao ? 'is-default' : ''}`}>
+                    {ehPadrao && (
+                      <span className="skill-badge-default">⭐ Padrão</span>
                     )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <h3 style={{ margin: 0 }}>{s.name}</h3>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          className="ghost"
+                          onClick={() => setEditing(s)}
+                          style={{ padding: '4px 8px', fontSize: 12 }}
+                          title="Editar"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="ghost"
+                          onClick={() => deletar(s.id)}
+                          style={{ padding: '4px 8px', fontSize: 12 }}
+                          title="Excluir"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                    <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 8 }}>
+                      {s.description}
+                    </p>
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        {s.tools && s.tools.length > 0 && `🔧 ${s.tools.join(', ')}`}
+                      </span>
+                      <button
+                        className="ghost"
+                        onClick={() => definirPadrao(ehPadrao ? null : s.id)}
+                        style={{ padding: '4px 10px', fontSize: 12 }}
+                      >
+                        {ehPadrao ? 'Remover padrão' : '⭐ Definir padrão'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

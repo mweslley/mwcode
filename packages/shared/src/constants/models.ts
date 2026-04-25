@@ -49,13 +49,21 @@ export const MODELOS_OPENROUTER: ModeloIA[] = [
     destaque: true,
   },
   {
-    id: 'google/gemma-3-27b-it:free',
-    nome: 'Gemma 3 27B',
-    descricao: 'Modelo aberto do Google, bom em multilíngue e seguir instruções.',
+    id: 'google/gemma-4-31b-it:free',
+    nome: 'Gemma 4 31B',
+    descricao: 'Modelo aberto do Google (geração 4). Bom em multilíngue e seguir instruções.',
     contexto: '128K',
     melhorPara: ['português', 'multilíngue', 'instruções'],
     gratis: true,
     destaque: true,
+  },
+  {
+    id: 'google/gemma-3-27b-it:free',
+    nome: 'Gemma 3 27B',
+    descricao: 'Modelo aberto do Google (geração 3). Estável e fluente em pt-BR.',
+    contexto: '128K',
+    melhorPara: ['português', 'instruções'],
+    gratis: true,
   },
 
   // === GRÁTIS — OUTROS ===

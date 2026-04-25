@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { api } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
+import { ModelPicker } from '../components/ModelPicker';
+import { MODELO_PADRAO } from '@mwcode/shared';
 
 interface OnboardingData {
   companyName: string;
@@ -8,6 +10,7 @@ interface OnboardingData {
   mission: string;
   employees: string;
   goals: string[];
+  ceoModel: string;
 }
 
 export function Onboarding() {
@@ -19,7 +22,8 @@ export function Onboarding() {
     area: '',
     mission: '',
     employees: '1-10',
-    goals: []
+    goals: [],
+    ceoModel: MODELO_PADRAO
   });
   const [goalInput, setGoalInput] = useState('');
 
@@ -45,7 +49,7 @@ export function Onboarding() {
           `Sempre responda em português brasileiro de forma direta e profissional.`,
         goals: data.goals,
         provider: 'openrouter',
-        model: 'openrouter/auto'
+        model: data.ceoModel
       });
 
       // IMPORTANTE: salvar no localStorage pra CheckOnboarding não voltar pra cá em loop
@@ -171,12 +175,27 @@ export function Onboarding() {
               <button onClick={addGoal}>+</button>
             </div>
 
-            <button 
-              onClick={handleSubmit} 
+            <div className="form-group" style={{ marginTop: 24 }}>
+              <h3 style={{ fontSize: 16, marginBottom: 4 }}>Modelo de IA do CEO</h3>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+                Será criado automaticamente um agente <strong>CEO</strong> pra orquestrar
+                sua empresa. Escolha o modelo de IA dele (todos grátis):
+              </p>
+              <ModelPicker
+                value={data.ceoModel}
+                onChange={(modelId) => setData({ ...data, ceoModel: modelId })}
+                modo="cards"
+                mostrarPagos={false}
+                label=""
+              />
+            </div>
+
+            <button
+              onClick={handleSubmit}
               disabled={loading || (data.goals.length === 0)}
               className="submit-btn"
             >
-              {loading ? 'Criando...' : 'Finalizar! 🎉'}
+              {loading ? 'Criando empresa e CEO...' : 'Finalizar! 🎉'}
             </button>
           </div>
         )}
