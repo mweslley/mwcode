@@ -26,10 +26,10 @@ export function Onboarding() {
   async function handleSubmit() {
     setLoading(true);
     try {
-      // Save company data
-      await api.post('/enterprise/company', data);
-      
-      // Create CEO agent
+      // Salvar dados da empresa no backend
+      const company = await api.post('/enterprise/company', data);
+
+      // Criar agente CEO inicial
       await api.post('/enterprise/agents/hire', {
         name: 'CEO',
         role: 'ceo',
@@ -39,10 +39,14 @@ export function Onboarding() {
         provider: 'openrouter',
         model: 'deepseek/deepseek-coder'
       });
-      
+
+      // IMPORTANTE: salvar no localStorage pra CheckOnboarding não voltar pra cá em loop
+      localStorage.setItem('company', JSON.stringify(company || data));
+
       navigate('/dashboard');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert('Erro ao criar empresa: ' + (err?.message || 'tente novamente.'));
     } finally {
       setLoading(false);
     }

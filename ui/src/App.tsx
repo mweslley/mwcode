@@ -30,7 +30,7 @@ export function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       
-      <Route path="/" element={
+      <Route path="/*" element={
         <PrivateRoute>
           <CheckOnboarding>
             <div className="app">
