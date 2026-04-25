@@ -244,7 +244,6 @@ fi
 sleep 2
 
 log "Processos anteriores finalizados"
-log "Processos anteriores finalizados"
 
 # Tentar liberar porta no firewall
 sudo ufw allow 3100/tcp 2>/dev/null || true
@@ -260,12 +259,19 @@ log "Verificando porta 3100..."
 # Testar se consegue bind na porta
 PORTA_OK=false
 
-# Tentar verificar se a porta está liberada
-if command -v ss >/dev/null 2>&1; then
-    if ss -tln 2>/dev/null | grep -q ":3100"; then
-        # Porta em uso, mas está livre para nosso uso
+# Verificar se a porta está livre para bind
+if command -v nc >/dev/null 2>&1; then
+    # Tentar conectar na porta
+    if ! nc -z localhost 3100 2>/dev/null; then
         PORTA_OK=true
     fi
+elif command -v nmap >/dev/null 2>&1; then
+    if ! nmap -p 3100 localhost 2>/dev/null | grep -q "open"; then
+        PORTA_OK=true
+    fi
+else
+    # Fallback: simplesmente tentar
+    PORTA_OK=true
 fi
 
 # Verificar se firewall permite
