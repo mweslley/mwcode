@@ -373,17 +373,27 @@ echo ""
 cd "$INSTALL_DIR"
 export PORT="$PORTA_API"
 export UI_PORT="$PORTA_UI"
-nohup pnpm dev:server > /tmp/mwcode.log 2>&1 &
 
-# Loop com feedback
-for i in 1 2 3 4 5 6 7 8 9 10; do
+# Iniciar server diretamente (sem nohup)
+pnpm dev:server &
+SERVER_PID=$!
+
+# Esperar ate iniciar
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     sleep 2
     
     if curl -s http://localhost:$PORTA_API/api/health > /dev/null 2>&1; then
         break
     fi
     
-    # Mostrar progresso
+    # Verificar se processo ainda esta rodando
+    if ! kill -0 $SERVER_PID 2>/dev/null; then
+        err "Servidor parou!"
+        log "Verificando log..."
+        tail -20 /tmp/mwcode.log 2>/dev/null || true
+        break
+    fi
+    
     echo -n "."
 done
 echo ""
