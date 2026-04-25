@@ -112,7 +112,8 @@ pnpm config set ignore-workspace-root-check true 2>/dev/null || true
 
 ok "Dependências instaladas"
 
-# 8. Criar .env (limpar antes)
+# 8. Criar .env (sempre em INSTALL_DIR)
+cd "$INSTALL_DIR"
 > .env
 [ -f .env.example ] && cp .env.example .env
 chmod 600 .env
@@ -165,6 +166,7 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     
     if [ -n "$API_KEY" ]; then
         # SALVAR (substituir, nao append)
+        cd "$INSTALL_DIR"
         case "$PROVIDER_NAME" in
             openrouter) echo "OPENROUTER_API_KEY=$API_KEY" > .env ;;
             openai)     echo "OPENAI_API_KEY=$API_KEY" > .env ;;
@@ -172,6 +174,7 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
             deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" > .env ;;
         esac
         echo "MWCODE_PROVIDER=$PROVIDER_NAME" >> .env
+        ok "Chave salva em $INSTALL_DIR/.env"
         
         # VERIFICAR CHAVE
         log "Verificando chave API..."
