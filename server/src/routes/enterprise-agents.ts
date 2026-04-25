@@ -53,14 +53,14 @@ function getAgent(userId: string, id: string): Agent | null {
 export const enterpriseAgentsRouter = Router();
 
 // Get all agents
-agentsRouter.get('/', (req, res) => {
+enterpriseAgentsRouter.get('/', (req, res) => {
   const userId = (req as any).userId;
   const status = req.query.status as string;
   res.json(getAgents(userId, status));
 });
 
 // Get single agent
-agentsRouter.get('/:id', (req, res) => {
+enterpriseAgentsRouter.get('/:id', (req, res) => {
   const userId = (req as any).userId;
   const { id } = req.params;
   const agent = getAgent(userId, id);
@@ -69,7 +69,7 @@ agentsRouter.get('/:id', (req, res) => {
 });
 
 // Hire (create) agent
-agentsRouter.post('/hire', (req, res) => {
+enterpriseAgentsRouter.post('/hire', (req, res) => {
   const userId = (req as any).userId;
   const { name, role, personality, goals, skills, model, provider, salary } = req.body;
   
@@ -100,7 +100,7 @@ agentsRouter.post('/hire', (req, res) => {
 });
 
 // Update agent
-agentsRouter.put('/:id', (req, res) => {
+enterpriseAgentsRouter.put('/:id', (req, res) => {
   const userId = (req as any).userId;
   const { id } = req.params;
   const data = req.body;
@@ -116,7 +116,7 @@ agentsRouter.put('/:id', (req, res) => {
 });
 
 // Fire (delete) agent
-agentsRouter.delete('/:id', (req, res) => {
+enterpriseAgentsRouter.delete('/:id', (req, res) => {
   const userId = (req as any).userId;
   const { id } = req.params;
   
@@ -132,7 +132,7 @@ agentsRouter.delete('/:id', (req, res) => {
 });
 
 // Reactivate agent
-agentsRouter.post('/:id/reactivate', (req, res) => {
+enterpriseAgentsRouter.post('/:id/reactivate', (req, res) => {
   const userId = (req as any).userId;
   const { id } = req.params;
   

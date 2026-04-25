@@ -12,6 +12,11 @@ import { agentsRouter } from './routes/agents.js';
 import { chatRouter } from './routes/chat.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { tasksRouter } from './routes/tasks.js';
+import { authRouter } from './routes/auth.js';
+import { companyRouter } from './routes/company.js';
+import { memoriesRouter } from './routes/memories.js';
+import { skillsRouter } from './routes/skills.js';
+import { enterpriseAgentsRouter } from './routes/enterprise-agents.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,13 +57,9 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-import { companyRouter } from './routes/company.js';
-import { memoriesRouter } from './routes/memories.js';
-import { skillsRouter } from './routes/skills.js';
-import { authMiddleware } from './middleware/auth.js';
-
 app.use('/api/auth', authRouter);
 app.use('/api/enterprise', authMiddleware, companyRouter);
+app.use('/api/enterprise/agents', authMiddleware, enterpriseAgentsRouter);
 
 // Aplicar auth middleware nas rotas protegidas
 app.use('/api/empresas', authMiddleware, companiesRouter);
