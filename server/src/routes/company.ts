@@ -32,53 +32,63 @@ function getCompany(userId: string): Company | null {
 
 export const companyRouter = Router();
 
-// Get company
-companyRouter.get('/', (req, res) => {
-  const userId = (req as any).userId;
-  const company = getCompany(userId);
-  if (!company) return res.status(404).json({ error: 'Empresa não encontrada' });
-  res.json(company);
-});
+// O frontend chama /api/enterprise/company — registrar nas duas pra
+// compatibilidade (/ e /company) sem quebrar nada que já chame /
+const handlers = {
+  get: (req: any, res: any) => {
+    const userId = req.userId;
+    const company = getCompany(userId);
+    if (!company) return res.status(404).json({ error: 'Empresa não encontrada' });
+    res.json(company);
+  },
+  post: (req: any, res: any) => {
+    const userId = req.userId;
+    // Aceita 'name' ou 'companyName' (o Onboarding manda companyName)
+    const { name, companyName, area, mission, employees, goals } = req.body;
 
-// Create/update company
-companyRouter.post('/', (req, res) => {
-  const userId = (req as any).userId;
-  const { name, area, mission, employees, goals } = req.body;
-  
-  const company: Company = {
-    id: crypto.randomUUID(),
-    userId,
-    name: name || '',
-    area: area || '',
-    mission: mission || '',
-    employees: employees || '1-10',
-    goals: goals || [],
-    createdAt: new Date().toISOString()
-  };
-  
-  fs.writeFileSync(
-    path.join(getCompanyDir(), `${userId}.json`),
-    JSON.stringify(company, null, 2)
-  );
-  
-  res.json(company);
-});
+    const company: Company = {
+      id: crypto.randomUUID(),
+      userId,
+      name: name || companyName || '',
+      area: area || '',
+      mission: mission || '',
+      employees: employees || '1-10',
+      goals: goals || [],
+      createdAt: new Date().toISOString()
+    };
 
-// Update company
-companyRouter.put('/', (req, res) => {
-  const userId = (req as any).userId;
-  const data = req.body;
-  
-  const existing = getCompany(userId);
-  if (!existing) {
-    return res.status(404).json({ error: 'Empresa não encontrada' });
+    fs.writeFileSync(
+      path.join(getCompanyDir(), `${userId}.json`),
+      JSON.stringify(company, null, 2)
+    );
+
+    res.json(company);
+  },
+  put: (req: any, res: any) => {
+    const userId = req.userId;
+    const data = req.body;
+
+    const existing = getCompany(userId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Empresa não encontrada' });
+    }
+
+    const updated = { ...existing, ...data };
+    fs.writeFileSync(
+      path.join(getCompanyDir(), `${userId}.json`),
+      JSON.stringify(updated, null, 2)
+    );
+
+    res.json(updated);
   }
-  
-  const updated = { ...existing, ...data };
-  fs.writeFileSync(
-    path.join(getCompanyDir(), `${userId}.json`),
-    JSON.stringify(updated, null, 2)
-  );
-  
-  res.json(updated);
-});
+};
+
+// /api/enterprise/company  (usado pelo frontend e documentado no README)
+companyRouter.get('/company', handlers.get);
+companyRouter.post('/company', handlers.post);
+companyRouter.put('/company', handlers.put);
+
+// /api/enterprise/  (compatibilidade com chamadas antigas)
+companyRouter.get('/', handlers.get);
+companyRouter.post('/', handlers.post);
+companyRouter.put('/', handlers.put);
