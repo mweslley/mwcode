@@ -307,8 +307,6 @@ else
     ok "Portas liberadas (iptables)"
 fi
 
-fi
-
 # Tentar liberar porta no firewall
 log "Liberando portas..."
 
