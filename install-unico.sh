@@ -107,8 +107,9 @@ y" | pnpm approve-builds 2>/dev/null || true
 # Install normal
 pnpm install || { err "Falha ao instalar dependências"; exit 1; }
 
-# Configurar pnpm para não avisar sobre adicionar ao root
-pnpm config set ignore-workspace-root-check true 2>/dev/null || true
+# Corrigir caminho do .env no server
+log "Corrigindo configurações..."
+sed -i "s|../.env|../../.env|g" server/src/index.ts 2>/dev/null || true
 
 ok "Dependências instaladas"
 
@@ -427,15 +428,16 @@ log "API Key: $(echo $OPENROUTER_API_KEY | cut -c1-8)..."
 # Iniciar server
 cd "$INSTALL_DIR/server"
 
-# Usar npx se tsx local não funcionar
-if [ -f "$INSTALL_DIR/node_modules/.bin/tsx" ]; then
-    ./node_modules/.bin/tsx src/index.ts &
+# Usar tsx do node_modules
+TSX="$INSTALL_DIR/node_modules/.bin/tsx"
+if [ -x "$TSX" ]; then
+    $TSX src/index.ts > /tmp/mwcode.log 2>&1 &
 else
-    npx tsx src/index.ts &
+    npx tsx src/index.ts > /tmp/mwcode.log 2>&1 &
 fi
 SERVER_PID=$!
 
-# Esperar ate iniciar
+# Esperar server iniciar
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
     sleep 2
     
@@ -455,32 +457,43 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
 done
 echo ""
 
-# Verificar se iniciou
-if curl -s http://localhost:$PORTA_API/api/health > /dev/null 2>&1; then
-    # Testar se a API responde com chave
-    TESTE=$(curl -s http://localhost:$PORTA_API/api/health 2>&1)
-    
-    if echo "$TESTE" | grep -q "ok"; then
-        ok "MWCode iniciado com sucesso!"
-        echo ""
-        echo -e "${GREEN}🎉 Tudo pronto!${RESET}"
-        echo ""
-        echo "Acesse:"
-        echo -e "  UI:    ${GREEN}http://localhost:$PORTA_UI${RESET}"
-        echo -e "  API:   ${GREEN}http://localhost:$PORTA_API${RESET}"
-        echo -e "  Saude: ${GREEN}http://localhost:$PORTA_API/api/health${RESET}"
-        echo ""
-        echo "Provedor: $PROVIDER_NAME"
-    else
-        warn "Servidor iniciou mas com problemas."
-        echo "Verifique: tail /tmp/mwcode.log"
-    fi
-else
-    warn "Servidor não iniciou a tempo."
-    echo ""
-    echo "Aguarde 10 segundos e verifique:"
-    echo "  tail /tmp/mwcode.log"
-    echo ""
-    echo " ou tente iniciar manualmente:"
-    echo "  cd $INSTALL_DIR && pnpm dev"
+# Verificar se server iniciou
+if ! curl -s http://localhost:$PORTA_API/api/health > /dev/null 2>&1; then
+    err "Server nao iniciou!"
+    tail -20 /tmp/mwcode.log 2>/dev/null || true
+    exit 1
 fi
+ok "Server iniciado!"
+
+# Iniciar UI em background
+cd "$INSTALL_DIR/ui"
+npx vite --host --port $PORTA_UI > /tmp/mwcode-ui.log 2>&1 &
+UI_PID=$!
+
+# Esperar UI iniciar
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 1
+    
+    if curl -s http://localhost:$PORTA_UI > /dev/null 2>&1; then
+        break
+    fi
+    
+    echo -n "."
+done
+echo ""
+
+if curl -s http://localhost:$PORTA_UI > /dev/null 2>&1; then
+    ok "UI iniciada!"
+else
+    warn "UI pode nao ter iniciado. Verifique: tail /tmp/mwcode-ui.log"
+fi
+
+echo ""
+echo -e "${GREEN}🎉 Tudo pronto!${RESET}"
+echo ""
+echo "Acesse:"
+echo -e "  UI:    ${GREEN}http://localhost:$PORTA_UI${RESET}"
+echo -e "  API:   ${GREEN}http://localhost:$PORTA_API${RESET}"
+echo -e "  Saude: ${GREEN}http://localhost:$PORTA_API/api/health${RESET}"
+echo ""
+echo "Provedor: $PROVIDER_NAME"
