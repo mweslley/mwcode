@@ -55,7 +55,6 @@ app.get('/api/health', (_req, res) => {
 import { companyRouter } from './routes/company.js';
 import { memoriesRouter } from './routes/memories.js';
 import { skillsRouter } from './routes/skills.js';
-import { enterpriseAgentsRouter } from './routes/enterprise-agents.js';
 import { authMiddleware } from './middleware/auth.js';
 
 app.use('/api/auth', authRouter);
@@ -69,7 +68,6 @@ app.use('/api/dashboard', authMiddleware, dashboardRouter);
 app.use('/api/tarefas', authMiddleware, tasksRouter);
 app.use('/api/memories', authMiddleware, memoriesRouter);
 app.use('/api/skills', authMiddleware, skillsRouter);
-app.use('/api/enterprise/agents', authMiddleware, enterpriseAgentsRouter);
 
 // Servir UI compilada em produção
 const uiDist = path.resolve(__dirname, '../../ui/dist');

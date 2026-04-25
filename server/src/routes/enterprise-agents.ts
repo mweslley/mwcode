@@ -50,7 +50,7 @@ function getAgent(userId: string, id: string): Agent | null {
   return JSON.parse(fs.readFileSync(file, 'utf-8'));
 }
 
-export const agentsRouter = Router();
+export const enterpriseAgentsRouter = Router();
 
 // Get all agents
 agentsRouter.get('/', (req, res) => {
