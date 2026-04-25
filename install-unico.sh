@@ -170,28 +170,50 @@ ok "Dependências instaladas"
 [ ! -f .env ] && cp .env.example .env && chmod 600 .env
 ok ".env criado"
 
-# ============================================================
-# 9. MENU INTERATIVO DE PROVEDOR
-# ============================================================
-echo ""
-echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
-echo ""
-echo -e "  1. ${GREEN}OpenRouter${RESET}   (推荐 - modelos gratuitos disponíveis)"
-echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
-echo -e "  3. Gemini       (Google - gratuito)"
-echo -e "  4. DeepSeek    (IA chinesa - económico)"
-echo -e "  5. Ollama      (modelos locais - offline)"
-echo ""
+# O problema é que `read` não funciona bem com pipe
+# Por isso vamos usar uma abordagem alternativa
 
-printf "Digite o número (1-5): "
-read -r escolha
+# ============================================================
+# 9. MENU INTERATIVO DE PROVEDOR (corrigido para funcionar com pipe)
+# ============================================================
+
+# Verificar se podemos usar modo interativo
+if [ -t 0 ]; then
+    # Terminal interativo - usar read normal
+    echo ""
+    echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
+    echo ""
+    echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
+    echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
+    echo -e "  3. Gemini       (Google - gratuito)"
+    echo -e "  4. DeepSeek    (IA chinesa)"
+    echo -e "  5. Ollama       (modelos locais)"
+    echo ""
+    printf "Digite o número (1-5): "
+    read -r escolha
+else
+    # Modo não-interativo (pipe) - usar argumento ou padrão
+    echo ""
+    echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
+    echo ""
+    echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
+    echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
+    echo -e "  3. Gemini       (Google - gratuito)"
+    echo -e "  4. DeepSeek    (IA chinesa)"
+    echo -e "  5. Ollama       (modelos locais)"
+    echo ""
+    echo "  Passing with pipe detected. Using OpenRouter by default."
+    echo "  To choose another provider, run with: PROVEDOR=openai bash install-unico.sh"
+    echo ""
+    escolha="1"
+fi
 
 case "$escolha" in
-    1) PROVEDOR="openrouter";;
-    2) PROVEDOR="openai";;
-    3) PROVEDOR="gemini";;
-    4) PROVEDOR="deepseek";;
-    5) PROVEDOR="ollama";;
+    1) PROVEDOR="${PROVEDOR:-openrouter}";;
+    2) PROVEDOR="${PROVEDOR:-openai}";;
+    3) PROVEDOR="${PROVEDOR:-gemini}";;
+    4) PROVEDOR="${PROVEDOR:-deepseek}";;
+    5) PROVEDOR="${PROVEDOR:-ollama}";;
     *) PROVEDOR="openrouter";;
 esac
 
@@ -200,7 +222,7 @@ echo -e "Provedor selecionado: ${YELLOW}$PROVEDOR${RESET}"
 echo ""
 
 # ============================================================
-# 10. PEDIR CHAVE API
+# 10. PEDIR CHAVE API (corrigido para funcionar com pipe)
 # ============================================================
 if [ "$PROVEDOR" != "ollama" ]; then
     echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
@@ -212,9 +234,22 @@ if [ "$PROVEDOR" != "ollama" ]; then
         deepseek) echo "  PEGUE SUA CHAVE EM: ${CYAN}https://platform.deepseek.com/api-keys${RESET}";;
     esac
     
-    echo ""
-    printf "Cole sua chave API: "
-    read -r API_KEY
+    # Verificar se tem chave via variável de ambiente
+    if [ -n "$API_KEY" ]; then
+        echo ""
+        echo "Usando chave API da variável de ambiente."
+    elif [ -t 0 ]; then
+        # Terminal interativo
+        echo ""
+        printf "Cole sua chave API: "
+        read -r API_KEY
+    else
+        # Modo pipe
+        echo ""
+        echo "Nenhuma chave API fornecida (use API_KEY=chave bash install-unico.sh)"
+        echo "Configure manualmente depois: nano $INSTALL_DIR/.env"
+        API_KEY=""
+    fi
     
     if [ -n "$API_KEY" ]; then
         # Atualizar .env
