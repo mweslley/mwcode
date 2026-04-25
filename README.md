@@ -111,27 +111,12 @@ pnpm dev
 
 ---
 
-## ⚙️ Variáveis de Ambiente
-
-```bash
-OPENROUTER_API_KEY=sk-...    # OpenRouter
-OPENAI_API_KEY=sk-...    # OpenAI
-GEMINI_API_KEY=...        # Google
-MWCODE_PROVIDER=openrouter
-MWCODE_MODEL=qwen/qwen-2.5-72b-instruct
-```
-
----
-
 ## 📄 Licença
 
 MIT
 
 ---
 
-## 🙏 Agradecimentos
+## ℹ️ Sobre o MWCode
 
-Inspirado em:
-- [Paperclip](https://github.com/peakcool/paperclip)
-- [OpenCode](https://github.com/opencode-ai/opencode)
-- [OpenClaude](https://github.com/nickcarlos/OpenClaude)
+MWCode é um projeto open-source Brazilian que visa democratizar o acesso a agentes de IA para empresas e developers. O sistema permite criar assistentespersonalizados, gerenciar equipes de agentes e integrar múltiplos provedores de IA em uma única plataforma.
