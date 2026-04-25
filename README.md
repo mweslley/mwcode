@@ -8,15 +8,24 @@ Um sistema flexível de agentes de IA, construído em **React** + **Node.js**, q
 
 ---
 
-## 🚀 Instalação rápida
+## 🚀 Instalação rápida (1 comando!)
 
-Escolha o método que preferir:
+### Instalador Único (Recomendado)
 
-### curl (Linux/macOS — recomendado)
+Este instalador faz TUDO automaticamente: instala, configura provedor de IA, e inicia o servidor!
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install.sh | bash
+cd /tmp && curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
 ```
+
+O instalador vai pedir para você:
+1. Escolher qual provedor de IA usar (OpenRouter, OpenAI, Gemini, DeepSeek, Ollama)
+2. Colar sua chave API
+3. Iniciar automaticamente o servidor
+
+---
+
+### Outros métodos de instalação
 
 ### npm
 
