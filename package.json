@@ -32,8 +32,7 @@
     "db:generate": "pnpm --filter @mwcode/db generate",
     "db:migrate": "pnpm --filter @mwcode/db migrate",
     "db:push": "pnpm --filter @mwcode/db push",
-    "mwcode": "tsx cli/index.ts",
-    "postinstall": "node bin/mwcode.js version >/dev/null 2>&1 || true"
+    "mwcode": "tsx cli/index.ts"
   },
   "keywords": [
     "ai",
