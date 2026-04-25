@@ -123,11 +123,11 @@ ok ".env criado"
 echo ""
 echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
 echo ""
-echo "  1. OpenRouter   (Recomendado)"
-echo "  2. OpenAI"
-echo "  3. Gemini"
-echo "  4. DeepSeek"
-echo "  5. Ollama"
+echo "  1. OpenRouter   (Recomendado - gratuito)"
+echo "  2. OpenAI       (GPT-4)"
+echo "  3. Gemini       (Google)"
+echo "  4. DeepSeek    (Barato)"
+echo "  5. Ollama       (Local)"
 echo ""
 read -p "Digite o número (1-5) [1]: " escolha
 
@@ -142,6 +142,34 @@ case "$escolha" in
     5) PROVIDER_NAME="ollama" ;;
     *) PROVIDER_NAME="openrouter" ;;
 esac
+
+echo "Provedor: $PROVIDER_NAME"
+
+# 9b. ESCOLHER MODELO (se OpenRouter)
+if [ "$PROVIDER_NAME" = "openrouter" ]; then
+    echo ""
+    echo -e "${BOLD}🤖 Escolha o Modelo:${RESET}"
+    echo ""
+    echo "  1. Auto       (tenta melhor disponível)"
+    echo "  2. DeepSeek Coder (grátis - bom para código)"
+    echo "  3. Llama 3.2  (grátis - boa qualidade)"
+    echo "  4. Qwen 2.5    (grátis - melhor qualidade)"
+    echo "  5. GPT-4o Mini  (pago - melhor geral)"
+    echo ""
+    read -p "Digite o número (1-5) [1]: " escolha_modelo
+    
+    escolha_modelo=${escolha_modelo:-1}
+    case "$escolha_modelo" in
+        1) MODELO="openrouter/auto" ;;
+        2) MODELO="deepseek/deepseek-coder" ;;
+        3) MODELO="meta-llama/llama-3.2-90b-instruct" ;;
+        4) MODELO="qwen/qwen-2.5-72b-instruct" ;;
+        5) MODELO="openai/gpt-4o-mini" ;;
+        *) MODELO="deepseek/deepseek-coder" ;;
+    esac
+    echo "Modelo: $MODELO"
+    echo ""
+fi
 
 echo "Provedor: $PROVIDER_NAME"
 echo ""
@@ -174,6 +202,7 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
             deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" > .env ;;
         esac
         echo "MWCODE_PROVIDER=$PROVIDER_NAME" >> .env
+        [ -n "$MODELO" ] && echo "MWCODE_MODEL=$MODELO" >> .env
         ok "Chave salva em $INSTALL_DIR/.env"
         
         # VERIFICAR CHAVE
