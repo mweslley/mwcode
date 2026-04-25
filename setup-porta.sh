@@ -39,11 +39,26 @@ ok "MWCode encontrado"
 # ============================================================
 # 2. INSTALAR UFW Y LIBERAR PUERTAS
 # ============================================================
-log "Instalando UFW..."
+log "Atualizando e instalando UFW..."
+
+# Atualizar pacotes primeiro
+apt update -qq 2>/dev/null || apt update 2>/dev/null || true
 
 # Instalar UFW
 if ! command -v ufw >/dev/null 2>&1; then
-    apt update -qq && apt install -y ufw 2>/dev/null || true
+    apt install -y ufw 2>/dev/null || true
+fi
+
+# Configurar reglas
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow 22/tcp 2>/dev/null || true
+    ufw allow 3100/tcp 2>/dev/null || true
+    ufw allow 5173/tcp 2>/dev/null || true
+    ok "UFW instalado y puertos liberados (3100, 5173)"
+else
+    iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
+    iptables -I INPUT -p tcp --dport 5173 -j ACCEPT 2>/dev/null || true
+    ok "Puertos liberados (iptables)"
 fi
 
 # Configurar reglas

@@ -221,9 +221,12 @@ mudar_dir
 # ============================================================
 log "Instalando UFW e configurando firewall..."
 
+# Atualizar pacotes primeiro
+apt update -qq 2>/dev/null || apt update 2>/dev/null || true
+
 # Instalar UFW
 if ! command -v ufw >/dev/null 2>&1; then
-    apt update -qq && apt install -y ufw 2>/dev/null || true
+    apt install -y ufw 2>/dev/null || true
 fi
 
 # Se UFW foi instalado, configurar regras

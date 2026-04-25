@@ -58,21 +58,23 @@ ok "Domínio: $DOMINIO"
 # ============================================================
 # 3. INSTALAR UFW E LIBERAR PORTAS HTTPS
 # ============================================================
-log "Instalando UFW..."
+log "Atualizando e instalando UFW..."
 
-# Instalar UFW primeiro
+# Atualizar pacotes primeiro
+apt update -qq 2>/dev/null || apt update 2>/dev/null || true
+
+# Instalar UFW
 if ! command -v ufw >/dev/null 2>&1; then
-    apt update -qq && apt install -y ufw 2>/dev/null || true
+    apt install -y ufw 2>/dev/null || true
 fi
 
-# Configurar regras básica do UFW
+# Configurar regras
 if command -v ufw >/dev/null 2>&1; then
     ufw allow 22/tcp 2>/dev/null || true
     ufw allow 80/tcp 2>/dev/null || true
     ufw allow 443/tcp 2>/dev/null || true
     ok "UFW instalado"
 else
-    # Fallback iptables
     iptables -I INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
     iptables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
 fi
@@ -80,14 +82,16 @@ fi
 # ============================================================
 # 4. Instalar nginx
 # ============================================================
-log "Instalando nginx..."
+log "Verificando nginx..."
 
+# Verificar se nginx já está instalado
 if ! command -v nginx >/dev/null 2>&1; then
-    sudo apt update -qq
-    sudo apt install -y nginx
+    log "Instalando nginx..."
+    apt update -qq && apt install -y nginx 2>/dev/null || true
+    ok "nginx instalado"
+else
+    ok "nginx ja esta instalado"
 fi
-
-ok "nginx instalado"
 
 # ============================================================
 # 4. Criar configuração nginx
