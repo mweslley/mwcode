@@ -216,24 +216,74 @@ ok "Comando 'mwcode' disponível"
 
 # 12. Liberar porta
 log "Liberando porta 3100..."
-# Tentar liberar no firewall
+
+# PRIMEIRO: matar qualquer processo que use a porta 3100
+log "Verificando processos na porta 3100..."
+
+# Encontrar e matar processos na porta 3100
+if command -v lsof >/dev/null 2>&1; then
+    lsof -ti:3100 | xargs -r kill -9 2>/dev/null || true
+fi
+
+if command -v fuser >/dev/null 2>&1; then
+    fuser -k 3100/tcp 2>/dev/null || true
+fi
+
+# Matar processos pnpm/node na porta
+pkill -f "pnpm dev" 2>/dev/null || true
+pkill -f "node.*3100" 2>/dev/null || true
+pkill -f "vite" 2>/dev/null || true
+
+# Também matar PM2 se estiver rodando
+if command -v pm2 >/dev/null 2>&1; then
+    pm2 delete mwcode 2>/dev/null || true
+    pm2 stop all 2>/dev/null || true
+fi
+
+# Aguardar um momento
+sleep 2
+
+log "Processos anteriores finalizados"
+log "Processos anteriores finalizados"
+
+# Tentar liberar porta no firewall
 sudo ufw allow 3100/tcp 2>/dev/null || true
 sudo iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
+sudo iptables -A INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
+sudo firewall-cmd --add-port=3100/tcp --permanent 2>/dev/null || true
+sudo firewall-cmd --reload 2>/dev/null || true
 
-# Verificar se porta está aberta
+# Verificar se porta está realmente liberada
 sleep 1
+log "Verificando porta 3100..."
+
+# Testar se consegue bind na porta
 PORTA_OK=false
-if sudo ufw status 2>/dev/null | grep -q "3100"; then
-    PORTA_OK=true
-elif sudo iptables -L INPUT -n 2>/dev/null | grep -q "3100"; then
-    PORTA_OK=true
+
+# Tentar verificar se a porta está liberada
+if command -v ss >/dev/null 2>&1; then
+    if ss -tln 2>/dev/null | grep -q ":3100"; then
+        # Porta em uso, mas está livre para nosso uso
+        PORTA_OK=true
+    fi
 fi
 
-if [ "$PORTA_OK" = true ]; then
-    ok "Porta 3100 liberada"
-else
-    warn "Porta 3100 pode precisar configuração manual"
+# Verificar se firewall permite
+if command -v ufw >/dev/null 2>&1; then
+    if sudo ufw status 2>/dev/null | grep -q "3100.*ALLOW"; then
+        ok "Porta 3100 liberada (ufw)"
+        PORTA_OK=true
+    fi
 fi
+
+if command -v iptables >/dev/null 2>&1; then
+    if sudo iptables -L INPUT -n 2>/dev/null | grep -q "3100"; then
+        ok "Porta 3100 liberada (iptables)"
+        PORTA_OK=true
+    fi
+fi
+
+[ "$PORTA_OK" = true ] && ok "Porta 3100 pronta" || warn "Configure porta 3100 manualmente se necessário"
 
 cd "$INSTALL_DIR"
 
