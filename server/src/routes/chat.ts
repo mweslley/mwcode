@@ -26,7 +26,7 @@ chatRouter.post('/single', async (req, res) => {
 chatRouter.post('/:agentId', async (req, res) => {
   try {
     const companyId = req.companyId || 'default';
-    const userId = req.userId || 'user-default';
+    const userId = (req as any).userId || 'user-default';
     const data = validateSendMessage({
       agentId: req.params.agentId,
       companyId,
