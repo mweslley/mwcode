@@ -52,13 +52,14 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-import { authRouter } from './routes/auth.js';
+import { companyRouter } from './routes/company.js';
 import { memoriesRouter } from './routes/memories.js';
 import { skillsRouter } from './routes/skills.js';
 import { enterpriseAgentsRouter } from './routes/enterprise-agents.js';
 import { authMiddleware } from './middleware/auth.js';
 
 app.use('/api/auth', authRouter);
+app.use('/api/enterprise', authMiddleware, companyRouter);
 
 // Aplicar auth middleware nas rotas protegidas
 app.use('/api/empresas', authMiddleware, companiesRouter);

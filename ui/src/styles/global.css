@@ -170,6 +170,135 @@ input:focus, textarea:focus, select:focus {
 .badge.active { background: rgba(16,185,129,0.2); color: var(--success); }
 .badge.fired { background: rgba(239,68,68,0.2); color: var(--danger); }
 
+/* Onboarding Page */
+.onboarding-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--bg) 0%, #1a1a2e 100%);
+  padding: 40px;
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+}
+
+.onboarding-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.progress-step {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.progress-step.active {
+  background: var(--primary);
+  color: white;
+}
+
+.progress-line {
+  width: 40px;
+  height: 2px;
+  background: var(--border);
+  margin: 0 8px;
+}
+
+.onboarding-step h1 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.onboarding-step p {
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+
+.onboarding-step .form-group {
+  margin-bottom: 20px;
+}
+
+.onboarding-step button {
+  width: 100%;
+  padding: 14px;
+  background: var(--primary);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+.onboarding-step button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.goal-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.goal-item button {
+  margin: 0;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--danger);
+}
+
+.goal-input {
+  display: flex;
+  gap: 8px;
+}
+
+.goal-input input {
+  flex: 1;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+}
+
+.goal-input button {
+  width: auto;
+  margin: 0;
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, var(--primary) 0%, #818cf8 100%) !important;
+}
+
 /* Login Page */
 .login-page {
   min-height: 100vh;
