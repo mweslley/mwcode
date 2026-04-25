@@ -161,10 +161,12 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo "  Pegue em: $LINK"
     echo ""
     echo -n "Cole sua chave API: "
+    stty -echo
     read -s API_KEY
+    stty echo
+    echo ""
     
     if [ -n "$API_KEY" ]; then
-        echo ""
         # SALVAR (substituir, nao append)
         cd "$INSTALL_DIR"
         case "$PROVIDER_NAME" in
