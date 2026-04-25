@@ -2,10 +2,6 @@
 #
 # MWCode — Instalador Único (Sempre Interativo)
 # Execute:
-#   curl -fsSL -o install-mwcode.sh https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh
-#   bash install-mwcode.sh
-#
-# Ou um linha:
 #   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
 #
 
@@ -31,8 +27,6 @@ mudar_dir() {
 }
 
 mudar_dir
-has() { command -v "$1" &>/dev/null; }
-
 INSTALL_DIR="${MWCODE_HOME:-$HOME/.mwcode}"
 BIN_DIR="${MWCODE_BIN:-$HOME/.local/bin}"
 
@@ -41,112 +35,73 @@ echo -e "${BOLD}🚀 MWCode — Instalador Único${RESET}"
 echo -e "Sistema: $(uname -s)"
 echo ""
 
-# ============================================================
-# 1. Limpar instalação anterior
-# ============================================================
+# 1. Limpar
 log "Verificando instalação anterior..."
 mudar_dir
-
 [ -d "$INSTALL_DIR" ] && rm -rf "$INSTALL_DIR"
 ok "Instalação anterior removida"
-
 rm -f "$BIN_DIR/mwcode" 2>/dev/null || true
-rm -f "/usr/local/bin/mwcode" 2>/dev/null || true
 
 mudar_dir
 
-# ============================================================
-# 2. Node.js 20+
-# ============================================================
+# 2. Node.js
 log "Verificando Node.js..."
 mudar_dir
-
+has() { command -v "$1" &>/dev/null; }
 NODE_OK=false
 if has node; then
     NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
     [ "$NODE_VER" -ge 20 ] 2>/dev/null && NODE_OK=true
 fi
-
-[ "$NODE_OK" = false ] && {
-    warn "Node.js 20+ não encontrado. Instale primeiro."
-    exit 1
-}
-
+[ "$NODE_OK" = false ] && { warn "Node.js 20+ não encontrado."; exit 1; }
 ok "Node.js: $(node -v)"
 
 mudar_dir
 
-# ============================================================
 # 3. pnpm
-# ============================================================
 log "Instalando pnpm..."
 mudar_dir
-
 ! has pnpm && npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm 2>/dev/null || true
 ! has pnpm && { err "pnpm não instalado"; exit 1; }
-
 ok "pnpm: $(pnpm -v)"
 
 mudar_dir
 
-# ============================================================
-# 4. Baixar MWCode
-# ============================================================
+# 4. Baixar
 log "Baixando MWCode..."
 mudar_dir
-
-TEMP_DIR="/tmp"
-[ ! -w "$TEMP_DIR" ] && TEMP_DIR="$HOME"
-[ ! -w "$TEMP_DIR" ] && TEMP_DIR="/var/tmp"
-
+TEMP_DIR="/tmp"; [ ! -w "$TEMP_DIR" ] && TEMP_DIR="$HOME"
 rm -rf "$TEMP_DIR/mwcode-temp" 2>/dev/null || true
-git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$TEMP_DIR/mwcode-temp" || {
-    err "Falha ao baixar"
-    exit 1
-}
-
+git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$TEMP_DIR/mwcode-temp" || { err "Falha ao baixar"; exit 1; }
 cd "$TEMP_DIR/mwcode-temp"
 ok "MWCode baixado"
 
-# ============================================================
-# 5. Mover para diretório final
-# ============================================================
+# 5. Mover
 log "Instalando..."
 mudar_dir
-
 mkdir -p "$INSTALL_DIR"
 cp -r "$TEMP_DIR/mwcode-temp/"* "$INSTALL_DIR/" 2>/dev/null || true
 cp -r "$TEMP_DIR/mwcode-temp/."* "$INSTALL_DIR/" 2>/dev/null || true
 rm -rf "$TEMP_DIR/mwcode-temp"
-
 cd "$INSTALL_DIR"
 ok "MWCode instalado: $INSTALL_DIR"
 
-# ============================================================
 # 6. Corrigir bugs
-# ============================================================
 log "Verificando correções..."
-cd "$INSTALL_DIR"
 sed -i 's/mkdir_safe/mkdir -p/g' install.sh 2>/dev/null || true
 ok "Correções aplicadas"
 
-# ============================================================
 # 7. Instalar dependências
-# ============================================================
 log "Instalando dependências..."
 cd "$INSTALL_DIR"
 pnpm install || { err "Falha ao instalar dependências"; exit 1; }
 ok "Dependências instaladas"
 
-# ============================================================
 # 8. Criar .env
-# ============================================================
 [ ! -f .env ] && cp .env.example .env && chmod 600 .env
 ok ".env criado"
 
-# ============================================================
-# 9. ESCOLHER PROVEDOR (sempre perguntar)
-# ============================================================
+# 9. ESCOLHER PROVEDOR
 echo ""
 echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
 echo ""
@@ -170,9 +125,7 @@ esac
 echo -e "Provedor: ${YELLOW}$PROVIDER_NAME${RESET}"
 echo ""
 
-# ============================================================
-# 10. CHAVE API (sempre perguntar)
-# ============================================================
+# 10. CHAVE API (invisível)
 if [ "$PROVIDER_NAME" != "ollama" ]; then
     case "$PROVIDER_NAME" in
         openrouter) LINK="https://openrouter.ai/keys" ;;
@@ -184,9 +137,14 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
     echo "  Pegue em: $LINK"
     echo ""
-    read -p "Cole sua chave API: " API_KEY
+    
+    # Usar -s para senha invisível
+    echo -n "Cole sua chave API: "
+    read -s API_KEY
+    echo ""
     
     if [ -n "$API_KEY" ]; then
+        # SALVAR ANTES DE TESTAR
         case "$PROVIDER_NAME" in
             openrouter) echo "OPENROUTER_API_KEY=$API_KEY" >> .env ;;
             openai)     echo "OPENAI_API_KEY=$API_KEY" >> .env ;;
@@ -194,7 +152,52 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
             deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" >> .env ;;
         esac
         echo "MWCODE_PROVIDER=$PROVIDER_NAME" >> .env
-        ok "Chave API salva!"
+        
+        # VERIFICAR CHAVE
+        log "Verificando chave API..."
+        
+        case "$PROVIDER_NAME" in
+            openrouter)
+                # Testar chave
+                TESTE=$(curl -s -H "Authorization: Bearer $API_KEY" -H "HTTP-Referer: https://mwcode.com" -H "X-Title: MWCode" "https://openrouter.ai/api/v1/models" 2>&1)
+                if echo "$TESTE" | grep -q "error"; then
+                    err "Chave inválida!"
+                    # Remover chave inválida
+                    sed -i "/OPENROUTER_API_KEY/d" .env
+                    sed -i "/MWCODE_PROVIDER/d" .env
+                    exit 1
+                fi
+                ;;
+            openai)
+                TESTE=$(curl -s -H "Authorization: Bearer $API_KEY" "https://api.openai.com/v1/models" 2>&1)
+                if echo "$TESTE" | grep -q "error"; then
+                    err "Chave inválida!"
+                    sed -i "/OPENAI_API_KEY/d" .env
+                    sed -i "/MWCODE_PROVIDER/d" .env
+                    exit 1
+                fi
+                ;;
+            gemini)
+                TESTE=$(curl -s "https://generativelanguage.googleapis.com/v1/models?key=$API_KEY" 2>&1)
+                if echo "$TESTE" | grep -q "error"; then
+                    err "Chave inválida!"
+                    sed -i "/GEMINI_API_KEY/d" .env
+                    sed -i "/MWCODE_PROVIDER/d" .env
+                    exit 1
+                fi
+                ;;
+            deepseek)
+                TESTE=$(curl -s -H "Authorization: Bearer $API_KEY" "https://api.deepseek.com/v1/models" 2>&1)
+                if echo "$TESTE" | grep -q "error"; then
+                    err "Chave inválida!"
+                    sed -i "/DEEPSEEK_API_KEY/d" .env
+                    sed -i "/MWCODE_PROVIDER/d" .env
+                    exit 1
+                fi
+                ;;
+        esac
+        
+        ok "Chave API verificada e salva!"
     else
         warn "Nenhuma chave inserida."
     fi
@@ -204,53 +207,89 @@ else
     ok "Ollama configurado"
 fi
 
-# ============================================================
 # 11. Criar comando
-# ============================================================
 log "Criando comando..."
 cd "$INSTALL_DIR"
 mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/bin/mwcode.js" "$BIN_DIR/mwcode"
 ok "Comando 'mwcode' disponível"
 
-# ============================================================
 # 12. Liberar porta
-# ============================================================
 log "Liberando porta 3100..."
+# Tentar liberar no firewall
 sudo ufw allow 3100/tcp 2>/dev/null || true
-ok "Porta 3100 liberada"
+sudo iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
+
+# Verificar se porta está aberta
+sleep 1
+PORTA_OK=false
+if sudo ufw status 2>/dev/null | grep -q "3100"; then
+    PORTA_OK=true
+elif sudo iptables -L INPUT -n 2>/dev/null | grep -q "3100"; then
+    PORTA_OK=true
+fi
+
+if [ "$PORTA_OK" = true ]; then
+    ok "Porta 3100 liberada"
+else
+    warn "Porta 3100 pode precisar configuração manual"
+fi
 
 cd "$INSTALL_DIR"
 
 echo ""
 echo -e "${GREEN}${BOLD}🎉 Instalação concluída!${RESET}"
 echo ""
-echo "Acesso:"
-echo -e "  UI:    ${GREEN}http://localhost:5173${RESET}"
-echo -e "  API:   ${GREEN}http://localhost:3100${RESET}"
-echo ""
 
-# ============================================================
-# 13. INICIAR
-# ============================================================
+# 13. INICIAR COM MAIS FEEDBACK
 echo -e "${CYAN}🚀 Iniciando MWCode...${RESET}"
+echo ""
+log "Iniciando servidor..."
+log "Isso pode levar alguns segundos..."
 echo ""
 
 cd "$INSTALL_DIR"
 nohup pnpm dev > /tmp/mwcode.log 2>&1 &
 
+# Loop com feedback
 for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 2
-    curl -s http://localhost:3100/api/health > /dev/null 2>&1 && break
+    
+    if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
+        break
+    fi
+    
+    # Mostrar progresso
+    echo -n "."
 done
+echo ""
 
+# Verificar se iniciou
 if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
-    ok "MWCode iniciado!"
-    echo ""
-    echo -e "${GREEN}🎉 Tudo pronto!${RESET}"
-    echo ""
-    echo "Acesse: ${YELLOW}http://localhost:5173${RESET}"
+    # Testar se a API responde com chave
+    TESTE=$(curl -s http://localhost:3100/api/health 2>&1)
+    
+    if echo "$TESTE" | grep -q "ok"; then
+        ok "MWCode iniciado com sucesso!"
+        echo ""
+        echo -e "${GREEN}🎉 Tudo pronto!${RESET}"
+        echo ""
+        echo "Acesse:"
+        echo -e "  UI:    ${GREEN}http://localhost:5173${RESET}"
+        echo -e "  API:   ${GREEN}http://localhost:3100${RESET}"
+        echo -e "  Saúde: ${GREEN}http://localhost:3100/api/health${RESET}"
+        echo ""
+        echo "Provedor: $PROVIDER_NAME"
+    else
+        warn "Servidor iniciou mas com problemas."
+        echo "Verifique: tail /tmp/mwcode.log"
+    fi
 else
-    warn "Verifique manualmente: cd $INSTALL_DIR && pnpm dev"
-    echo "Logs: tail /tmp/mwcode.log"
+    warn "Servidor não iniciou a tempo."
+    echo ""
+    echo "Aguarde 10 segundos e verifique:"
+    echo "  tail /tmp/mwcode.log"
+    echo ""
+    echo " ou tente iniciar manualmente:"
+    echo "  cd $INSTALL_DIR && pnpm dev"
 fi
