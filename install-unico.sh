@@ -1,11 +1,14 @@
 #!/bin/bash
 #
-# MWCode — Instalador Único (Sempre Interativo)
+# MWCode — Instalador Único
 # Execute:
 #   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
 #
 
 set +u
+
+# Workaround para Node.js 24 + pnpm tsx bug
+export PNPM_SCRIPT_SRC_ALLOW='*=*'
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -123,13 +126,16 @@ ok ".env criado"
 echo ""
 echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
 echo ""
-echo -e "  1. ${GREEN}OpenRouter${RESET}   (Recomendado - modelos gratuitos)"
-echo -e "  2. OpenAI       (GPT-4, GPT-4o)"
-echo -e "  3. Gemini       (Google)"
-echo -e "  4. DeepSeek    (Barato)"
-echo -e "  5. Ollama       (Local)"
+echo "  1. OpenRouter   (Recomendado)"
+echo "  2. OpenAI"
+echo "  3. Gemini"
+echo "  4. DeepSeek"
+echo "  5. Ollama"
 echo ""
-read -p "Digite o número (1-5): " escolha
+read -p "Digite o número (1-5) [1]: " escolha
+
+# Default para openrouter se vazio
+escolha=${escolha:-1}
 
 case "$escolha" in
     1) PROVIDER_NAME="openrouter" ;;
@@ -140,7 +146,7 @@ case "$escolha" in
     *) PROVIDER_NAME="openrouter" ;;
 esac
 
-echo -e "Provedor: ${YELLOW}$PROVIDER_NAME${RESET}"
+echo "Provedor: $PROVIDER_NAME"
 echo ""
 
 # 10. CHAVE API (invisível)
