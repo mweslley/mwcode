@@ -23,7 +23,9 @@ err() { echo -e "${RED}✗${RESET} ${1}"; }
 
 mudar_dir() {
     for dir in /tmp /var/tmp "$HOME" /; do
-        [ -d "$dir" ] && [ -w "$dir" 2>/dev/null && { cd "$dir" 2>/dev/null; return 0; }
+        if [ -d "$dir" ] && [ -w "$dir" ] 2>/dev/null; then
+            cd "$dir" 2>/dev/null && return 0
+        fi
     done
     cd / 2>/dev/null
 }
@@ -260,129 +262,50 @@ ok "Comando 'mwcode' disponível"
 mudar_dir
 
 # ============================================================
-# 12. INSTALAR UFW E LIBERAR PORTAS
+# 12. PORTAS, FIREWALL E LIMPAR PROCESSOS
 # ============================================================
-log "Verificando portas..."
 
-# Matar processos existentes primeiro
-pkill -f "node.*3100" 2>/dev/null || true
-pkill -f "vite" 2>/dev/null || true
-sleep 1
-
-# Usar portas fixas (3100 para API, 5173 para UI)
-PORTA_UI=5173
+# Portas fixas (3100 = API, 5173 = UI)
 PORTA_API=3100
+PORTA_UI=5173
 
-# Salvar as portas no .env
+# Salvar no .env
 echo "PORT=$PORTA_API" >> .env
 echo "UI_PORT=$PORTA_UI" >> .env
+log "Portas configuradas: API=$PORTA_API, UI=$PORTA_UI"
 
-log "Usando portas: UI=$PORTA_UI, API=$PORTA_API"
+# Encerrar processos anteriores que possam estar usando as portas
+log "Encerrando processos anteriores..."
+pkill -f "pnpm dev" 2>/dev/null || true
+pkill -f "node.*$PORTA_API" 2>/dev/null || true
+pkill -f "vite" 2>/dev/null || true
+[ -x "$(command -v lsof)" ] && lsof -ti:$PORTA_API | xargs -r kill -9 2>/dev/null || true
+[ -x "$(command -v lsof)" ] && lsof -ti:$PORTA_UI | xargs -r kill -9 2>/dev/null || true
+[ -x "$(command -v fuser)" ] && fuser -k $PORTA_API/tcp 2>/dev/null || true
+[ -x "$(command -v pm2)" ] && pm2 delete mwcode 2>/dev/null || true
+sleep 2
+ok "Processos anteriores encerrados"
 
-# Instalar UFW
-log "Instalando UFW..."
-
-# Atualizar pacotes primeiro
-apt update -qq 2>/dev/null || apt update 2>/dev/null || true
-
-# Instalar UFW
+# Liberar portas no firewall
+log "Liberando portas no firewall..."
+apt update -qq 2>/dev/null || true
 if ! command -v ufw >/dev/null 2>&1; then
     apt install -y ufw 2>/dev/null || true
 fi
 
-# Se UFW foi instalado, configurar regras
 if command -v ufw >/dev/null 2>&1; then
-    # SSH (importante!)
-    ufw allow 22/tcp 2>/dev/null || true
-    
-    # Portas do MWCode
-    ufw allow 3100/tcp 2>/dev/null || true
-    ufw allow 5173/tcp 2>/dev/null || true
-    
-    # Não habilitar por padrão para evitar lockout em VPS
-    # ufw --force enable 2>/dev/null || true
-    
-    ok "UFW instaladas e portas liberadas (3100, 5173)"
+    ufw allow 22/tcp 2>/dev/null || true       # SSH (não trave fora!)
+    ufw allow $PORTA_API/tcp 2>/dev/null || true
+    ufw allow $PORTA_UI/tcp 2>/dev/null || true
+    # Não chama "ufw enable" automaticamente (evita lockout em VPS sem console)
+    ok "UFW configurado (portas $PORTA_API e $PORTA_UI liberadas)"
+elif command -v iptables >/dev/null 2>&1; then
+    iptables -I INPUT -p tcp --dport $PORTA_API -j ACCEPT 2>/dev/null || true
+    iptables -I INPUT -p tcp --dport $PORTA_UI -j ACCEPT 2>/dev/null || true
+    ok "Portas liberadas via iptables"
 else
-    # Fallback para iptables
-    iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
-    iptables -I INPUT -p tcp --dport 5173 -j ACCEPT 2>/dev/null || true
-    ok "Portas liberadas (iptables)"
+    warn "Nenhum firewall encontrado. Libere $PORTA_API/$PORTA_UI manualmente se precisar."
 fi
-
-# PRIMEIRO: matar qualquer processo que use a porta 3100
-log "Verificando processos na porta 3100..."
-
-# Encontrar e matar processos na porta 3100
-if command -v lsof >/dev/null 2>&1; then
-    lsof -ti:3100 | xargs -r kill -9 2>/dev/null || true
-fi
-
-if command -v fuser >/dev/null 2>&1; then
-    fuser -k 3100/tcp 2>/dev/null || true
-fi
-
-# Matar processos pnpm/node na porta
-pkill -f "pnpm dev" 2>/dev/null || true
-pkill -f "node.*3100" 2>/dev/null || true
-pkill -f "vite" 2>/dev/null || true
-
-# Também matar PM2 se estiver rodando
-if command -v pm2 >/dev/null 2>&1; then
-    pm2 delete mwcode 2>/dev/null || true
-    pm2 stop all 2>/dev/null || true
-fi
-
-# Aguardar um momento
-sleep 2
-
-log "Processos anteriores finalizados"
-
-# Tentar liberar porta no firewall
-sudo ufw allow 3100/tcp 2>/dev/null || true
-sudo iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
-sudo iptables -A INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
-sudo firewall-cmd --add-port=3100/tcp --permanent 2>/dev/null || true
-sudo firewall-cmd --reload 2>/dev/null || true
-
-# Verificar se porta está realmente liberada
-sleep 1
-log "Verificando porta 3100..."
-
-# Testar se consegue bind na porta
-PORTA_OK=false
-
-# Verificar se a porta está livre para bind
-if command -v nc >/dev/null 2>&1; then
-    # Tentar conectar na porta
-    if ! nc -z localhost 3100 2>/dev/null; then
-        PORTA_OK=true
-    fi
-elif command -v nmap >/dev/null 2>&1; then
-    if ! nmap -p 3100 localhost 2>/dev/null | grep -q "open"; then
-        PORTA_OK=true
-    fi
-else
-    # Fallback: simplesmente tentar
-    PORTA_OK=true
-fi
-
-# Verificar se firewall permite
-if command -v ufw >/dev/null 2>&1; then
-    if sudo ufw status 2>/dev/null | grep -q "3100.*ALLOW"; then
-        ok "Porta 3100 liberada (ufw)"
-        PORTA_OK=true
-    fi
-fi
-
-if command -v iptables >/dev/null 2>&1; then
-    if sudo iptables -L INPUT -n 2>/dev/null | grep -q "3100"; then
-        ok "Porta 3100 liberada (iptables)"
-        PORTA_OK=true
-    fi
-fi
-
-[ "$PORTA_OK" = true ] && ok "Porta 3100 pronta" || warn "Configure porta 3100 manualmente se necessário"
 
 cd "$INSTALL_DIR"
 
