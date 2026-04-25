@@ -214,8 +214,75 @@ mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/bin/mwcode.js" "$BIN_DIR/mwcode"
 ok "Comando 'mwcode' disponível"
 
-# 12. Liberar porta
-log "Liberando porta 3100..."
+mudar_dir
+
+# ============================================================
+# 12. INSTALAR UFW E LIBERAR PORTAS
+# ============================================================
+log "Instalando UFW e configurando firewall..."
+
+# Instalar UFW
+if ! command -v ufw >/dev/null 2>&1; then
+    apt update -qq && apt install -y ufw 2>/dev/null || true
+fi
+
+# Se UFW foi instalado, configurar regras
+if command -v ufw >/dev/null 2>&1; then
+    # SSH (importante!)
+    ufw allow 22/tcp 2>/dev/null || true
+    
+    # Portas do MWCode
+    ufw allow 3100/tcp 2>/dev/null || true
+    ufw allow 5173/tcp 2>/dev/null || true
+    
+    # Não habilitar por padrão para evitar lockout em VPS
+    # ufw --force enable 2>/dev/null || true
+    
+    ok "UFW instaladas e portas liberadas (3100, 5173)"
+else
+    # Fallback para iptables
+    iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
+    iptables -I INPUT -p tcp --dport 5173 -j ACCEPT 2>/dev/null || true
+    ok "Portas liberadas (iptables)"
+fi
+
+fi
+
+# Tentar liberar porta no firewall
+log "Liberando portas..."
+
+# Tentar liberar no firewall
+sudo ufw allow 3100/tcp 2>/dev/null || true
+sudo ufw allow 5173/tcp 2>/dev/null || true
+sudo iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
+sudo iptables -A INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
+sudo iptables -I INPUT -p tcp --dport 5173 -j ACCEPT 2>/dev/null || true
+sudo iptables -A INPUT -p tcp --dport 5173 -j ACCEPT 2>/dev/null || true
+sudo firewall-cmd --add-port=3100/tcp --permanent 2>/dev/null || true
+sudo firewall-cmd --add-port=5173/tcp --permanent 2>/dev/null || true
+
+# Verificar se portas estão realmente liberadas
+log "Verificando portas 3100 e 5173..."
+
+# Verificar se firewall permite
+PORTA_3100=false
+PORTA_5173=false
+
+# Verificar se iptables permite
+if command -v iptables >/dev/null 2>&1; then
+    if sudo iptables -L INPUT -n 2>/dev/null | grep -q "3100"; then
+        PORTA_3100=true
+    fi
+    if sudo iptables -L INPUT -n 2>/dev/null | grep -q "5173"; then
+        PORTA_5173=true
+    fi
+fi
+
+if [ "$PORTA_3100" = true ] || [ "$PORTA_5173" = true ]; then
+    ok "Portas liberadas!"
+else
+    warn "Configure manualmente se necessário"
+fi
 
 # PRIMEIRO: matar qualquer processo que use a porta 3100
 log "Verificando processos na porta 3100..."
