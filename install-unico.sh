@@ -373,7 +373,7 @@ echo ""
 cd "$INSTALL_DIR"
 export PORT="$PORTA_API"
 export UI_PORT="$PORTA_UI"
-nohup pnpm dev > /tmp/mwcode.log 2>&1 &
+nohup pnpm dev:server > /tmp/mwcode.log 2>&1 &
 
 # Loop com feedback
 for i in 1 2 3 4 5 6 7 8 9 10; do
