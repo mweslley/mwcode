@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { StatsCard } from '../components/StatsCard';
 import { AgentCard } from '../components/AgentCard';
+import { UpdateBadge } from '../components/UpdateBadge';
 import { useAgents } from '../hooks/useAgents';
 
 export function Dashboard() {
@@ -17,6 +18,8 @@ export function Dashboard() {
   return (
     <div>
       <h1>Painel</h1>
+
+      <UpdateBadge />
 
       <div className="stats-grid">
         <StatsCard title="Agentes Ativos" value={stats?.agentesAtivos ?? 0} icon="👥" />
