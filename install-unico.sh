@@ -30,7 +30,8 @@ mudar_dir() {
 }
 
 mudar_dir
-INSTALL_DIR="${MWCODE_HOME:-$HOME/.mwcode}"
+MWCODE_DIR="${MWCODE_DIR:-/opt/mwcode}"
+INSTALL_DIR="$MWCODE_DIR"
 BIN_DIR="${MWCODE_BIN:-$HOME/.local/bin}"
 
 echo ""
