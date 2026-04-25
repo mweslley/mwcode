@@ -397,10 +397,24 @@ pnpm --filter @mwcode/ui build || { err "UI nao compilada"; exit 1; }
 export PORT="$PORTA_API"
 export UI_PORT="$PORTA_UI"
 
-# Exportar vars para o servidor
-export OPENROUTER_API_KEY=$(grep OPENROUTER_API_KEY "$INSTALL_DIR/.env" | cut -d= -f2)
-export MWCODE_PROVIDER=$(grep MWCODE_PROVIDER "$INSTALL_DIR/.env" | cut -d= -f2)
-export DOTENV_PATH="$INSTALL_DIR/.env"
+# Exportar vars para o servidor (com debugging)
+log "Carregando configurações do .env..."
+
+# Carregar todas variaveis do .env
+if [ -f "$INSTALL_DIR/.env" ]; then
+    set -a
+    source "$INSTALL_DIR/.env"
+    set +a
+    log "Configurações carregadas do .env"
+else
+    err ".env não encontrado!"
+fi
+
+# Exportar vars
+export OPENROUTER_API_KEY
+export MWCODE_PROVIDER
+log "Provider: $MWCODE_PROVIDER"
+log "API Key: $(echo $OPENROUTER_API_KEY | cut -c1-8)..."
 
 # Iniciar server
 cd "$INSTALL_DIR/server"

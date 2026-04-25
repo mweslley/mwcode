@@ -31,9 +31,10 @@ const provider = process.env.MWCODE_PROVIDER || 'openrouter';
 const apiKeyVar = `${provider.toUpperCase()}_API_KEY`;
 const apiKey = process.env[apiKeyVar];
 console.log(`[MWCode] Provider: ${provider}`);
-console.log(`[MWCode] API Key configurada: ${apiKey ? 'SIM' : 'NÃO'}`);
+console.log(`[MWCode] Var de API Key: ${apiKeyVar}`);
+console.log(`[MWCode] API Key: ${apiKey ? 'SIM (' + apiKey.substring(0, 8) + '...)' : 'NÃO'}`);
 if (!apiKey) {
-  console.error(`[MWCode] ERRO: ${apiKeyVar} não encontrada!`);
+  console.error(`[MWCode] ERRO: ${apiKeyVar} não encontrada no .env!`);
 }
 
 app.get('/api/health', (_req, res) => {
