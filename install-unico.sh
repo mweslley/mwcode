@@ -112,8 +112,10 @@ pnpm config set ignore-workspace-root-check true 2>/dev/null || true
 
 ok "Dependências instaladas"
 
-# 8. Criar .env
-[ ! -f .env ] && cp .env.example .env && chmod 600 .env
+# 8. Criar .env (limpar antes)
+> .env
+[ -f .env.example ] && cp .env.example .env
+chmod 600 .env
 ok ".env criado"
 
 # 9. ESCOLHER PROVEDOR
@@ -162,12 +164,12 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo ""
     
     if [ -n "$API_KEY" ]; then
-        # SALVAR ANTES DE TESTAR
+        # SALVAR (substituir, nao append)
         case "$PROVIDER_NAME" in
-            openrouter) echo "OPENROUTER_API_KEY=$API_KEY" >> .env ;;
-            openai)     echo "OPENAI_API_KEY=$API_KEY" >> .env ;;
-            gemini)    echo "GEMINI_API_KEY=$API_KEY" >> .env ;;
-            deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" >> .env ;;
+            openrouter) echo "OPENROUTER_API_KEY=$API_KEY" > .env ;;
+            openai)     echo "OPENAI_API_KEY=$API_KEY" > .env ;;
+            gemini)    echo "GEMINI_API_KEY=$API_KEY" > .env ;;
+            deepseek)  echo "DEEPSEEK_API_KEY=$API_KEY" > .env ;;
         esac
         echo "MWCODE_PROVIDER=$PROVIDER_NAME" >> .env
         
