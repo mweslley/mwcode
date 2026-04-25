@@ -94,6 +94,10 @@ ok "Correções aplicadas"
 # 7. Instalar dependências
 log "Instalando dependências..."
 cd "$INSTALL_DIR"
+
+# Aprovar builds do esbuild
+echo "y" | pnpm approve-builds 2>/dev/null || true
+
 pnpm install || { err "Falha ao instalar dependências"; exit 1; }
 ok "Dependências instaladas"
 
