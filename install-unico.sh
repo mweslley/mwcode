@@ -40,12 +40,60 @@ echo -e "${BOLD}🚀 MWCode — Instalador Único${RESET}"
 echo -e "Sistema: $(uname -s)"
 echo ""
 
-# 1. Limpar
-log "Verificando instalação anterior..."
+# ============================================================
+# 1. DETECTAR INSTALAÇÃO ANTERIOR
+# ============================================================
 mudar_dir
-[ -d "$INSTALL_DIR" ] && rm -rf "$INSTALL_DIR"
-ok "Instalação anterior removida"
-rm -f "$BIN_DIR/mwcode" 2>/dev/null || true
+MODO_INSTALACAO="nova"   # "nova" | "atualizar"
+
+if [ -d "$INSTALL_DIR" ] && [ -d "$INSTALL_DIR/.git" ]; then
+    echo ""
+    echo -e "${BOLD}${YELLOW}⚠ Instalação existente detectada${RESET} em ${BOLD}$INSTALL_DIR${RESET}"
+    echo ""
+    echo "  O que você quer fazer?"
+    echo ""
+    echo "    ${GREEN}1${RESET}) ${BOLD}Atualizar${RESET}    — baixa código novo, mantém .env, dados e usuários"
+    echo "                    ${CYAN}(recomendado se já está usando)${RESET}"
+    echo ""
+    echo "    ${YELLOW}2${RESET}) ${BOLD}Reinstalar${RESET}   — APAGA tudo e instala do zero (perde todos os dados!)"
+    echo ""
+    echo "    ${RED}3${RESET}) ${BOLD}Cancelar${RESET}     — sai sem fazer nada"
+    echo ""
+    read -p "Digite 1, 2 ou 3 [1]: " escolha_existente
+    escolha_existente=${escolha_existente:-1}
+
+    case "$escolha_existente" in
+        1)
+            MODO_INSTALACAO="atualizar"
+            ok "Modo: ATUALIZAR (preserva dados)"
+            # Backup do .env antes de qualquer coisa
+            if [ -f "$INSTALL_DIR/.env" ]; then
+                cp "$INSTALL_DIR/.env" "/tmp/mwcode.env.backup"
+                ok ".env salvo em /tmp/mwcode.env.backup"
+            fi
+            # Backup do data/
+            if [ -d "$INSTALL_DIR/data" ]; then
+                cp -r "$INSTALL_DIR/data" "/tmp/mwcode.data.backup"
+                ok "Pasta data/ salva em /tmp/mwcode.data.backup"
+            fi
+            ;;
+        2)
+            log "Modo: REINSTALAÇÃO completa"
+            read -p "Tem CERTEZA? Isso apaga seus usuários e memórias. Digite 'sim' pra confirmar: " conf
+            if [ "$conf" != "sim" ]; then
+                err "Cancelado."
+                exit 0
+            fi
+            rm -rf "$INSTALL_DIR"
+            rm -f "$BIN_DIR/mwcode" 2>/dev/null || true
+            ok "Instalação anterior removida"
+            ;;
+        3|*)
+            log "Cancelado pelo usuário."
+            exit 0
+            ;;
+    esac
+fi
 
 mudar_dir
 
@@ -72,24 +120,30 @@ ok "pnpm: $(pnpm -v)"
 
 mudar_dir
 
-# 4. Baixar
-log "Baixando MWCode..."
-mudar_dir
-TEMP_DIR="/tmp"; [ ! -w "$TEMP_DIR" ] && TEMP_DIR="$HOME"
-rm -rf "$TEMP_DIR/mwcode-temp" 2>/dev/null || true
-git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$TEMP_DIR/mwcode-temp" || { err "Falha ao baixar"; exit 1; }
-cd "$TEMP_DIR/mwcode-temp"
-ok "MWCode baixado"
+# 4. Baixar / Atualizar código
+if [ "$MODO_INSTALACAO" = "atualizar" ]; then
+    log "Atualizando código (git pull)..."
+    cd "$INSTALL_DIR"
+    git fetch --quiet origin main || { err "Falha ao buscar updates do GitHub"; exit 1; }
+    git reset --hard origin/main --quiet || { err "Falha ao aplicar updates"; exit 1; }
+    ok "Código atualizado pra última versão"
+else
+    log "Baixando MWCode..."
+    mudar_dir
+    TEMP_DIR="/tmp"; [ ! -w "$TEMP_DIR" ] && TEMP_DIR="$HOME"
+    rm -rf "$TEMP_DIR/mwcode-temp" 2>/dev/null || true
+    git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$TEMP_DIR/mwcode-temp" || { err "Falha ao baixar"; exit 1; }
+    ok "MWCode baixado"
 
-# 5. Mover
-log "Instalando..."
-mudar_dir
-mkdir -p "$INSTALL_DIR"
-cp -r "$TEMP_DIR/mwcode-temp/"* "$INSTALL_DIR/" 2>/dev/null || true
-cp -r "$TEMP_DIR/mwcode-temp/."* "$INSTALL_DIR/" 2>/dev/null || true
-rm -rf "$TEMP_DIR/mwcode-temp"
-cd "$INSTALL_DIR"
-ok "MWCode instalado: $INSTALL_DIR"
+    log "Instalando em $INSTALL_DIR..."
+    mudar_dir
+    mkdir -p "$INSTALL_DIR"
+    cp -r "$TEMP_DIR/mwcode-temp/"* "$INSTALL_DIR/" 2>/dev/null || true
+    cp -r "$TEMP_DIR/mwcode-temp/."* "$INSTALL_DIR/" 2>/dev/null || true
+    rm -rf "$TEMP_DIR/mwcode-temp"
+    cd "$INSTALL_DIR"
+    ok "MWCode instalado: $INSTALL_DIR"
+fi
 
 # 6. Corrigir bugs
 log "Verificando correções..."
@@ -115,14 +169,42 @@ sed -i "s|../.env|../../.env|g" server/src/index.ts 2>/dev/null || true
 
 ok "Dependências instaladas"
 
-# 8. Criar .env (sempre em INSTALL_DIR)
+# 8. Criar/restaurar .env e data/
 cd "$INSTALL_DIR"
-> .env
-[ -f .env-example ] && cp .env-example .env
-chmod 600 .env
-ok ".env criado"
+
+if [ "$MODO_INSTALACAO" = "atualizar" ]; then
+    # Restaura .env e data/ que salvamos antes
+    if [ -f "/tmp/mwcode.env.backup" ]; then
+        cp "/tmp/mwcode.env.backup" "$INSTALL_DIR/.env"
+        chmod 600 "$INSTALL_DIR/.env"
+        ok ".env restaurado (suas chaves preservadas)"
+    fi
+    if [ -d "/tmp/mwcode.data.backup" ]; then
+        cp -r "/tmp/mwcode.data.backup" "$INSTALL_DIR/data"
+        ok "Pasta data/ restaurada (usuários, memórias, skills preservadas)"
+    fi
+
+    log "Pulando configuração de provedor (modo atualização)"
+
+    # Pula direto pra seção de portas e início — sem perguntar provedor/chave
+    SKIP_PROVIDER_SETUP=true
+else
+    > .env
+    [ -f .env-example ] && cp .env-example .env
+    chmod 600 .env
+    ok ".env criado"
+    SKIP_PROVIDER_SETUP=false
+fi
 
 # 9. ESCOLHER PROVEDOR (empresa configurada na UI)
+if [ "$SKIP_PROVIDER_SETUP" = "true" ]; then
+    # Pula o bloco de configuração de provedor inteiro
+    # Define variáveis necessárias pras seções abaixo
+    PROVIDER_NAME=$(grep -E "^MWCODE_PROVIDER=" "$INSTALL_DIR/.env" | cut -d= -f2 || echo "openrouter")
+    : "${PROVIDER_NAME:=openrouter}"
+fi
+
+if [ "$SKIP_PROVIDER_SETUP" != "true" ]; then
 echo ""
 echo -e "${BOLD}🤖 Escolha seu Provedor de IA:${RESET}"
 echo ""
@@ -235,6 +317,8 @@ else
     echo "MWCODE_PROVIDER=ollama" >> .env
     ok "Ollama configurado"
 fi
+
+fi   # /SKIP_PROVIDER_SETUP — fim do bloco de configuração de provedor
 
 # Funções de porta DEVEM vir antes do uso
 test_porta_uso() {
