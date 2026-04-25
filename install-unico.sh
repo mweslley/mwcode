@@ -3,6 +3,8 @@
 # MWCode — Instalador Único
 # Execute:
 #   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
+# ou com chave:
+#   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh "SUA_API_KEY"
 #
 
 set +u
@@ -201,10 +203,15 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo "  Pegue em: $LINK"
     echo ""
     
-    # Usar -s para senha invisível
-    echo -n "Cole sua chave API: "
-    read -s API_KEY
-    echo ""
+    # Tentar primeiro com argumento
+    if [ -n "$1" ]; then
+        API_KEY="$1"
+    else
+        #read interativo
+        echo -n "Cole sua chave API: "
+        read -s API_KEY
+        echo ""
+    fi
     
     if [ -n "$API_KEY" ]; then
         # SALVAR (substituir, nao append)
