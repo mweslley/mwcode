@@ -10,12 +10,10 @@ Um sistema flexível de agentes de IA, construído em **React** + **Node.js**, q
 
 ## 🚀 Instalação rápida (1 comando!)
 
-### Instalador Único (Recomendado)
-
 Este instalador faz TUDO automaticamente: instala, configura provedor de IA, e inicia o servidor!
 
 ```bash
-cd /tmp && curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
 ```
 
 O instalador vai pedir para você:
@@ -25,7 +23,11 @@ O instalador vai pedir para você:
 
 ---
 
-### Outros métodos de instalação
+### Com variáveis (modo não-interativo)
+
+```bash
+PROVEDOR=openrouter API_KEY=sk-or-v1-minha-chave curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
+```
 
 ### npm
 
