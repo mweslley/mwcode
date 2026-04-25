@@ -13,7 +13,7 @@ import { chatRouter } from './routes/chat.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { tasksRouter } from './routes/tasks.js';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
