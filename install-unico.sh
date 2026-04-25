@@ -3,10 +3,7 @@
 # MWCode — Instalador Único
 # Execute:
 #   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
-# ou com chave:
-#   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh "SUA_API_KEY"
 #
-
 set +u
 
 # Workaround para Node.js 24 + pnpm tsx bug
@@ -151,7 +148,7 @@ echo ""
 
 # 9b. MODELO (opcional - pode escolher por agente na Dashboard)
 
-# 10. CHAVE API (invisível)
+# 10. CHAVE API (prompt interativo)
 if [ "$PROVIDER_NAME" != "ollama" ]; then
     case "$PROVIDER_NAME" in
         openrouter) LINK="https://openrouter.ai/keys" ;;
@@ -163,16 +160,9 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo -e "${BOLD}🔑 Configure sua chave API:${RESET}"
     echo "  Pegue em: $LINK"
     echo ""
-    
-    # Tentar primeiro com argumento
-    if [ -n "$1" ]; then
-        API_KEY="$1"
-    else
-        #read interativo
-        echo -n "Cole sua chave API: "
-        read -s API_KEY
-        echo ""
-    fi
+    echo -n "Cole sua chave API: "
+    read API_KEY
+    echo ""
     
     if [ -n "$API_KEY" ]; then
         # SALVAR (substituir, nao append)
