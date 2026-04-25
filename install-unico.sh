@@ -230,8 +230,23 @@ test_porta_uso() {
             return 1  # Porta em uso
         fi
     fi
-    # Se não conseguir testar, assumir que está livre
     return 0
+}
+
+# Encontrar porta livre
+achar_porta_livre() {
+    local PORTA_BASE=$1
+    local PORTA=$PORTA_BASE
+    
+    while test_porta_uso $PORTA; do
+        PORTA=$((PORTA + 1))
+        if [ $PORTA -gt $((PORTA_BASE + 10)) ]; then
+            # Tentou 10 portas, dar erro
+            return 0
+        fi
+    done
+    
+    echo "$PORTA"
 }
 
 # ============================================================
@@ -239,22 +254,27 @@ test_porta_uso() {
 # ============================================================
 log "Verificando portas..."
 
-# Verificar se as portas estão em uso
-if test_porta_uso 3100; then
-    PORTA_3100_OK=true
-    log "Porta 3100 livre"
+# Detectar qual porta usar para UI
+if test_porta_uso 5173; then
+    PORTA_UI=$(achar_porta_livre 5173)
+    log "Porta 5173 em uso, usando: $PORTA_UI"
 else
-    warn "Porta 3100 ja esta em uso! Verifique com: ss -tlnp | grep 3100"
-    warn " continuando mesmo assim..."
+    PORTA_UI=5173
 fi
 
-if test_porta_uso 5173; then
-    PORTA_5173_OK=true
-    log "Porta 5173 livre"
+# Detectar qual porta usar para API
+if test_porta_uso 3100; then
+    PORTA_API=$(achar_porta_livre 3100)
+    log "Porta 3100 em uso, usando: $PORTA_API"
 else
-    warn "Porta 5173 ja esta em uso! Verifique com: ss -tlnp | grep 5173"
-    warn " continuando mesmo assim..."
+    PORTA_API=3100
 fi
+
+# Salvar as portas no .env
+echo "PORT=$PORTA_API" >> .env
+echo "UI_PORT=$PORTA_UI" >> .env
+
+log "Usando portas: UI=$PORTA_UI, API=$PORTA_API"
 
 # Instalar UFW
 log "Instalando UFW..."
@@ -413,13 +433,15 @@ log "Isso pode levar alguns segundos..."
 echo ""
 
 cd "$INSTALL_DIR"
+export PORT="$PORTA_API"
+export UI_PORT="$PORTA_UI"
 nohup pnpm dev > /tmp/mwcode.log 2>&1 &
 
 # Loop com feedback
 for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 2
     
-    if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
+    if curl -s http://localhost:$PORTA_API/api/health > /dev/null 2>&1; then
         break
     fi
     
@@ -429,9 +451,9 @@ done
 echo ""
 
 # Verificar se iniciou
-if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
+if curl -s http://localhost:$PORTA_API/api/health > /dev/null 2>&1; then
     # Testar se a API responde com chave
-    TESTE=$(curl -s http://localhost:3100/api/health 2>&1)
+    TESTE=$(curl -s http://localhost:$PORTA_API/api/health 2>&1)
     
     if echo "$TESTE" | grep -q "ok"; then
         ok "MWCode iniciado com sucesso!"
@@ -439,9 +461,9 @@ if curl -s http://localhost:3100/api/health > /dev/null 2>&1; then
         echo -e "${GREEN}🎉 Tudo pronto!${RESET}"
         echo ""
         echo "Acesse:"
-        echo -e "  UI:    ${GREEN}http://localhost:5173${RESET}"
-        echo -e "  API:   ${GREEN}http://localhost:3100${RESET}"
-        echo -e "  Saúde: ${GREEN}http://localhost:3100/api/health${RESET}"
+        echo -e "  UI:    ${GREEN}http://localhost:$PORTA_UI${RESET}"
+        echo -e "  API:   ${GREEN}http://localhost:$PORTA_API${RESET}"
+        echo -e "  Saude: ${GREEN}http://localhost:$PORTA_API/api/health${RESET}"
         echo ""
         echo "Provedor: $PROVIDER_NAME"
     else
