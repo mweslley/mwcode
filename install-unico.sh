@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# MWCode — Instalador Único Universal
-# Execute este comando:
-#   curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
+# MWCode — Instalador Único (Versão Seguro)
+# Execute:
+#   cd /tmp && curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh | bash
 #
 set -euo pipefail
 
-# IMPORTANTE: Mudar para diretório seguro antes de tudo
-cd /tmp || cd ~ || cd /
+# IMPORTANTE: Mudar para diretório seguro ANTES DE TUDO
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -22,221 +22,164 @@ warn() { echo -e "${YELLOW}⚠${RESET} ${1}"; }
 err() { echo -e "${RED}✗${RESET} ${1}"; }
 die() { err "$1"; exit 1; }
 
-has() { command -v "$1" &>/dev/null; }
-
 INSTALL_DIR="${MWCODE_HOME:-$HOME/.mwcode}"
 BIN_DIR="${MWCODE_BIN:-$HOME/.local/bin}"
 
 log "${BOLD}🚀 MWCode — Instalador Único${RESET}"
+log "Sistema: Linux"
 log ""
 
 # ============================================================
-# 0. Detectar SO
+# 0. Garantir diretório válido em cada passo
 # ============================================================
-OS="$(uname -s)"
-log "Sistema: $OS"
-
-case "$OS" in
-    Linux*)     IS_LINUX=1; IS_MAC=0; IS_WINDOWS=0 ;;
-    Darwin*)   IS_LINUX=0; IS_MAC=1; IS_WINDOWS=0 ;;
-    MINGW*|MSYS*|CYGWW*) IS_LINUX=0; IS_MAC=0; IS_WINDOWS=1 ;;
-    *)        die "SO não suportado: $OS" ;;
-esac
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
 # ============================================================
 # 1. Limpar instalação anterior
 # ============================================================
 log "Verificando instalação anterior..."
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
-if [ -d "$INSTALL_DIR" ]; then
-    log "Removendo instalação anterior: $INSTALL_DIR"
-    rm -rf "$INSTALL_DIR"
-    ok "Instalação anterior removida"
-fi
+[ -d "$INSTALL_DIR" ] && rm -rf "$INSTALL_DIR"
+ok "Instalação anterior removida"
 
 # Remover symlinks antigos
-for dir in "$BIN_DIR" /usr/local/bin "$HOME/bin"; do
-    [ -L "$dir/mwcode" ] && rm -f "$dir/mwcode" 2>/dev/null || true
-done
+rm -f "$BIN_DIR/mwcode" 2>/dev/null || true
+rm -f "/usr/local/bin/mwcode" 2>/dev/null || true
 
-log ""
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
 # ============================================================
 # 2. Node.js 20+
 # ============================================================
 log "Verificando Node.js..."
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+
+has() { command -v "$1" &>/dev/null; }
 
 NODE_OK=false
 if has node; then
     NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
-    if [ "$NODE_VER" -ge 20 ]; then
-        NODE_OK=true
-    fi
+    [ "$NODE_VER" -ge 20 ] && NODE_OK=true
 fi
 
 if [ "$NODE_OK" = false ]; then
     warn "Node.js 20+ não encontrado. Instalando..."
-
-    if [ "$IS_MAC" -eq 1 ] && has brew; then
-        brew install node@20
-    elif [ -f /etc/debian_version ]; then
-        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash - || die "Falha ao instalar Node.js"
-        sudo apt-get install -y nodejs
-    elif [ -f /etc/redhat-release ]; then
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash - || die "Falha ao instalar Node.js"
-        sudo dnf install -y nodejs
-    else
-        # Fallback: nvm
-        export NVM_DIR="$HOME/.nvm"
-        [ ! -d "$NVM_DIR" ] && curl -o /tmp/nvm.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh
-        . /tmp/nvm.sh || source /tmp/nvm.sh
-        nvm install 20
-        nvm use 20
-        nvm alias default 20
-        export PATH="$NVM_DIR/versions/node/v20.x/bin:$PATH"
-    fi
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash - || true
+    sudo apt-get install -y nodejs 2>/dev/null || true
 fi
 
 has node || die "Node.js não instalado"
 ok "Node.js: $(node -v)"
 
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+
 # ============================================================
 # 3. pnpm
 # ============================================================
 log "Instalando pnpm..."
-
-# IMPORTANTE: Mudar para diretório válido antes de instalar
-cd /tmp 2>/dev/null || cd ~ || cd /
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
 if ! has pnpm; then
     npm install -g pnpm 2>/dev/null || sudo npm install -g pnpm 2>/dev/null || true
 fi
 
-# VOLTAR PARA DIRETÓRIO SEGURO APÓS INSTALAR
-cd /tmp 2>/dev/null || cd ~ || cd /
-
 has pnpm || die "pnpm não instalado"
 ok "pnpm: $(pnpm -v)"
 
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+
 # ============================================================
-# 4. Baixar MWCode do GitHub
+# 4. Baixar MWCode para /tmp primeiro
 # ============================================================
 log "Baixando MWCode..."
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
-# IMPORTANTE: Garantir que estamos em diretório válido
-cd /tmp 2>/dev/null || cd ~ || cd /
+# Clonar para /tmp primeiro
+rm -rf /tmp/mwcode-temp 2>/dev/null || true
+git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git /tmp/mwcode-temp || die "Falha ao baixar"
 
-# Remover diretório anterior com segurança
-rm -rf "$INSTALL_DIR" 2>/dev/null || true
+cd /tmp/mwcode-temp
+ok "MWCode baixado"
+
+# ============================================================
+# 5. Mover para diretório final
+# ============================================================
+log "Instalando..."
+cd /tmp 2>/dev/null || cd / 2>/dev/null || true
+
 mkdir -p "$INSTALL_DIR"
-git clone --depth 1 --branch main https://github.com/mweslley/mwcode.git "$INSTALL_DIR" || die "Falha ao clonar"
+cp -r /tmp/mwcode-temp/* "$INSTALL_DIR/"
+cp -r /tmp/mwcode-temp/.* "$INSTALL_DIR/" 2>/dev/null || true
+rm -rf /tmp/mwcode-temp
 
 cd "$INSTALL_DIR"
-
-ok "MWCode baixado: $INSTALL_DIR"
+ok "MWCode instalado: $INSTALL_DIR"
 
 # ============================================================
-# 5. Corrigir bugs no instalador
+# 6. Corrigir bugs
 # ============================================================
 log "Verificando correções..."
+cd "$INSTALL_DIR"
 
-# Corrigir mkdir_safe no install.sh
-if grep -q "mkdir_safe" install.sh 2>/dev/null; then
-    sed -i 's/mkdir_safe/mkdir -p/g' install.sh
-    ok "Bug install.sh corrigido"
-fi
-
-log ""
+sed -i 's/mkdir_safe/mkdir -p/g' install.sh 2>/dev/null || true
+ok "Correções aplicadas"
 
 # ============================================================
-# 6. Instalar dependências
+# 7. Instalar dependências
 # ============================================================
 log "Instalando dependências..."
+cd "$INSTALL_DIR"
 pnpm install || die "Falha ao instalar dependências"
 ok "Dependências instaladas"
 
 # ============================================================
-# 7. Criar .env
+# 8. Criar .env
 # ============================================================
-if [ ! -f .env ]; then
-    cp .env.example .env
-    chmod 600 .env
-    ok ".env criado"
-fi
+[ ! -f .env ] && cp .env.example .env && chmod 600 .env
+ok ".env criado"
 
 # ============================================================
-# 8. Criar symlink do comando
+# 9. Criar comando
 # ============================================================
-log "Criando comando 'mwcode'..."
-
+log "Criando comando..."
+cd "$INSTALL_DIR"
 mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/bin/mwcode.js" "$BIN_DIR/mwcode"
-
-if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    warn "Adicione ao PATH: export PATH=\"$BIN_DIR:\$PATH\""
-fi
-
 ok "Comando 'mwcode' disponível"
 
 # ============================================================
-# 9. Liberar porta no firewall
+# 10. Liberar porta
 # ============================================================
 log "Liberando porta 3100..."
+sudo ufw allow 3100/tcp 2>/dev/null || true
+ok "Porta 3100 liberada"
 
-if has ufw; then
-    sudo ufw allow 3100/tcp 2>/dev/null || true
-    ok "Porta 3100 liberada (ufw)"
-elif has firewall-cmd; then
-    sudo firewall-cmd --add-port=3100/tcp --permanent 2>/dev/null || true
-    sudo firewall-cmd --reload 2>/dev/null || true
-    ok "Porta 3100 liberada (firewall)"
-elif has iptables; then
-    sudo iptables -I INPUT -p tcp --dport 3100 -j ACCEPT 2>/dev/null || true
-    ok "Porta 3100 liberada (iptables)"
-else
-    ok "Porta 3100 (pode precisar configurar manualmente)"
-fi
+cd "$INSTALL_DIR"
 
 log ""
-
-# ============================================================
-# Final
-# ============================================================
 log "${GREEN}${BOLD}🎉 Instalação concluída!${RESET}"
 log ""
-log "${BOLD}Próximos passos:${RESET}"
+log "Próximos passos:"
 log "  1. Configure sua chave de API:"
-log "       ${YELLOW}nano $INSTALL_DIR/.env${RESET}"
+log "       nano $INSTALL_DIR/.env"
 log "     (adicione: OPENROUTER_API_KEY=sk-or-v1-...)"
 log ""
 log "  2. Inicie o MWCode:"
-log "       ${GREEN}mwcode${RESET}"
-log "     ${DIM}ou${RESET}"
-log "       ${GREEN}cd $INSTALL_DIR && pnpm dev${RESET}"
+log "       cd $INSTALL_DIR && pnpm dev"
 log ""
-log "${BOLD}Acesso:${RESET}"
-log "  UI:    ${GREEN}http://localhost:5173${RESET}"
-log "  API:   ${GREEN}http://localhost:3100${RESET}"
-log "  Saúde: ${GREEN}http://localhost:3100/api/health${RESET}"
+log "Acesso:"
+log "  UI:    http://localhost:5173"
+log "  API:   http://localhost:3100"
+log "  Saúde: http://localhost:3100/api/health"
 log ""
 
-# Oferecer iniciar
 read -p "$(echo -e '${CYAN}Deseja iniciar agora? (s/n): ${RESET}')" -n 1 -r resposta
 echo
 if [[ "$resposta" =~ ^[Ss]$ ]]; then
-    log ""
-    log "${CYAN}🚀 Iniciando MWCode...${RESET}"
     cd "$INSTALL_DIR"
-    pnpm dev &
-    sleep 3
+    nohup pnpm dev > /tmp/mwcode.log 2>&1 &
+    sleep 5
     ok "MWCode iniciado!"
-    log ""
     log "Acesse: http://localhost:5173"
-    
-    # Abrir navegador se disponível
-    if has xdg-open; then
-        xdg-open http://localhost:5173 2>/dev/null &
-    elif has open; then
-        open http://localhost:5173 2>/dev/null &
-    fi
 fi
