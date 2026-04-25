@@ -161,7 +161,7 @@ if [ "$PROVIDER_NAME" != "ollama" ]; then
     echo "  Pegue em: $LINK"
     echo ""
     echo -n "Cole sua chave API: "
-    read API_KEY
+    read -s API_KEY
     echo ""
     
     if [ -n "$API_KEY" ]; then
