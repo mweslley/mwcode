@@ -1,41 +1,37 @@
 import { useState } from 'react';
-import { api } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../lib/api';
 import { ModelPicker } from '../components/ModelPicker';
 import { MODELO_PADRAO } from '@mwcode/shared';
 
-interface OnboardingData {
-  companyName: string;
-  area: string;
-  mission: string;
-  employees: string;
-  goals: string[];
-  ceoModel: string;
-}
+const TOTAL_STEPS = 3;
 
 export function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<OnboardingData>({
+  const [data, setData] = useState({
     companyName: '',
     area: '',
     mission: '',
     employees: '1-10',
-    goals: [],
-    ceoModel: MODELO_PADRAO
+    goals: [] as string[],
+    ceoModel: MODELO_PADRAO,
   });
   const [goalInput, setGoalInput] = useState('');
+
+  function addGoal() {
+    if (goalInput.trim()) {
+      setData(d => ({ ...d, goals: [...d.goals, goalInput.trim()] }));
+      setGoalInput('');
+    }
+  }
 
   async function handleSubmit() {
     setLoading(true);
     try {
-      // Salvar dados da empresa no backend
-      const company = await api.post('/enterprise/company', data);
+      const company = await api.post<any>('/enterprise/company', data);
 
-      // Criar agente CEO inicial — administra e orquestra a empresa.
-      // Modelo padrão é openrouter/auto (grátis, escolhido em runtime).
-      // Usuário pode trocar depois em Agentes → CEO → editar.
       await api.post('/enterprise/agents/hire', {
         name: 'CEO',
         role: 'ceo',
@@ -49,156 +45,188 @@ export function Onboarding() {
           `Sempre responda em português brasileiro de forma direta e profissional.`,
         goals: data.goals,
         provider: 'openrouter',
-        model: data.ceoModel
+        model: data.ceoModel,
       });
 
-      // IMPORTANTE: salvar no localStorage pra CheckOnboarding não voltar pra cá em loop
       localStorage.setItem('company', JSON.stringify(company || data));
-
+      // Remove modo antigo para não causar conflito
+      localStorage.removeItem('mode');
       navigate('/dashboard');
     } catch (err: any) {
-      console.error(err);
-      alert('Erro ao criar empresa: ' + (err?.message || 'tente novamente.'));
+      alert('Erro ao configurar workspace: ' + (err?.message || 'tente novamente.'));
     } finally {
       setLoading(false);
     }
   }
 
-  function addGoal() {
-    if (goalInput.trim()) {
-      setData({ ...data, goals: [...data.goals, goalInput] });
-      setGoalInput('');
-    }
-  }
-
   return (
     <div className="onboarding-page">
-      <div className="onboarding-card">
-        <div className="onboarding-progress">
-          <div className={`progress-step ${step >= 1 ? 'active' : ''}`}>1</div>
-          <div className="progress-line" />
-          <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>2</div>
-          <div className="progress-line" />
-          <div className={`progress-step ${step >= 3 ? 'active' : ''}`}>3</div>
+      <div className="onboarding-box">
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>⚡</div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>
+            Bem-vindo ao MWCode
+          </h1>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
+            Configure seu workspace em 3 passos rápidos
+          </p>
         </div>
 
-        {step === 1 && (
-          <div className="onboarding-step">
-            <h1>Vamos conhecer sua empresa!</h1>
-            <p>Primeiro, nos conte sobre o básico.</p>
-            
-            <div className="form-group">
-              <label>Nome da empresa</label>
-              <input
-                type="text"
-                value={data.companyName}
-                onChange={(e) => setData({ ...data, companyName: e.target.value })}
-                placeholder="Minha Empresa"
-              />
-            </div>
+        {/* Progress */}
+        <div className="onboarding-progress">
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+            <div
+              key={i}
+              className={`progress-step${i + 1 < step ? ' done' : i + 1 === step ? ' active' : ''}`}
+            />
+          ))}
+        </div>
 
-            <div className="form-group">
-              <label>Área de atuação</label>
-              <input
-                type="text"
-                value={data.area}
-                onChange={(e) => setData({ ...data, area: e.target.value })}
-                placeholder="Tecnologia, Saúde, Educação..."
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Número de funcionários</label>
-              <select
-                value={data.employees}
-                onChange={(e) => setData({ ...data, employees: e.target.value })}
-              >
-                <option value="1-10">1-10</option>
-                <option value="11-50">11-50</option>
-                <option value="51-200">51-200</option>
-                <option value="200+">200+</option>
-              </select>
-            </div>
-
-            <button onClick={() => data.companyName && setStep(2)} disabled={!data.companyName}>
-              Próximo →
-            </button>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="onboarding-step">
-            <h1>Missão e Valores</h1>
-            <p>Qual é o propósito da sua empresa?</p>
-            
-            <div className="form-group">
-              <label>Missão</label>
-              <textarea
-                value={data.mission}
-                onChange={(e) => setData({ ...data, mission: e.target.value })}
-                placeholder="Nossa missão é..."
-                rows={4}
-              />
-            </div>
-
-            <button onClick={() => setStep(3)} disabled={!data.mission}>
-              Próximo →
-            </button>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="onboarding-step">
-            <h1>Metas da Empresa</h1>
-            <p>Quais são as principais metas para os próximos meses?</p>
-            
-            <div className="goals-list">
-              {data.goals.map((goal, i) => (
-                <div key={i} className="goal-item">
-                  <span>{goal}</span>
-                  <button onClick={() => setData({ 
-                    ...data, 
-                    goals: data.goals.filter((_, j) => j !== i) 
-                  })}>×</button>
-                </div>
-              ))}
-            </div>
-
-            <div className="goal-input">
-              <input
-                type="text"
-                value={goalInput}
-                onChange={(e) => setGoalInput(e.target.value)}
-                placeholder="Adicionar meta..."
-                onKeyDown={(e) => e.key === 'Enter' && addGoal()}
-              />
-              <button onClick={addGoal}>+</button>
-            </div>
-
-            <div className="form-group" style={{ marginTop: 24 }}>
-              <h3 style={{ fontSize: 16, marginBottom: 4 }}>Modelo de IA do CEO</h3>
-              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-                Será criado automaticamente um agente <strong>CEO</strong> pra orquestrar
-                sua empresa. Escolha o modelo de IA dele (todos grátis):
+        <div className="card">
+          {step === 1 && (
+            <>
+              <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Sua empresa</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>
+                Nos conte o básico sobre o seu negócio.
               </p>
+
+              <div className="form-group">
+                <label>Nome da empresa *</label>
+                <input
+                  value={data.companyName}
+                  onChange={e => setData(d => ({ ...d, companyName: e.target.value }))}
+                  placeholder="Ex: Loja MWO, Minha Startup..."
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label>Área de atuação</label>
+                <input
+                  value={data.area}
+                  onChange={e => setData(d => ({ ...d, area: e.target.value }))}
+                  placeholder="Ex: Hosting, E-commerce, SaaS, Marketing..."
+                />
+              </div>
+              <div className="form-group">
+                <label>Tamanho da equipe</label>
+                <select value={data.employees} onChange={e => setData(d => ({ ...d, employees: e.target.value }))}>
+                  <option value="1-10">1–10 pessoas</option>
+                  <option value="11-50">11–50 pessoas</option>
+                  <option value="51-200">51–200 pessoas</option>
+                  <option value="200+">200+ pessoas</option>
+                </select>
+              </div>
+
+              <button
+                style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+                onClick={() => setStep(2)}
+                disabled={!data.companyName}
+              >
+                Próximo →
+              </button>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Missão e objetivos</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>
+                Isso guia o comportamento dos seus agentes.
+              </p>
+
+              <div className="form-group">
+                <label>Missão da empresa</label>
+                <textarea
+                  value={data.mission}
+                  onChange={e => setData(d => ({ ...d, mission: e.target.value }))}
+                  placeholder="Ex: Oferecer VPS acessíveis para gamers brasileiros..."
+                  rows={4}
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Metas principais</label>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    value={goalInput}
+                    onChange={e => setGoalInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addGoal())}
+                    placeholder="Ex: Aumentar clientes em 30%..."
+                    style={{ flex: 1 }}
+                  />
+                  <button onClick={addGoal} style={{ padding: '8px 14px' }}>+</button>
+                </div>
+                {data.goals.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {data.goals.map((g, i) => (
+                      <div key={i} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '7px 10px',
+                        background: 'var(--bg-3)',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border)',
+                        fontSize: 13,
+                      }}>
+                        <span style={{ flex: 1 }}>✅ {g}</span>
+                        <button
+                          className="ghost"
+                          style={{ padding: '2px 8px', fontSize: 12 }}
+                          onClick={() => setData(d => ({ ...d, goals: d.goals.filter((_, j) => j !== i) }))}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="ghost" onClick={() => setStep(1)} style={{ flex: 1, justifyContent: 'center' }}>
+                  ← Voltar
+                </button>
+                <button onClick={() => setStep(3)} style={{ flex: 2, justifyContent: 'center' }}>
+                  Próximo →
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Modelo do CEO</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>
+                Um agente CEO será criado automaticamente para orquestrar sua equipe.
+                Escolha o modelo de IA dele:
+              </p>
+
               <ModelPicker
                 value={data.ceoModel}
-                onChange={(modelId) => setData({ ...data, ceoModel: modelId })}
+                onChange={model => setData(d => ({ ...d, ceoModel: model }))}
                 modo="cards"
                 mostrarPagos={false}
                 label=""
               />
-            </div>
 
-            <button
-              onClick={handleSubmit}
-              disabled={loading || (data.goals.length === 0)}
-              className="submit-btn"
-            >
-              {loading ? 'Criando empresa e CEO...' : 'Finalizar! 🎉'}
-            </button>
-          </div>
-        )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                <button className="ghost" onClick={() => setStep(2)} style={{ flex: 1, justifyContent: 'center' }}>
+                  ← Voltar
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  style={{ flex: 2, justifyContent: 'center' }}
+                >
+                  {loading ? 'Configurando workspace...' : '🚀 Finalizar'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

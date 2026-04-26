@@ -5,89 +5,149 @@ import { api } from '../lib/api';
 export function Settings() {
   const navigate = useNavigate();
   const [health, setHealth] = useState<any>(null);
-  const [failoverOn, setFailoverOn] = useState(true);
-  const mode = localStorage.getItem('mode');
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [updating, setUpdating] = useState(false);
+
+  const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
+  const company = (() => { try { return JSON.parse(localStorage.getItem('company') || '{}'); } catch { return {}; } })();
 
   useEffect(() => {
-    api.health().then(setHealth).catch(() => setHealth(null));
+    api.get('/api/health').catch(() => null).then(setHealth);
+    api.get('/system/update-check').catch(() => null).then(setUpdateInfo);
   }, []);
 
-  function trocarModo() {
-    if (
-      confirm(
-        'Trocar de modo? Você voltará pra tela de escolha (Pessoal ou Empresa).\n\nSeus dados não serão apagados — só o modo de uso.'
-      )
-    ) {
-      localStorage.removeItem('mode');
-      navigate('/mode');
+  async function runUpdate() {
+    if (!confirm('Atualizar o MWCode? O servidor vai reiniciar por alguns segundos.')) return;
+    setUpdating(true);
+    try {
+      await api.post('/system/update', {});
+      alert('Atualização iniciada! O servidor vai reiniciar em breve.');
+    } catch (e: any) {
+      alert('Erro: ' + e.message);
+    } finally {
+      setUpdating(false);
     }
   }
 
-  return (
-    <div>
-      <h1>Configurações</h1>
+  function sair() {
+    localStorage.clear();
+    navigate('/login');
+  }
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2>Modo de uso</h2>
-        <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>
-          Você está usando o MWCode como{' '}
-          <strong>{mode === 'personal' ? '👤 Pessoal' : '🏢 Empresa'}</strong>.
-        </p>
-        <button
-          onClick={trocarModo}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'inherit',
-            cursor: 'pointer',
-          }}
-        >
-          🔄 Trocar modo
-        </button>
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1 className="page-title">Configurações</h1>
+        <p className="page-subtitle">Gerencie sua conta e workspace.</p>
       </div>
 
+      {/* Perfil */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <h2>Sistema</h2>
-        {health ? (
-          <ul style={{ listStyle: 'none', color: 'var(--muted)', fontSize: 13 }}>
-            <li>Status: {health.status}</li>
-            <li>Versão: {health.version}</li>
-            <li>Modo: {health.modo}</li>
-            <li>Provedor: {health.provider || '(não configurado)'}</li>
-          </ul>
-        ) : (
-          <p style={{ color: 'var(--danger)' }}>API offline</p>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Perfil</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            background: 'var(--grad-p)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, fontWeight: 700, color: '#fff',
+          }}>
+            {user?.name?.[0]?.toUpperCase() ?? '?'}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>{user?.name || '—'}</div>
+            <div style={{ color: 'var(--muted)', fontSize: 13 }}>{user?.email}</div>
+          </div>
+          <button className="ghost" style={{ marginLeft: 'auto', fontSize: 12 }}>Editar</button>
+        </div>
+      </div>
+
+      {/* Workspace */}
+      {company?.name && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Workspace</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+            <div className="flex items-center justify-between">
+              <span style={{ color: 'var(--muted)' }}>Empresa</span>
+              <span>{company.name}</span>
+            </div>
+            {company.area && (
+              <div className="flex items-center justify-between">
+                <span style={{ color: 'var(--muted)' }}>Área</span>
+                <span>{company.area}</span>
+              </div>
+            )}
+            {company.employees && (
+              <div className="flex items-center justify-between">
+                <span style={{ color: 'var(--muted)' }}>Equipe</span>
+                <span>{company.employees} pessoas</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sistema */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Sistema</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+          <div className="flex items-center justify-between">
+            <span style={{ color: 'var(--muted)' }}>Status da API</span>
+            <span className={`badge ${health ? 'badge-green' : 'badge-red'}`}>
+              {health ? '● Online' : '● Offline'}
+            </span>
+          </div>
+          {health?.version && (
+            <div className="flex items-center justify-between">
+              <span style={{ color: 'var(--muted)' }}>Versão</span>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{health.version}</span>
+            </div>
+          )}
+          {health?.provider && (
+            <div className="flex items-center justify-between">
+              <span style={{ color: 'var(--muted)' }}>Provedor padrão</span>
+              <span>{health.provider}</span>
+            </div>
+          )}
+        </div>
+
+        {updateInfo?.hasUpdate && (
+          <div style={{
+            marginTop: 14,
+            padding: '12px 14px',
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.25)',
+            borderRadius: 'var(--radius-sm)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 13, color: '#fbbf24' }}>🔄 Atualização disponível</span>
+            <button
+              onClick={runUpdate}
+              disabled={updating}
+              style={{ fontSize: 12, padding: '5px 12px', background: 'rgba(245,158,11,0.2)', borderColor: 'rgba(245,158,11,0.4)', color: '#fbbf24' }}
+            >
+              {updating ? 'Atualizando...' : 'Atualizar agora'}
+            </button>
+          </div>
         )}
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2>Failover Automático</h2>
-        <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>
-          Alterna automaticamente para provedor de backup quando o principal falha.
-        </p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={failoverOn}
-            onChange={e => setFailoverOn(e.target.checked)}
-            style={{ width: 'auto' }}
-          />
-          Failover ativo (configure no servidor via MWCODE_FAILOVER=true)
-        </label>
-      </div>
-
+      {/* Ações perigosas */}
       <div className="card">
-        <h2>Provedores Suportados</h2>
-        <ul style={{ listStyle: 'none', fontSize: 13, color: 'var(--muted)', lineHeight: 1.8 }}>
-          <li>✅ OpenRouter — +100 modelos via uma API</li>
-          <li>✅ OpenAI — GPT-4o, GPT-4o-mini</li>
-          <li>✅ Gemini — Google Generative AI</li>
-          <li>✅ Ollama — modelos locais (ilimitados)</li>
-          <li>✅ DeepSeek — API DeepSeek</li>
-          <li>✅ GitHub Models — inferência grátis</li>
-        </ul>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Conta</h3>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            className="ghost"
+            onClick={() => { localStorage.removeItem('company'); navigate('/onboarding'); }}
+            style={{ fontSize: 12 }}
+          >
+            Reconfigurar workspace
+          </button>
+          <button className="danger" onClick={sair} style={{ fontSize: 12 }}>
+            ↩ Sair da conta
+          </button>
+        </div>
       </div>
     </div>
   );

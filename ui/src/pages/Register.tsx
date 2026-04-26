@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
 export function Register() {
@@ -14,14 +14,12 @@ export function Register() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
-      const res = await api.post('/auth/register', { name, email, password });
+      const res = await api.post<any>('/auth/register', { name, email, password });
       if (res.token) {
         localStorage.setItem('token', res.token);
         localStorage.setItem('user', JSON.stringify(res.user));
-        // Conta nova → sempre escolher modo
-        navigate('/mode');
+        navigate('/onboarding');
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao criar conta');
@@ -31,60 +29,59 @@ export function Register() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-header">
-          <h1>Criar Conta</h1>
-          <p>Comece a usar o MWCode</p>
+    <div className="auth-page">
+      <div className="auth-box">
+        <div className="auth-brand">
+          <div className="auth-brand-icon">⚡</div>
+          <h1>MWCode</h1>
+          <p>Crie sua conta gratuita</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="error-message">{error}</div>}
-          
-          <div className="form-group">
-            <label htmlFor="name">Nome</label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Seu nome"
-              required
-            />
-          </div>
+        <div className="auth-card">
+          <h2>Criar conta</h2>
+          {error && <div className="auth-error">{error}</div>}
 
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-            />
-          </div>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Nome</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Seu nome completo"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Senha</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                required
+                minLength={6}
+              />
+            </div>
+            <button type="submit" disabled={loading} className="auth-submit">
+              {loading ? 'Criando conta...' : 'Criar conta →'}
+            </button>
+          </form>
+        </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Senha</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
-          </div>
-
-          <button type="submit" disabled={loading} className="login-button">
-            {loading ? 'Criando...' : 'Criar Conta'}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          <p>Já tem conta? <a href="/login">Entre</a></p>
+        <div className="auth-footer">
+          Já tem conta? <Link to="/login">Entrar</Link>
         </div>
       </div>
     </div>

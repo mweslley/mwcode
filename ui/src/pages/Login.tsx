@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
 export function Login() {
@@ -13,71 +13,64 @@ export function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post<any>('/auth/login', { email, password });
       if (res.token) {
         localStorage.setItem('token', res.token);
         localStorage.setItem('user', JSON.stringify(res.user));
-        // Se já escolheu modo antes, mantém; senão, vai pra escolha
-        const modo = localStorage.getItem('mode');
-        if (modo === 'personal') {
-          navigate('/single');
-        } else if (modo === 'enterprise') {
-          navigate('/dashboard');
-        } else {
-          navigate('/mode');
-        }
+        const company = localStorage.getItem('company');
+        navigate(company ? '/dashboard' : '/onboarding');
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login');
+      setError(err.message || 'Email ou senha incorretos');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-header">
+    <div className="auth-page">
+      <div className="auth-box">
+        <div className="auth-brand">
+          <div className="auth-brand-icon">⚡</div>
           <h1>MWCode</h1>
-          <p>Seu assistente de IA</p>
+          <p>AI Workspace — Loja MWO</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="error-message">{error}</div>}
-          
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-            />
-          </div>
+        <div className="auth-card">
+          <h2>Entrar na conta</h2>
+          {error && <div className="auth-error">{error}</div>}
 
-          <div className="form-group">
-            <label htmlFor="password">Senha</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
-          </div>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="form-group">
+              <label>Senha</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+            <button type="submit" disabled={loading} className="auth-submit">
+              {loading ? 'Entrando...' : 'Entrar →'}
+            </button>
+          </form>
+        </div>
 
-          <button type="submit" disabled={loading} className="login-button">
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          <p>Não tem conta? <a href="/register">Cadastre-se</a></p>
+        <div className="auth-footer">
+          Não tem conta? <Link to="/register">Criar conta</Link>
         </div>
       </div>
     </div>
