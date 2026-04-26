@@ -6,7 +6,9 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@mwcode/shared": ["../packages/shared/src/index.ts"],
+      "@mwcode/shared/*": ["../packages/shared/src/*"]
     }
   },
   "include": ["src/**/*"]

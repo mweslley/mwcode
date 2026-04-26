@@ -3,12 +3,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { dataPath } from '../lib/data-dir.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const USERS_FILE = path.resolve(__dirname, '../../../data/users.json');
+const USERS_FILE = dataPath('users.json');
 
 interface User {
   id: string;
