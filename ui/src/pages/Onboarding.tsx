@@ -32,7 +32,7 @@ export function Onboarding() {
     try {
       const company = await api.post<any>('/enterprise/company', data);
 
-      await api.post('/enterprise/agents/hire', {
+      const ceo = await api.post<any>('/enterprise/agents/hire', {
         name: 'CEO',
         role: 'ceo',
         title: 'CEO — Chief Executive Officer',
@@ -40,16 +40,32 @@ export function Onboarding() {
           `Você é o CEO da ${data.companyName}, responsável por orquestrar e administrar a empresa. ` +
           `Atua na área de ${data.area || 'negócios'}. ` +
           `Sua missão: ${data.mission || 'fazer a empresa crescer com agentes de IA'}. ` +
-          `Você toma decisões estratégicas, atribui tarefas a outros agentes, ` +
-          `monitora o desempenho da equipe e reporta resultados ao usuário. ` +
+          `Você toma decisões estratégicas, contrata e gerencia outros agentes de IA para compor sua equipe, ` +
+          `delega tarefas, monitora o desempenho da equipe e reporta resultados ao usuário. ` +
+          `Ao ser iniciado pela primeira vez, analise os objetivos da empresa e elabore um plano de ação ` +
+          `com os primeiros agentes a contratar e as primeiras tarefas a executar. ` +
           `Sempre responda em português brasileiro de forma direta e profissional.`,
         goals: data.goals,
         provider: 'openrouter',
         model: data.ceoModel,
       });
 
+      // Boot do CEO: mensagem inicial para o CEO começar a agir
+      if (ceo?.id) {
+        const bootMsg =
+          `Você acabou de ser contratado como CEO da ${data.companyName}. ` +
+          (data.mission ? `Nossa missão é: ${data.mission}. ` : '') +
+          (data.goals.length > 0 ? `Nossos objetivos principais são: ${data.goals.join(', ')}. ` : '') +
+          `Analise essa situação e me apresente: ` +
+          `1) Quais agentes você recomenda contratar primeiro e por quê. ` +
+          `2) As 3 primeiras ações que vai tomar como CEO. ` +
+          `3) Como vai medir o sucesso nas próximas semanas. ` +
+          `Seja direto e prático.`;
+
+        await api.post(`/chat/${ceo.id}`, { message: bootMsg }).catch(() => {});
+      }
+
       localStorage.setItem('company', JSON.stringify(company || data));
-      // Remove modo antigo para não causar conflito
       localStorage.removeItem('mode');
       navigate('/dashboard');
     } catch (err: any) {

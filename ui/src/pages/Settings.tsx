@@ -2,19 +2,90 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
+interface MaskedKeys {
+  openrouter?: string;
+  openai?: string;
+  gemini?: string;
+  deepseek?: string;
+  github?: string;
+  ollama_url?: string;
+}
+
+interface ServerKeys {
+  openrouter: boolean;
+  openai: boolean;
+  gemini: boolean;
+  deepseek: boolean;
+  github: boolean;
+}
+
+const KEY_LABELS: Record<string, { label: string; placeholder: string; type?: string }> = {
+  openrouter: { label: 'OpenRouter', placeholder: 'sk-or-v1-...' },
+  openai:     { label: 'OpenAI', placeholder: 'sk-...' },
+  gemini:     { label: 'Google Gemini', placeholder: 'AIza...' },
+  deepseek:   { label: 'DeepSeek', placeholder: 'sk-...' },
+  github:     { label: 'GitHub Models', placeholder: 'ghp_...' },
+  ollama_url: { label: 'Ollama URL', placeholder: 'http://localhost:11434', type: 'url' },
+};
+
 export function Settings() {
   const navigate = useNavigate();
   const [health, setHealth] = useState<any>(null);
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [updating, setUpdating] = useState(false);
 
+  // API Keys state
+  const [maskedKeys, setMaskedKeys] = useState<MaskedKeys>({});
+  const [serverKeys, setServerKeys] = useState<ServerKeys>({ openrouter: false, openai: false, gemini: false, deepseek: false, github: false });
+  const [keyForm, setKeyForm] = useState<Record<string, string>>({});
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [keysMsg, setKeysMsg] = useState<string | null>(null);
+  const [showKeys, setShowKeys] = useState(false);
+
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
   const company = (() => { try { return JSON.parse(localStorage.getItem('company') || '{}'); } catch { return {}; } })();
 
   useEffect(() => {
-    api.get('/api/health').catch(() => null).then(setHealth);
+    api.get('/health').catch(() => null).then(setHealth);
     api.get('/system/update-check').catch(() => null).then(setUpdateInfo);
+    loadKeys();
   }, []);
+
+  async function loadKeys() {
+    try {
+      const data = await api.get<{ keys: MaskedKeys; server: ServerKeys }>('/user/keys');
+      setMaskedKeys(data?.keys || {});
+      setServerKeys(data?.server || { openrouter: false, openai: false, gemini: false, deepseek: false, github: false });
+    } catch {}
+  }
+
+  async function saveKeys() {
+    setSavingKeys(true);
+    setKeysMsg(null);
+    try {
+      await api.put('/user/keys', keyForm);
+      setKeyForm({});
+      setKeysMsg('✅ Chaves salvas com sucesso!');
+      await loadKeys();
+    } catch (e: any) {
+      setKeysMsg('❌ Erro ao salvar: ' + e.message);
+    } finally {
+      setSavingKeys(false);
+      setTimeout(() => setKeysMsg(null), 4000);
+    }
+  }
+
+  async function deleteKey(provider: string) {
+    if (!confirm(`Remover chave de ${KEY_LABELS[provider]?.label || provider}?`)) return;
+    try {
+      await api.delete(`/user/keys/${provider}`);
+      setKeysMsg('✅ Chave removida.');
+      await loadKeys();
+      setTimeout(() => setKeysMsg(null), 3000);
+    } catch (e: any) {
+      alert('Erro: ' + e.message);
+    }
+  }
 
   async function runUpdate() {
     if (!confirm('Atualizar o MWCode? O servidor vai reiniciar por alguns segundos.')) return;
@@ -33,6 +104,8 @@ export function Settings() {
     localStorage.clear();
     navigate('/login');
   }
+
+  const hasUserKeys = Object.keys(maskedKeys).filter(k => k !== 'updatedAt' && maskedKeys[k as keyof MaskedKeys]).length > 0;
 
   return (
     <div className="page">
@@ -57,8 +130,105 @@ export function Settings() {
             <div style={{ fontWeight: 600, marginBottom: 2 }}>{user?.name || '—'}</div>
             <div style={{ color: 'var(--muted)', fontSize: 13 }}>{user?.email}</div>
           </div>
-          <button className="ghost" style={{ marginLeft: 'auto', fontSize: 12 }}>Editar</button>
         </div>
+      </div>
+
+      {/* Chaves de API */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>🔑 Chaves de API</h3>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0' }}>
+              Suas chaves sobrepõem as do servidor e ficam armazenadas só no seu perfil.
+            </p>
+          </div>
+          <button className="ghost" style={{ fontSize: 12 }} onClick={() => setShowKeys(!showKeys)}>
+            {showKeys ? '▲ Fechar' : '▼ Gerenciar'}
+          </button>
+        </div>
+
+        {/* Status rápido */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: showKeys ? 16 : 0 }}>
+          {Object.entries(KEY_LABELS).map(([key, { label }]) => {
+            const hasUser = !!(maskedKeys as any)[key];
+            const hasServer = key !== 'ollama_url' && (serverKeys as any)[key];
+            const status = hasUser ? 'user' : hasServer ? 'server' : 'none';
+            return (
+              <span
+                key={key}
+                className={`badge ${status === 'user' ? 'badge-green' : status === 'server' ? 'badge-purple' : 'badge-gray'}`}
+                title={status === 'user' ? 'Configurada por você' : status === 'server' ? 'Configurada no servidor' : 'Não configurada'}
+              >
+                {label} {status === 'user' ? '✓ sua' : status === 'server' ? '✓ servidor' : '—'}
+              </span>
+            );
+          })}
+        </div>
+
+        {showKeys && (
+          <>
+            <div className="divider" style={{ margin: '0 0 16px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {Object.entries(KEY_LABELS).map(([key, { label, placeholder }]) => {
+                const current = (maskedKeys as any)[key] as string | undefined;
+                return (
+                  <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 4 }}>
+                        {label}
+                      </label>
+                      <input
+                        type={key === 'ollama_url' ? 'text' : 'password'}
+                        value={keyForm[key] ?? ''}
+                        onChange={e => setKeyForm(f => ({ ...f, [key]: e.target.value }))}
+                        placeholder={current ? current : placeholder}
+                        style={{ width: '100%', fontSize: 13 }}
+                      />
+                    </div>
+                    {current && (
+                      <button
+                        className="ghost"
+                        style={{ padding: '6px 10px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)', marginTop: 20 }}
+                        onClick={() => deleteKey(key)}
+                        title={`Remover chave de ${label}`}
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {keysMsg && (
+              <div style={{ marginTop: 12, fontSize: 13, color: keysMsg.startsWith('✅') ? 'var(--secondary)' : 'var(--danger)' }}>
+                {keysMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button
+                className="ghost"
+                style={{ fontSize: 12 }}
+                onClick={() => setKeyForm({})}
+              >
+                Limpar campos
+              </button>
+              <button
+                style={{ fontSize: 12 }}
+                disabled={savingKeys || Object.keys(keyForm).every(k => !keyForm[k])}
+                onClick={saveKeys}
+              >
+                {savingKeys ? 'Salvando...' : '💾 Salvar chaves'}
+              </button>
+            </div>
+
+            <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(146,48,249,0.07)', borderRadius: 8, fontSize: 12, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--fg-2)' }}>Como funciona:</strong> se você definir uma chave aqui, ela é usada em vez da chave do servidor.
+              Deixe em branco para usar a chave do servidor. Para remover sua chave (e voltar a usar a do servidor), clique em 🗑.
+            </div>
+          </>
+        )}
       </div>
 
       {/* Workspace */}
@@ -104,7 +274,7 @@ export function Settings() {
           )}
           {health?.provider && (
             <div className="flex items-center justify-between">
-              <span style={{ color: 'var(--muted)' }}>Provedor padrão</span>
+              <span style={{ color: 'var(--muted)' }}>Provedor padrão do servidor</span>
               <span>{health.provider}</span>
             </div>
           )}
@@ -133,7 +303,7 @@ export function Settings() {
         )}
       </div>
 
-      {/* Ações perigosas */}
+      {/* Conta */}
       <div className="card">
         <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Conta</h3>
         <div style={{ display: 'flex', gap: 10 }}>

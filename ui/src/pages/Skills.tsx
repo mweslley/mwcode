@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { ModeSwitcher } from '../components/ModeSwitcher';
 
 interface Skill {
   id: string;
@@ -120,16 +119,41 @@ export function Skills() {
   }
 
   return (
-    <div>
-      <ModeSwitcher />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h1 style={{ margin: 0 }}>Skills</h1>
-        <button onClick={() => setEditing('new')}>+ Nova skill</button>
+    <div className="page">
+      <div className="page-header">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="page-title">Skills</h1>
+            <p className="page-subtitle">Personalidades e funções que você aplica em conversas. Crie, edite e use via site ou CLI.</p>
+          </div>
+          <button onClick={() => setEditing('new')}>+ Nova skill</button>
+        </div>
       </div>
-      <p style={{ color: 'var(--muted)', marginBottom: 24 }}>
-        Skills são personalidades/funções que você pode aplicar em conversas.
-        Crie uma do zero ou use um template pronto abaixo.
-      </p>
+
+      {/* CLI Info */}
+      <div className="card" style={{ marginBottom: 20, padding: '12px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>⌨️</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>Via linha de comando (skills.sh)</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'monospace' }}>
+              skills.sh list &nbsp;|&nbsp; skills.sh use "nome" &nbsp;|&nbsp; skills.sh add "nome" "prompt"
+            </div>
+          </div>
+          <button
+            className="ghost"
+            style={{ fontSize: 11, padding: '4px 10px' }}
+            onClick={() => {
+              navigator.clipboard.writeText(
+                'curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/scripts/skills.sh | bash'
+              );
+              alert('Comando copiado!');
+            }}
+          >
+            📋 Copiar instalação
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <p style={{ color: 'var(--muted)' }}>Carregando...</p>

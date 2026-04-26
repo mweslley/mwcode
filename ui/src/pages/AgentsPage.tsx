@@ -8,22 +8,29 @@ interface Agent {
   id: string;
   name: string;
   role: string;
-  adapter: string;
+  title?: string;
+  adapter?: string;
+  provider?: string;
   model: string;
   skills: string[];
+  personality?: string;
+  goals?: string[];
   status: string;
-  performance: number;
-  tasksCompleted: number;
-  hiredAt: string;
+  performance?: number;
+  tasksCompleted?: number;
+  hireDate?: string;
+  createdAt: string;
 }
 
-interface HireForm {
+interface AgentForm {
   name: string;
   role: string;
+  title: string;
   adapter: string;
   model: string;
   skills: string;
-  instructions: string;
+  personality: string;
+  goals: string;
 }
 
 const ADAPTERS = ['openrouter', 'openai', 'gemini', 'ollama', 'deepseek', 'github'];
@@ -48,18 +55,24 @@ const ROLE_TEMPLATES = [
   { role: 'Analista de Dados', icon: '📊', desc: 'Analisa métricas e gera insights' },
   { role: 'Suporte ao Cliente', icon: '🎧', desc: 'Atende e resolve problemas' },
   { role: 'Estrategista de Marketing', icon: '📣', desc: 'Planeja campanhas e ações' },
+  { role: 'Designer', icon: '🎨', desc: 'UX, visual e identidade da marca' },
+  { role: 'Financeiro', icon: '💰', desc: 'Controle financeiro e relatórios' },
 ];
+
+const emptyForm = (): AgentForm => ({
+  name: '', role: '', title: '', adapter: 'openrouter', model: MODELO_PADRAO,
+  skills: '', personality: '', goals: '',
+});
 
 export function AgentsPage() {
   const navigate = useNavigate();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHire, setShowHire] = useState(false);
+  const [editAgent, setEditAgent] = useState<Agent | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'fired'>('active');
-  const [form, setForm] = useState<HireForm>({
-    name: '', role: '', adapter: 'openrouter', model: MODELO_PADRAO, skills: '', instructions: '',
-  });
-  const [hiring, setHiring] = useState(false);
+  const [form, setForm] = useState<AgentForm>(emptyForm());
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -73,22 +86,57 @@ export function AgentsPage() {
 
   useEffect(() => { load(); }, []);
 
-  async function hire() {
-    if (!form.name || !form.role) { setError('Nome e função são obrigatórios.'); return; }
-    setHiring(true);
+  function openHire() {
+    setForm(emptyForm());
+    setEditAgent(null);
     setError(null);
+    setShowHire(true);
+  }
+
+  function openEdit(agent: Agent) {
+    setEditAgent(agent);
+    setForm({
+      name: agent.name,
+      role: agent.role,
+      title: agent.title || '',
+      adapter: agent.adapter || agent.provider || 'openrouter',
+      model: agent.model || MODELO_PADRAO,
+      skills: (agent.skills || []).join(', '),
+      personality: agent.personality || '',
+      goals: (agent.goals || []).join('\n'),
+    });
+    setError(null);
+    setShowHire(true);
+  }
+
+  async function save() {
+    if (!form.name || !form.role) { setError('Nome e função são obrigatórios.'); return; }
+    setSaving(true);
+    setError(null);
+    const payload = {
+      name: form.name,
+      role: form.role,
+      title: form.title || undefined,
+      provider: form.adapter,
+      model: form.model,
+      skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
+      personality: form.personality || undefined,
+      goals: form.goals.split('\n').map(g => g.trim()).filter(Boolean),
+    };
     try {
-      await api.post('/enterprise/hire', {
-        ...form,
-        skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
-      });
+      if (editAgent) {
+        await api.put(`/enterprise/agents/${editAgent.id}`, payload);
+      } else {
+        await api.post('/enterprise/agents/hire', payload);
+      }
       setShowHire(false);
-      setForm({ name: '', role: '', adapter: 'openrouter', model: MODELO_PADRAO, skills: '', instructions: '' });
+      setEditAgent(null);
+      setForm(emptyForm());
       await load();
     } catch (e: any) {
-      setError(e.message || 'Erro ao contratar agente');
+      setError(e.message || 'Erro ao salvar agente');
     } finally {
-      setHiring(false);
+      setSaving(false);
     }
   }
 
@@ -96,6 +144,15 @@ export function AgentsPage() {
     if (!confirm(`Demitir ${name}? Isso encerrará todas as atividades do agente.`)) return;
     try {
       await api.delete(`/enterprise/agents/${id}`);
+      await load();
+    } catch (e: any) {
+      alert('Erro: ' + e.message);
+    }
+  }
+
+  async function reactivate(id: string) {
+    try {
+      await api.post(`/enterprise/agents/${id}/reactivate`, {});
       await load();
     } catch (e: any) {
       alert('Erro: ' + e.message);
@@ -112,7 +169,7 @@ export function AgentsPage() {
             <h1 className="page-title">Agentes</h1>
             <p className="page-subtitle">Sua equipe de IA — crie, configure e converse com seus agentes.</p>
           </div>
-          <button onClick={() => setShowHire(true)}>+ Contratar Agente</button>
+          <button onClick={openHire}>+ Contratar Agente</button>
         </div>
       </div>
 
@@ -151,19 +208,19 @@ export function AgentsPage() {
               : 'Nenhum agente encontrado com esse filtro.'}
           </p>
           {filter === 'active' && (
-            <button onClick={() => setShowHire(true)} style={{ marginTop: 16 }}>+ Contratar</button>
+            <button onClick={openHire} style={{ marginTop: 16 }}>+ Contratar</button>
           )}
         </div>
       ) : (
         <div className="agents-grid">
           {filtered.map(agent => (
-            <div key={agent.id} className={`agent-card${agent.status === 'fired' ? '' : ''}`}
-              style={{ opacity: agent.status === 'fired' ? 0.55 : 1 }}>
+            <div key={agent.id} className="agent-card"
+              style={{ opacity: agent.status === 'fired' ? 0.6 : 1 }}>
               <div className="agent-header">
                 <div className="agent-avatar">{agentEmoji(agent.role)}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="agent-name">{agent.name}</div>
-                  <div className="agent-role">{agent.role}</div>
+                  <div className="agent-role">{agent.title || agent.role}</div>
                 </div>
                 <span className={`badge ${agent.status === 'active' ? 'badge-green' : 'badge-red'}`}>
                   {agent.status === 'active' ? 'Ativo' : 'Demitido'}
@@ -171,12 +228,18 @@ export function AgentsPage() {
               </div>
 
               <div className="agent-meta">
-                <span className="badge badge-purple">{agent.adapter}</span>
+                <span className="badge badge-purple">{agent.adapter || agent.provider}</span>
                 <span className="badge badge-gray">{agent.model?.split('/').pop()?.split(':')[0] ?? agent.model}</span>
                 {agent.skills?.length > 0 && (
                   <span className="badge badge-yellow">🎯 {agent.skills.length} skill{agent.skills.length > 1 ? 's' : ''}</span>
                 )}
               </div>
+
+              {agent.goals && agent.goals.length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.4 }}>
+                  🎯 {agent.goals.slice(0, 2).join(' · ')}{agent.goals.length > 2 ? ' ...' : ''}
+                </div>
+              )}
 
               {/* Stats */}
               <div style={{ display: 'flex', gap: 16, marginBottom: 14, fontSize: 12, color: 'var(--muted)' }}>
@@ -184,81 +247,125 @@ export function AgentsPage() {
                 <span>✅ {agent.tasksCompleted ?? 0} tarefas</span>
               </div>
 
-              {agent.status === 'active' && (
-                <div className="agent-actions">
+              <div className="agent-actions">
+                {agent.status === 'active' ? (
+                  <>
+                    <button
+                      style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px' }}
+                      onClick={() => navigate(`/chat/${agent.id}`)}
+                    >
+                      💬 Conversar
+                    </button>
+                    <button
+                      className="ghost"
+                      title="Editar agente"
+                      onClick={() => openEdit(agent)}
+                      style={{ width: 34, height: 34, padding: 0, justifyContent: 'center' }}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="danger icon-btn"
+                      title="Demitir agente"
+                      onClick={() => fire(agent.id, agent.name)}
+                      style={{ width: 34, height: 34, padding: 0, justifyContent: 'center' }}
+                    >
+                      🗑
+                    </button>
+                  </>
+                ) : (
                   <button
-                    style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px' }}
-                    onClick={() => navigate(`/chat/${agent.id}`)}
+                    className="ghost"
+                    style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
+                    onClick={() => reactivate(agent.id)}
                   >
-                    💬 Conversar
+                    ♻️ Reativar
                   </button>
-                  <button
-                    className="danger icon-btn"
-                    title="Demitir agente"
-                    onClick={() => fire(agent.id, agent.name)}
-                    style={{ width: 34, height: 34 }}
-                  >
-                    🗑
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal de contratação */}
+      {/* Modal de contratação / edição */}
       {showHire && (
         <div className="modal-overlay" onClick={() => setShowHire(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
-            <h2>Contratar Agente</h2>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 580, maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2>{editAgent ? `✏️ Editar — ${editAgent.name}` : 'Contratar Agente'}</h2>
 
-            {/* Templates de função */}
-            <div style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 8 }}>
-                Começar de um template
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {ROLE_TEMPLATES.map(t => (
-                  <button
-                    key={t.role}
-                    className="ghost"
-                    style={{ fontSize: 12, padding: '5px 10px' }}
-                    onClick={() => setForm(f => ({ ...f, role: t.role, name: f.name || `Agente ${t.role}` }))}
-                  >
-                    {t.icon} {t.role}
-                  </button>
-                ))}
+            {/* Templates (só ao criar) */}
+            {!editAgent && (
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 8 }}>
+                  Começar de um template
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {ROLE_TEMPLATES.map(t => (
+                    <button
+                      key={t.role}
+                      className="ghost"
+                      style={{ fontSize: 12, padding: '5px 10px' }}
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        role: t.role,
+                        name: f.name || `Agente ${t.role}`,
+                        title: t.desc,
+                      }))}
+                    >
+                      {t.icon} {t.role}
+                    </button>
+                  ))}
+                </div>
+                <div className="divider" style={{ margin: '16px 0' }} />
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label>Nome do Agente *</label>
+                <input
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Ex: Maria — Marketing"
+                />
+              </div>
+              <div className="form-group">
+                <label>Função *</label>
+                <input
+                  value={form.role}
+                  onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+                  placeholder="Ex: Copywriter, CEO, Desenvolvedor..."
+                />
               </div>
             </div>
 
-            <div className="divider" />
-
             <div className="form-group">
-              <label>Nome do Agente *</label>
+              <label>Título (opcional)</label>
               <input
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Ex: Maria — Assistente de Marketing"
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Ex: Head de Marketing Digital"
               />
             </div>
 
             <div className="form-group">
-              <label>Função *</label>
-              <input
-                value={form.role}
-                onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                placeholder="Ex: Copywriter, Desenvolvedor, Suporte..."
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Instruções (system prompt)</label>
+              <label>Personalidade / Instruções (system prompt)</label>
               <textarea
-                value={form.instructions}
-                onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))}
-                placeholder="Descreva o comportamento, personalidade e especialidades deste agente..."
-                rows={4}
+                value={form.personality}
+                onChange={e => setForm(f => ({ ...f, personality: e.target.value }))}
+                placeholder="Descreva o comportamento, tom e especialidades deste agente. Quanto mais detalhado, melhor..."
+                rows={5}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Objetivos (um por linha)</label>
+              <textarea
+                value={form.goals}
+                onChange={e => setForm(f => ({ ...f, goals: e.target.value }))}
+                placeholder="Ex: Aumentar alcance nas redes sociais&#10;Criar 3 posts por semana&#10;Monitorar concorrentes"
+                rows={3}
               />
             </div>
 
@@ -295,16 +402,20 @@ export function AgentsPage() {
               <input
                 value={form.skills}
                 onChange={e => setForm(f => ({ ...f, skills: e.target.value }))}
-                placeholder="Ex: código, análise, redes sociais"
+                placeholder="Ex: código, análise, redes sociais, copywriting"
               />
             </div>
 
             {error && <div className="auth-error">{error}</div>}
 
             <div className="modal-actions">
-              <button className="ghost" onClick={() => setShowHire(false)}>Cancelar</button>
-              <button onClick={hire} disabled={hiring || !form.name || !form.role}>
-                {hiring ? 'Contratando...' : '✅ Contratar'}
+              <button className="ghost" onClick={() => { setShowHire(false); setEditAgent(null); }}>
+                Cancelar
+              </button>
+              <button onClick={save} disabled={saving || !form.name || !form.role}>
+                {saving
+                  ? (editAgent ? 'Salvando...' : 'Contratando...')
+                  : (editAgent ? '💾 Salvar alterações' : '✅ Contratar')}
               </button>
             </div>
           </div>

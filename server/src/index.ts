@@ -19,6 +19,7 @@ import { skillsRouter } from './routes/skills.js';
 import { enterpriseAgentsRouter } from './routes/enterprise-agents.js';
 import { systemRouter } from './routes/system.js';
 import { workflowsRouter } from './routes/workflows.js';
+import { userKeysRouter } from './routes/user-keys.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,6 +75,7 @@ app.use('/api/memories', authMiddleware, memoriesRouter);
 app.use('/api/skills', authMiddleware, skillsRouter);
 app.use('/api/system', authMiddleware, systemRouter);
 app.use('/api/workflows', authMiddleware, workflowsRouter);
+app.use('/api/user/keys', authMiddleware, userKeysRouter);
 
 // Servir UI compilada em produção
 const uiDist = path.resolve(__dirname, '../../ui/dist');

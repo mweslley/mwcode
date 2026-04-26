@@ -1,18 +1,14 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const AGENTS_DIR = path.resolve(__dirname, '../../../data/agents');
+import { dataDir } from '../lib/data-dir.js';
 
 interface Agent {
   id: string;
   userId: string;
   name: string;
   role: string;
+  title?: string;
   personality: string;
   goals: string[];
   skills: string[];
@@ -25,9 +21,7 @@ interface Agent {
 }
 
 function getAgentsDir(userId: string): string {
-  const dir = path.join(AGENTS_DIR, userId);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  return dataDir('agents', userId);
 }
 
 function getAgents(userId: string, status?: string): Agent[] {
