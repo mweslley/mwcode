@@ -124,6 +124,9 @@ export function Onboarding() {
     }
   }
 
+  // Verifica se tem backup (usuário veio de "Reconfigurar workspace")
+  const hasBackup = !!localStorage.getItem('company_backup');
+
   return (
     <div className="onboarding-page">
       <div className="onboarding-box">
@@ -131,11 +134,27 @@ export function Onboarding() {
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>⚡</div>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>
-            Bem-vindo ao MWCode
+            {hasBackup ? 'Reconfigurar Workspace' : 'Bem-vindo ao MWCode'}
           </h1>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
             Configure seu workspace em {TOTAL_STEPS} passos rápidos
           </p>
+          {hasBackup && (
+            <button
+              className="ghost"
+              style={{ fontSize: 12, marginTop: 10, color: 'var(--muted)' }}
+              onClick={() => {
+                const backup = localStorage.getItem('company_backup');
+                if (backup) {
+                  localStorage.setItem('company', backup);
+                  localStorage.removeItem('company_backup');
+                }
+                navigate('/dashboard');
+              }}
+            >
+              ← Cancelar e restaurar configuração anterior
+            </button>
+          )}
         </div>
 
         {/* Progress */}

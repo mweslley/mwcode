@@ -417,7 +417,14 @@ export function Settings() {
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             className="ghost"
-            onClick={() => { localStorage.removeItem('company'); navigate('/onboarding'); }}
+            onClick={() => {
+              if (confirm('Reconfigurar workspace reinicia o setup. Os agentes e chats não serão apagados. Continuar?')) {
+                const current = localStorage.getItem('company');
+                if (current) localStorage.setItem('company_backup', current);
+                localStorage.removeItem('company');
+                navigate('/onboarding');
+              }
+            }}
             style={{ fontSize: 12 }}
           >
             Reconfigurar workspace
