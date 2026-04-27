@@ -12,6 +12,15 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
   model: config.model,
 
   async call(prompt: string, context?: Record<string, unknown>): Promise<AdapterResponse> {
+    const systemMsg = (context?.system as string) || 'Você é um assistente de IA em português brasileiro.';
+    const history = (context?.history as Array<{ role: string; content: string }>) || [];
+
+    const messages = [
+      { role: 'system', content: systemMsg },
+      ...history.map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content })),
+      { role: 'user', content: prompt },
+    ];
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -22,10 +31,7 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
       },
       body: JSON.stringify({
         model: config.model,
-        messages: [
-          { role: 'system', content: (context?.system as string) || 'Você é um assistente de IA em português brasileiro.' },
-          { role: 'user', content: prompt }
-        ],
+        messages,
         temperature: 0.7
       })
     });

@@ -4,20 +4,11 @@ import { MODELOS_OPENROUTER, MODELOS_GRATIS, MODELOS_DESTAQUE } from '@mwcode/sh
 interface Props {
   value: string;
   onChange: (modelId: string) => void;
-  /** Mostrar todos (incluindo pagos) ou só grátis. Padrão: true (todos). */
   mostrarPagos?: boolean;
-  /** Mostrar como dropdown compacto ou cards. Padrão: 'select'. */
   modo?: 'select' | 'cards';
   label?: string;
 }
 
-/**
- * Seletor de modelo de IA — substitui o dropdown manual.
- *
- * Variantes:
- *   - 'select': dropdown agrupado (✨ destaques | 🆓 grátis | 💎 pagos)
- *   - 'cards':  cards visuais com descrição (pra Onboarding e Hire)
- */
 export function ModelPicker({
   value,
   onChange,
@@ -53,16 +44,16 @@ export function ModelPicker({
                 ...(value === m.id ? cardSelected : {}),
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <strong>{m.nome}</strong>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, gap: 4 }}>
+                <strong style={{ fontSize: 13, wordBreak: 'break-word', flex: 1, minWidth: 0 }}>{m.nome}</strong>
                 <span style={badgeFree}>GRÁTIS</span>
               </div>
-              <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 8px' }}>
+              <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 6px', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                 {m.descricao}
               </p>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', overflow: 'hidden', maxHeight: 24 }}>
                 <small style={tagStyle}>📦 {m.contexto}</small>
-                {m.melhorPara.slice(0, 2).map((tag) => (
+                {m.melhorPara.slice(0, 1).map((tag) => (
                   <small key={tag} style={tagStyle}>{tag}</small>
                 ))}
               </div>
@@ -85,7 +76,6 @@ export function ModelPicker({
     );
   }
 
-  // Modo select (dropdown)
   return (
     <div>
       {label && <label style={labelStyle}>{label}</label>}
@@ -156,7 +146,6 @@ function ModelHint({ modelId }: { modelId: string }) {
   );
 }
 
-// === Estilos inline ===
 const labelStyle: React.CSSProperties = {
   display: 'block',
   marginBottom: 6,
@@ -165,11 +154,12 @@ const labelStyle: React.CSSProperties = {
 };
 const cardsGrid: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-  gap: 10,
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: 8,
+  overflow: 'hidden',
 };
 const cardStyle: React.CSSProperties = {
-  padding: 14,
+  padding: '10px 12px',
   borderRadius: 10,
   border: '1.5px solid var(--border)',
   background: 'transparent',
@@ -177,28 +167,40 @@ const cardStyle: React.CSSProperties = {
   cursor: 'pointer',
   textAlign: 'left',
   fontFamily: 'inherit',
-  transition: 'border-color 0.15s, transform 0.15s',
+  transition: 'border-color 0.15s',
+  overflow: 'hidden',
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+  boxSizing: 'border-box',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
 };
 const cardSelected: React.CSSProperties = {
   borderColor: 'var(--primary)',
   background: 'rgba(146, 48, 249, 0.08)',
-  transform: 'translateY(-2px)',
 };
 const badgeFree: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   color: '#00BC8A',
   background: 'rgba(0, 188, 138, 0.12)',
-  padding: '2px 8px',
+  padding: '2px 6px',
   borderRadius: 6,
   letterSpacing: 0.5,
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 const tagStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: '2px 8px',
+  fontSize: 10,
+  padding: '2px 6px',
   borderRadius: 4,
   background: 'rgba(255,255,255,0.05)',
   color: 'var(--muted)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  maxWidth: '100%',
 };
 const filtroAtivo: React.CSSProperties = {
   padding: '4px 10px',

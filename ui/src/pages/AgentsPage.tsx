@@ -28,9 +28,15 @@ interface AgentForm {
   title: string;
   adapter: string;
   model: string;
-  skills: string;
+  skills: string[];
   personality: string;
   goals: string;
+}
+
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
 }
 
 const ADAPTERS = ['openrouter', 'openai', 'gemini', 'ollama', 'deepseek', 'github'];
@@ -61,7 +67,7 @@ const ROLE_TEMPLATES = [
 
 const emptyForm = (): AgentForm => ({
   name: '', role: '', title: '', adapter: 'openrouter', model: MODELO_PADRAO,
-  skills: '', personality: '', goals: '',
+  skills: [], personality: '', goals: '',
 });
 
 export function AgentsPage() {
@@ -74,12 +80,17 @@ export function AgentsPage() {
   const [form, setForm] = useState<AgentForm>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
 
   async function load() {
     setLoading(true);
     try {
-      const list = await api.get<Agent[]>('/enterprise/agents');
+      const [list, skills] = await Promise.all([
+        api.get<Agent[]>('/enterprise/agents'),
+        api.get<Skill[]>('/skills').catch(() => []),
+      ]);
       setAgents(list || []);
+      setAvailableSkills(skills || []);
     } catch {}
     setLoading(false);
   }
@@ -101,7 +112,7 @@ export function AgentsPage() {
       title: agent.title || '',
       adapter: agent.adapter || agent.provider || 'openrouter',
       model: agent.model || MODELO_PADRAO,
-      skills: (agent.skills || []).join(', '),
+      skills: agent.skills || [],
       personality: agent.personality || '',
       goals: (agent.goals || []).join('\n'),
     });
@@ -119,7 +130,7 @@ export function AgentsPage() {
       title: form.title || undefined,
       provider: form.adapter,
       model: form.model,
-      skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
+      skills: form.skills,
       personality: form.personality || undefined,
       goals: form.goals.split('\n').map(g => g.trim()).filter(Boolean),
     };
@@ -398,12 +409,51 @@ export function AgentsPage() {
             </div>
 
             <div className="form-group">
-              <label>Skills (separadas por vírgula)</label>
-              <input
-                value={form.skills}
-                onChange={e => setForm(f => ({ ...f, skills: e.target.value }))}
-                placeholder="Ex: código, análise, redes sociais, copywriting"
-              />
+              <label>Skills — selecione da biblioteca</label>
+              {availableSkills.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--muted)', padding: '8px 0' }}>
+                  Nenhuma skill criada ainda.{' '}
+                  <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={() => window.open('/skills', '_self')}>
+                    Criar skills →
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 4 }}>
+                  {availableSkills.map(s => {
+                    const selected = form.skills.includes(s.name);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        title={s.description}
+                        onClick={() => setForm(f => ({
+                          ...f,
+                          skills: selected
+                            ? f.skills.filter(sk => sk !== s.name)
+                            : [...f.skills, s.name],
+                        }))}
+                        style={{
+                          padding: '5px 12px',
+                          fontSize: 12,
+                          borderRadius: 20,
+                          border: `1px solid ${selected ? 'var(--primary)' : 'var(--border)'}`,
+                          background: selected ? 'rgba(146,48,249,0.15)' : 'var(--bg-2)',
+                          color: selected ? 'var(--primary)' : 'var(--fg-2)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {selected ? '✓ ' : ''}{s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {form.skills.length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                  Selecionadas: {form.skills.join(', ')}
+                </div>
+              )}
             </div>
 
             {error && <div className="auth-error">{error}</div>}

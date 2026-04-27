@@ -101,6 +101,46 @@ authRouter.post('/login', async (req, res) => {
   }
 });
 
+// PUT /auth/profile — atualiza nome, email e/ou senha
+authRouter.put('/profile', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'Não autorizado' });
+  try {
+    const token = auth.replace('Bearer ', '');
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const users = getUsers();
+    const idx = users.findIndex(u => u.id === decoded.userId);
+    if (idx === -1) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const { name, email, password, currentPassword } = req.body;
+
+    // Verificar senha atual se estiver mudando senha ou email
+    if (password || email) {
+      if (!currentPassword) return res.status(400).json({ error: 'Informe sua senha atual para alterar email ou senha.' });
+      const valid = await bcrypt.compare(currentPassword, users[idx].password);
+      if (!valid) return res.status(400).json({ error: 'Senha atual incorreta.' });
+    }
+
+    if (name) users[idx].name = name;
+    if (email) {
+      const emailTaken = users.some((u, i) => u.email === email && i !== idx);
+      if (emailTaken) return res.status(400).json({ error: 'E-mail já está em uso por outra conta.' });
+      users[idx].email = email;
+    }
+    if (password) {
+      if (password.length < 6) return res.status(400).json({ error: 'Senha deve ter pelo menos 6 caracteres.' });
+      users[idx].password = await bcrypt.hash(password, 10);
+    }
+
+    saveUsers(users);
+    const u = users[idx];
+    const newToken = jwt.sign({ userId: u.id, email: u.email }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ ok: true, token: newToken, user: { id: u.id, email: u.email, name: u.name } });
+  } catch {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+});
+
 // GET /auth/me
 authRouter.get('/me', (req, res) => {
   const auth = req.headers.authorization;

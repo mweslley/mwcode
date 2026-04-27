@@ -34,6 +34,12 @@ export function Settings() {
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [updating, setUpdating] = useState(false);
 
+  // Profile editing
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', email: '', password: '', currentPassword: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<string | null>(null);
+
   // API Keys state
   const [maskedKeys, setMaskedKeys] = useState<MaskedKeys>({});
   const [serverKeys, setServerKeys] = useState<ServerKeys>({ openrouter: false, openai: false, gemini: false, deepseek: false, github: false });
@@ -57,6 +63,32 @@ export function Settings() {
       setMaskedKeys(data?.keys || {});
       setServerKeys(data?.server || { openrouter: false, openai: false, gemini: false, deepseek: false, github: false });
     } catch {}
+  }
+
+  async function saveProfile() {
+    setSavingProfile(true);
+    setProfileMsg(null);
+    try {
+      const payload: any = {};
+      if (profileForm.name && profileForm.name !== user?.name) payload.name = profileForm.name;
+      if (profileForm.email && profileForm.email !== user?.email) payload.email = profileForm.email;
+      if (profileForm.password) payload.password = profileForm.password;
+      if (profileForm.currentPassword) payload.currentPassword = profileForm.currentPassword;
+
+      if (Object.keys(payload).length === 0) { setProfileMsg('Nenhuma alteração.'); return; }
+
+      const res = await api.put<{ ok: boolean; token: string; user: any }>('/auth/profile', payload);
+      // Atualiza localStorage
+      if (res.token) localStorage.setItem('token', res.token);
+      if (res.user) localStorage.setItem('user', JSON.stringify(res.user));
+      setProfileMsg('✅ Perfil atualizado!');
+      setProfileForm(f => ({ ...f, password: '', currentPassword: '' }));
+      setTimeout(() => { setProfileMsg(null); window.location.reload(); }, 1500);
+    } catch (e: any) {
+      setProfileMsg('❌ ' + e.message);
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   async function saveKeys() {
@@ -116,13 +148,26 @@ export function Settings() {
 
       {/* Perfil */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Perfil</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Perfil</h3>
+          <button
+            className="ghost"
+            style={{ fontSize: 12 }}
+            onClick={() => {
+              setShowProfile(!showProfile);
+              if (!showProfile) setProfileForm({ name: user?.name || '', email: user?.email || '', password: '', currentPassword: '' });
+            }}
+          >
+            {showProfile ? '▲ Fechar' : '✏️ Editar'}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: showProfile ? 16 : 0 }}>
           <div style={{
             width: 48, height: 48, borderRadius: '50%',
             background: 'var(--grad-p)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, fontWeight: 700, color: '#fff',
+            fontSize: 18, fontWeight: 700, color: '#fff', flexShrink: 0,
           }}>
             {user?.name?.[0]?.toUpperCase() ?? '?'}
           </div>
@@ -131,6 +176,69 @@ export function Settings() {
             <div style={{ color: 'var(--muted)', fontSize: 13 }}>{user?.email}</div>
           </div>
         </div>
+
+        {showProfile && (
+          <>
+            <div className="divider" style={{ margin: '0 0 16px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: 12 }}>Nome</label>
+                  <input
+                    value={profileForm.name}
+                    onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder={user?.name}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: 12 }}>E-mail</label>
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder={user?.email}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: 12 }}>Senha atual</label>
+                  <input
+                    type="password"
+                    value={profileForm.currentPassword}
+                    onChange={e => setProfileForm(f => ({ ...f, currentPassword: e.target.value }))}
+                    placeholder="Necessária para mudar e-mail ou senha"
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: 12 }}>Nova senha</label>
+                  <input
+                    type="password"
+                    value={profileForm.password}
+                    onChange={e => setProfileForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {profileMsg && (
+              <div style={{ marginTop: 10, fontSize: 13, color: profileMsg.startsWith('✅') ? 'var(--secondary)' : 'var(--danger)' }}>
+                {profileMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+              <button
+                style={{ fontSize: 12 }}
+                disabled={savingProfile}
+                onClick={saveProfile}
+              >
+                {savingProfile ? 'Salvando...' : '💾 Salvar alterações'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Chaves de API */}

@@ -131,27 +131,36 @@ export function Skills() {
       </div>
 
       {/* CLI Info */}
-      <div className="card" style={{ marginBottom: 20, padding: '12px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18 }}>⌨️</span>
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>⌨️</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>Via linha de comando (skills.sh)</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'monospace' }}>
-              skills.sh list &nbsp;|&nbsp; skills.sh use "nome" &nbsp;|&nbsp; skills.sh add "nome" "prompt"
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>skills.sh — Gerenciar Skills pelo Terminal</div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.5 }}>
+              O <code style={{ background: 'var(--bg-3)', padding: '1px 5px', borderRadius: 4 }}>skills.sh</code> é um script de terminal (bash) que permite gerenciar suas skills sem abrir o navegador.
+              Útil para automatizar, criar skills via arquivo de texto, e usar direto no servidor.
+            </p>
+            <div style={{ background: 'var(--bg-3)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontWeight: 600 }}>Comandos principais:</div>
+              {[
+                ['skills.sh list', 'Lista todas as suas skills'],
+                ['skills.sh add "Nome" "Você é um..."', 'Cria nova skill com prompt'],
+                ['skills.sh use "Nome da Skill"', 'Define a skill como padrão para os chats'],
+                ['skills.sh chat "Nome" "pergunta"', 'Chata usando uma skill pelo terminal'],
+                ['skills.sh delete "Nome"', 'Remove uma skill'],
+              ].map(([cmd, desc]) => (
+                <div key={cmd} style={{ display: 'flex', gap: 10, marginBottom: 4, fontSize: 12 }}>
+                  <code style={{ color: 'var(--primary)', minWidth: 280, flexShrink: 0 }}>{cmd}</code>
+                  <span style={{ color: 'var(--muted)' }}>{desc}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+              <strong style={{ color: 'var(--fg-2)' }}>Como usar nos agentes:</strong>{' '}
+              As skills criadas aqui aparecem automaticamente no seletor de skills ao contratar ou editar um agente
+              (página Agentes → Contratar/Editar → seção "Skills"). Clique nos chips para adicionar ao agente.
             </div>
           </div>
-          <button
-            className="ghost"
-            style={{ fontSize: 11, padding: '4px 10px' }}
-            onClick={() => {
-              navigator.clipboard.writeText(
-                'curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/scripts/skills.sh | bash'
-              );
-              alert('Comando copiado!');
-            }}
-          >
-            📋 Copiar instalação
-          </button>
         </div>
       </div>
 

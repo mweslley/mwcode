@@ -4,12 +4,21 @@ import { api } from '../lib/api';
 import { ModelPicker } from '../components/ModelPicker';
 import { MODELO_PADRAO } from '@mwcode/shared';
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
+
+const PROVIDER_OPTIONS = [
+  { key: 'openrouter', label: 'OpenRouter', placeholder: 'sk-or-v1-...', hint: 'Acesso a dezenas de modelos (recomendado). Crie sua chave gratuita em openrouter.ai' },
+  { key: 'openai', label: 'OpenAI', placeholder: 'sk-...', hint: 'GPT-4o, GPT-4o-mini e outros modelos OpenAI.' },
+  { key: 'gemini', label: 'Google Gemini', placeholder: 'AIza...', hint: 'Gemini 1.5 Flash, Pro e outros modelos Google.' },
+  { key: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...', hint: 'Modelos DeepSeek — excelente custo-benefício.' },
+];
 
 export function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [data, setData] = useState({
     companyName: '',
     area: '',
@@ -19,11 +28,36 @@ export function Onboarding() {
     ceoModel: MODELO_PADRAO,
   });
   const [goalInput, setGoalInput] = useState('');
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({
+    openrouter: '',
+    openai: '',
+    gemini: '',
+    deepseek: '',
+  });
 
   function addGoal() {
     if (goalInput.trim()) {
       setData(d => ({ ...d, goals: [...d.goals, goalInput.trim()] }));
       setGoalInput('');
+    }
+  }
+
+  const hasAtLeastOneKey = Object.values(apiKeys).some(v => v.trim().length > 10);
+
+  async function saveApiKeys() {
+    setApiKeySaving(true);
+    setApiKeyError(null);
+    try {
+      const payload: Record<string, string> = {};
+      for (const [k, v] of Object.entries(apiKeys)) {
+        if (v.trim()) payload[k] = v.trim();
+      }
+      await api.put('/user/keys', payload);
+      setStep(4);
+    } catch (e: any) {
+      setApiKeyError(e.message || 'Erro ao salvar chaves');
+    } finally {
+      setApiKeySaving(false);
     }
   }
 
@@ -42,6 +76,8 @@ export function Onboarding() {
           `Sua missão: ${data.mission || 'fazer a empresa crescer com agentes de IA'}. ` +
           `Você toma decisões estratégicas, contrata e gerencia outros agentes de IA para compor sua equipe, ` +
           `delega tarefas, monitora o desempenho da equipe e reporta resultados ao usuário. ` +
+          `Quando precisar tomar uma decisão importante que envolva gastos, ações irreversíveis ou impacto no negócio, ` +
+          `sempre inclua [APROVAÇÃO NECESSÁRIA] na sua mensagem e aguarde a aprovação do usuário antes de prosseguir. ` +
           `Ao ser iniciado pela primeira vez, analise os objetivos da empresa e elabore um plano de ação ` +
           `com os primeiros agentes a contratar e as primeiras tarefas a executar. ` +
           `Sempre responda em português brasileiro de forma direta e profissional.`,
@@ -50,19 +86,32 @@ export function Onboarding() {
         model: data.ceoModel,
       });
 
-      // Boot do CEO: mensagem inicial para o CEO começar a agir
+      // Boot do CEO
       if (ceo?.id) {
         const bootMsg =
           `Você acabou de ser contratado como CEO da ${data.companyName}. ` +
           (data.mission ? `Nossa missão é: ${data.mission}. ` : '') +
-          (data.goals.length > 0 ? `Nossos objetivos principais são: ${data.goals.join(', ')}. ` : '') +
-          `Analise essa situação e me apresente: ` +
-          `1) Quais agentes você recomenda contratar primeiro e por quê. ` +
+          (data.goals.length > 0 ? `Nossos objetivos: ${data.goals.join(', ')}. ` : '') +
+          `Analise e me apresente: ` +
+          `1) Quais agentes contratar primeiro e por quê. ` +
           `2) As 3 primeiras ações que vai tomar como CEO. ` +
           `3) Como vai medir o sucesso nas próximas semanas. ` +
-          `Seja direto e prático.`;
+          `Para ações que precisem de aprovação, use [APROVAÇÃO NECESSÁRIA]. Seja direto e prático.`;
 
         await api.post(`/chat/${ceo.id}`, { message: bootMsg }).catch(() => {});
+
+        // Cria workflow semanal do CEO automaticamente
+        const mainGoal = data.goals[0] || data.mission || 'acompanhar progresso da empresa';
+        await api.post('/workflows', {
+          name: `Relatório Semanal — CEO`,
+          description: `CEO apresenta relatório semanal de progresso: ${mainGoal}`,
+          triggerType: 'schedule',
+          triggerConfig: '0 12 * * 1', // toda segunda às 9h BRT (12h UTC)
+          agentIds: ceo.id,
+          actionType: 'message',
+          actionConfig: '',
+          enabled: true,
+        }).catch(() => {});
       }
 
       localStorage.setItem('company', JSON.stringify(company || data));
@@ -85,7 +134,7 @@ export function Onboarding() {
             Bem-vindo ao MWCode
           </h1>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
-            Configure seu workspace em 3 passos rápidos
+            Configure seu workspace em {TOTAL_STEPS} passos rápidos
           </p>
         </div>
 
@@ -100,6 +149,7 @@ export function Onboarding() {
         </div>
 
         <div className="card">
+          {/* ── Step 1: Empresa ── */}
           {step === 1 && (
             <>
               <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Sua empresa</h2>
@@ -144,6 +194,7 @@ export function Onboarding() {
             </>
           )}
 
+          {/* ── Step 2: Missão e metas ── */}
           {step === 2 && (
             <>
               <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Missão e objetivos</h2>
@@ -157,7 +208,7 @@ export function Onboarding() {
                   value={data.mission}
                   onChange={e => setData(d => ({ ...d, mission: e.target.value }))}
                   placeholder="Ex: Oferecer VPS acessíveis para gamers brasileiros..."
-                  rows={4}
+                  rows={3}
                   autoFocus
                 />
               </div>
@@ -178,23 +229,16 @@ export function Onboarding() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {data.goals.map((g, i) => (
                       <div key={i} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '7px 10px',
-                        background: 'var(--bg-3)',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border)',
-                        fontSize: 13,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 10px', background: 'var(--bg-3)',
+                        borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: 13,
                       }}>
                         <span style={{ flex: 1 }}>✅ {g}</span>
                         <button
                           className="ghost"
                           style={{ padding: '2px 8px', fontSize: 12 }}
                           onClick={() => setData(d => ({ ...d, goals: d.goals.filter((_, j) => j !== i) }))}
-                        >
-                          ×
-                        </button>
+                        >×</button>
                       </div>
                     ))}
                   </div>
@@ -212,12 +256,94 @@ export function Onboarding() {
             </>
           )}
 
+          {/* ── Step 3: Chaves de API ── */}
           {step === 3 && (
+            <>
+              <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>🔑 Sua chave de API</h2>
+              <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 4 }}>
+                O MWCode usa sua própria chave de API para funcionar. Cada usuário usa sua própria conta — seus dados ficam separados.
+              </p>
+
+              {/* Destaque OpenRouter */}
+              <div style={{
+                padding: '12px 14px', marginBottom: 20,
+                background: 'rgba(0,188,138,0.07)',
+                border: '1px solid rgba(0,188,138,0.25)',
+                borderRadius: 8, fontSize: 12, color: 'var(--muted)',
+              }}>
+                <strong style={{ color: 'var(--secondary)', display: 'block', marginBottom: 4 }}>
+                  ✅ Recomendado: OpenRouter (gratuito para começar)
+                </strong>
+                Crie sua chave gratuita em{' '}
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer"
+                  style={{ color: 'var(--secondary)' }}>
+                  openrouter.ai/keys
+                </a>{' '}
+                — dá acesso a dezenas de modelos, incluindo modelos grátis como Llama e Gemma.
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {PROVIDER_OPTIONS.map(p => (
+                  <div key={p.key} className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      {p.label}
+                      {p.key === 'openrouter' && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#00BC8A', background: 'rgba(0,188,138,0.12)', padding: '1px 6px', borderRadius: 4 }}>
+                          RECOMENDADO
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      value={apiKeys[p.key]}
+                      onChange={e => setApiKeys(k => ({ ...k, [p.key]: e.target.value }))}
+                      placeholder={p.placeholder}
+                      autoComplete="off"
+                    />
+                    <small style={{ color: 'var(--muted)', fontSize: 11 }}>{p.hint}</small>
+                  </div>
+                ))}
+              </div>
+
+              {!hasAtLeastOneKey && (
+                <div style={{
+                  marginTop: 14, padding: '10px 12px',
+                  background: 'rgba(239,68,68,0.08)',
+                  border: '1px solid rgba(239,68,68,0.25)',
+                  borderRadius: 8, fontSize: 12, color: '#f87171',
+                }}>
+                  Insira pelo menos uma chave de API para continuar. Sem ela, os agentes não conseguem responder.
+                </div>
+              )}
+
+              {apiKeyError && (
+                <div style={{ marginTop: 10, fontSize: 13, color: 'var(--danger)' }}>
+                  ❌ {apiKeyError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                <button className="ghost" onClick={() => setStep(2)} style={{ flex: 1, justifyContent: 'center' }}>
+                  ← Voltar
+                </button>
+                <button
+                  onClick={saveApiKeys}
+                  disabled={apiKeySaving || !hasAtLeastOneKey}
+                  style={{ flex: 2, justifyContent: 'center' }}
+                >
+                  {apiKeySaving ? 'Salvando...' : 'Próximo →'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ── Step 4: Modelo do CEO ── */}
+          {step === 4 && (
             <>
               <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Modelo do CEO</h2>
               <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>
                 Um agente CEO será criado automaticamente para orquestrar sua equipe.
-                Escolha o modelo de IA dele:
+                Ele vai montar um plano de ação e começar a contratar os outros agentes.
               </p>
 
               <ModelPicker
@@ -229,7 +355,7 @@ export function Onboarding() {
               />
 
               <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                <button className="ghost" onClick={() => setStep(2)} style={{ flex: 1, justifyContent: 'center' }}>
+                <button className="ghost" onClick={() => setStep(3)} style={{ flex: 1, justifyContent: 'center' }}>
                   ← Voltar
                 </button>
                 <button
