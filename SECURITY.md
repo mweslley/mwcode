@@ -17,20 +17,20 @@ Responderemos em até 72h. Após o fix, você será creditado (se quiser).
 
 ---
 
-## 1. Proteção das chaves de API
+## 1. Proteção do arquivo .env
 
-O `.env` contém credenciais sensíveis. **Nunca commite esse arquivo**.
+O `.env` pode conter chaves de API do servidor. **Nunca commite esse arquivo**.
 
 ```bash
-# No VPS, restrinja permissões
-chmod 600 ~/.mwcode/.env
+# Restrinja permissões no VPS
+chmod 600 /opt/mwcode/.env
 
 # Verificar
-ls -la ~/.mwcode/.env
+ls -la /opt/mwcode/.env
 # -rw------- 1 usuario usuario ...
 ```
 
-O `.gitignore` já ignora `.env`, mas confira antes de cada push:
+O `.gitignore` já ignora `.env`. Confirme antes de cada push:
 
 ```bash
 git status --ignored | grep .env
@@ -38,90 +38,53 @@ git status --ignored | grep .env
 
 ---
 
-## 2. Variáveis sensíveis
+## 2. Chaves de API por usuário
 
-| Variável | Onde guardar |
-|----------|--------------|
-| `OPENROUTER_API_KEY` | `.env` com `chmod 600` |
-| `OPENAI_API_KEY` | `.env` com `chmod 600` |
-| `DATABASE_URL` | `.env` com `chmod 600` |
-| `SESSION_SECRET` | Gerar com `openssl rand -hex 32` |
+Cada usuário configura sua própria chave de API dentro do app. As chaves ficam em `~/.mwcode/data/keys/{userId}.json`, isoladas por usuário.
 
-Nunca coloque chaves em:
-- Código fonte
-- Logs
-- Commits
-- Screenshots
-- Mensagens de erro expostas ao cliente
+- As chaves **nunca** trafegam de volta para o frontend após salvas
+- Restrinja permissões do diretório:
 
----
-
-## 3. CORS em produção
-
-Por padrão o servidor aceita qualquer origem (`*`) para facilitar dev. Em produção, restrinja:
-
-```env
-# .env
-CORS_ORIGIN=https://seudominio.com
-```
-
-No código (`server/src/index.ts`):
-
-```ts
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true
-}));
-```
-
----
-
-## 4. Autenticação
-
-O MWCode inclui middleware de autenticação mas **não ativa por padrão** (para facilitar desenvolvimento local).
-
-**Em produção você DEVE ativar.** Opções:
-
-### Opção A — Bearer token simples
-
-```env
-MWCODE_AUTH_TOKEN=gere-um-token-aleatorio-longo
-```
-
-Requisições passam a exigir:
-```
-Authorization: Bearer <token>
-```
-
-### Opção B — JWT
-
-Implemente com `jsonwebtoken`. Veja [doc/AUTH.md](doc/AUTH.md) (quando disponível).
-
-### Opção C — Reverse proxy com auth básica
-
-No nginx:
-```nginx
-location / {
-    auth_basic "MWCode";
-    auth_basic_user_file /etc/nginx/.htpasswd;
-    proxy_pass http://localhost:3100;
-}
-```
-
-Criar usuário:
 ```bash
-sudo apt install apache2-utils
-sudo htpasswd -c /etc/nginx/.htpasswd admin
+chmod 700 ~/.mwcode/data/keys/
 ```
+
+---
+
+## 3. Autenticação JWT
+
+Todas as rotas protegidas exigem token JWT válido. O token é gerado no login e expira em 7 dias.
+
+- Tokens são gerados com `jsonwebtoken` e um `JWT_SECRET` no `.env`
+- Se `JWT_SECRET` não estiver definido, o servidor usa um valor padrão — **defina sempre em produção**:
+
+```env
+JWT_SECRET=gere-aqui-com-openssl-rand-hex-32
+```
+
+Gerar um secret seguro:
+
+```bash
+openssl rand -hex 32
+```
+
+---
+
+## 4. CORS em produção
+
+Por padrão, o servidor aceita qualquer origem (`*`). Em produção, restrinja no nginx usando cabeçalhos ou configure diretamente no código se necessário.
+
+A forma mais simples é deixar o nginx recusar origens externas e só aceitar tráfego do seu domínio via proxy.
 
 ---
 
 ## 5. Rate limiting
 
-Para prevenir abuso da API (principalmente endpoints de chat que custam tokens):
+Para prevenir abuso (principalmente endpoints de chat que consomem tokens):
 
+Instale:
 ```bash
-pnpm add express-rate-limit
+cd /opt/mwcode && pnpm add express-rate-limit
 ```
 
 Em `server/src/index.ts`:
@@ -131,17 +94,16 @@ import rateLimit from 'express-rate-limit';
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 minutos
-  max: 100,                   // 100 req por janela
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false
 });
 
 app.use('/api/', apiLimiter);
 
-// Chat tem limite mais apertado (custa tokens)
 const chatLimiter = rateLimit({
-  windowMs: 60 * 1000,        // 1 minuto
-  max: 10                     // 10 msgs/min
+  windowMs: 60 * 1000,
+  max: 10  // 10 msgs/min por IP
 });
 
 app.use('/api/chat', chatLimiter);
@@ -149,99 +111,59 @@ app.use('/api/chat', chatLimiter);
 
 ---
 
-## 6. Validação de input
+## 6. XSS (Cross-Site Scripting)
 
-Todos os endpoints que recebem dados usam validators em `packages/shared/src/validators/`. Eles:
-
-- Rejeitam strings vazias em campos obrigatórios
-- Validam formato de e-mail, UUID
-- Limitam tamanho de texto (anti-DoS)
-
-**Se adicionar um novo endpoint, valide o body antes de usar.**
-
----
-
-## 7. SQL Injection
-
-Usamos **Drizzle ORM** com queries parametrizadas. Isso elimina SQL injection automaticamente:
-
-```ts
-// ✅ SEGURO (parametrizado)
-await db.select().from(agents).where(eq(agents.id, userInput));
-
-// ❌ NUNCA faça (string concat)
-await db.execute(`SELECT * FROM agents WHERE id = '${userInput}'`);
-```
-
----
-
-## 8. XSS (Cross-Site Scripting)
-
-React escapa HTML por padrão. O perigo está em:
+React escapa HTML por padrão. Evite `dangerouslySetInnerHTML` com input do usuário:
 
 ```tsx
-// ❌ NUNCA use dangerouslySetInnerHTML com input do usuário
+// ❌ NUNCA
 <div dangerouslySetInnerHTML={{ __html: userMessage }} />
 
-// ✅ Deixe o React escapar
+// ✅ Certo
 <div>{userMessage}</div>
 ```
 
-Se precisar renderizar markdown, use `react-markdown` com sanitização.
+Para renderizar markdown das respostas dos agentes, o projeto usa `react-markdown` com sanitização padrão.
 
 ---
 
-## 9. HTTPS obrigatório em produção
+## 7. HTTPS obrigatório em produção
 
-**Nunca exponha o MWCode sem HTTPS.** Use:
+Nunca exponha o MWCode sem HTTPS. Use:
 
-- Reverse proxy com nginx + Let's Encrypt (grátis)
-- Cloudflare (grátis, proxy + DDoS protection)
+- nginx + Let's Encrypt (veja [VPS.md](doc/VPS.md))
+- Cloudflare (grátis, proxy + DDoS)
 - Caddy (HTTPS automático)
 
-Veja [doc/VPS.md](doc/VPS.md) para o passo a passo.
-
 ---
 
-## 10. Atualizações
+## 8. Atualizações
 
-Pacotes desatualizados são o vetor #1 de ataques. Mantenha tudo atualizado:
+Mantenha as dependências atualizadas:
 
 ```bash
-# Ver dependências desatualizadas
-pnpm outdated
-
-# Atualizar tudo (cuidado com breaking changes)
-pnpm update --latest
-
-# Auditoria de vulnerabilidades
-pnpm audit
+cd /opt/mwcode
+pnpm outdated       # ver desatualizadas
+pnpm audit          # vulnerabilidades conhecidas
 ```
-
-Configure Dependabot no GitHub (já vem ativo no repo).
 
 ---
 
-## 11. Logs — não vaze informação
+## 9. Logs — não vaze informações
 
-Logs podem conter chaves de API, tokens, e-mails. Em produção:
+Logs podem conter tokens e dados sensíveis:
 
 ```ts
 // ❌ NUNCA logue o body inteiro
 console.log('Request:', req.body);
 
-// ✅ Logue só o que é seguro
+// ✅ Logue só o necessário
 console.log('Chat request from user:', req.userId);
-```
-
-O PM2 guarda logs em `~/.mwcode/logs/`. Garanta:
-```bash
-chmod 600 ~/.mwcode/logs/*.log
 ```
 
 ---
 
-## 12. Firewall
+## 10. Firewall
 
 No VPS, feche tudo que não é essencial:
 
@@ -253,24 +175,23 @@ sudo ufw allow 'Nginx Full'
 sudo ufw enable
 ```
 
-A porta `3100` (MWCode) **não deve estar exposta** — só acessível pelo nginx local.
+A porta `3100` **não deve estar exposta** diretamente — só o nginx na frente.
 
 ---
 
-## 13. Backup e recuperação
+## 11. Backup e recuperação
 
-- Banco: backup diário via cron (veja [VPS.md](doc/VPS.md))
+- Dados: `tar -czf backup.tgz ~/.mwcode/data/` (veja [VPS.md](doc/VPS.md) para agendar)
 - `.env`: copie para local seguro (cofre de senhas, 1Password, etc.)
-- Chaves de API: tenha um registro separado de onde obtê-las
 
 ---
 
-## 14. Dependências de IA externa
+## 12. Privacidade com modelos de IA
 
-Lembre-se: suas conversas com OpenAI/OpenRouter/Gemini passam pelos servidores deles. Para dados **sensíveis**:
+Conversas com OpenRouter/OpenAI/Gemini passam pelos servidores deles. Para dados sensíveis:
 
 - Use **Ollama local** — zero dados saem da máquina
-- Ou rode modelos em VPS privado com GPU (vLLM, llama.cpp server)
+- Ou rode modelos em VPS privado com GPU
 
 Não mande dados de clientes, senhas ou PII para provedores em nuvem sem consentimento.
 
@@ -278,16 +199,13 @@ Não mande dados de clientes, senhas ou PII para provedores em nuvem sem consent
 
 ## Checklist de segurança em produção
 
-- [ ] `.env` com `chmod 600`
+- [ ] `/opt/mwcode/.env` com `chmod 600`
+- [ ] `JWT_SECRET` definido com valor único e aleatório
 - [ ] `NODE_ENV=production`
-- [ ] `CORS_ORIGIN` restrito ao seu domínio
-- [ ] Autenticação ativada (token/JWT/basic auth)
-- [ ] Rate limiting configurado
 - [ ] HTTPS via nginx + Let's Encrypt
 - [ ] UFW habilitado (só 22, 80, 443)
 - [ ] Porta 3100 fechada ao público
-- [ ] Logs com permissão restrita
-- [ ] Backup automático do banco
-- [ ] Dependências atualizadas (`pnpm audit`)
-- [ ] Dependabot ativo no GitHub
-- [ ] Secrets nunca commitados (confira `.gitignore`)
+- [ ] Rate limiting configurado
+- [ ] Backup automático de `~/.mwcode/data/` agendado
+- [ ] Dependências auditadas (`pnpm audit`)
+- [ ] Secrets nunca commitados (verifique `.gitignore`)

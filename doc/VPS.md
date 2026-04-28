@@ -9,7 +9,7 @@ Guia para rodar o MWCode em um servidor VPS Linux (Ubuntu 22.04+ recomendado).
 - **SO:** Ubuntu 22.04+, Debian 12+, ou similar
 - **RAM:** 1 GB mínimo (2 GB recomendado)
 - **Disco:** 5 GB livres
-- **Portas:** 80, 443 (web), 22 (SSH)
+- **Portas:** 80, 443 (web), 22 (SSH), 3100 (API — pode fechar ao público se usar nginx)
 
 ---
 
@@ -24,54 +24,38 @@ ssh usuario@seu.ip.do.servidor
 ## 2. Instalação em 1 comando
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
 ```
 
-Isso instala Node, pnpm, clona o projeto em `~/.mwcode` e cria o comando `mwcode`.
+Isso instala Node, pnpm, clona o projeto em `/opt/mwcode`, compila e inicia o servidor na porta 3100.
 
 ---
 
-## 3. Configurar a chave de API
+## 3. Acessar e criar conta
+
+Após instalar, acesse `http://SEU-IP:3100` e crie sua conta. As chaves de API são configuradas dentro do app (aba Configurações → Chaves de API), sem precisar editar arquivos no servidor.
+
+Se quiser uma chave padrão para todo o servidor (fallback quando usuários não têm chave própria):
 
 ```bash
-nano ~/.mwcode/.env
+nano /opt/mwcode/.env
 ```
 
-Descomente e preencha:
-
 ```env
-OPENROUTER_API_KEY=sk-or-v1-sua-chave-aqui
+OPENROUTER_API_KEY=sk-or-v1-sua-chave
 NODE_ENV=production
 PORT=3100
 ```
 
-Salve (Ctrl+O, Enter, Ctrl+X).
-
 ---
 
-## 4. Build de produção
+## 4. Rodar em background com PM2
 
-```bash
-cd ~/.mwcode
-pnpm build
-```
-
----
-
-## 5. Rodar em background com PM2
-
-PM2 mantém o processo rodando mesmo após fechar o terminal e reinicia se cair.
-
-### Instalar PM2
+PM2 mantém o processo rodando após fechar o terminal e reinicia automaticamente.
 
 ```bash
 sudo npm install -g pm2
-```
-
-### Iniciar o MWCode
-
-```bash
-cd ~/.mwcode
+cd /opt/mwcode
 pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup
@@ -82,27 +66,18 @@ pm2 startup
 
 ```bash
 pm2 status              # ver status
-pm2 logs mwcode          # ver logs em tempo real
+pm2 logs mwcode         # logs em tempo real
 pm2 restart mwcode      # reiniciar
 pm2 stop mwcode         # parar
-pm2 delete mwcode       # remover do PM2
 pm2 monit               # monitoramento visual
 ```
 
 ---
 
-## 6. Reverse proxy com nginx (HTTPS + domínio próprio)
-
-### Instalar nginx
+## 5. Reverse proxy com nginx (HTTPS + domínio próprio)
 
 ```bash
-sudo apt update
-sudo apt install -y nginx
-```
-
-### Criar configuração
-
-```bash
+sudo apt update && sudo apt install -y nginx
 sudo nano /etc/nginx/sites-available/mwcode
 ```
 
@@ -127,7 +102,7 @@ server {
 }
 ```
 
-Ative e teste:
+Ative:
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/mwcode /etc/nginx/sites-enabled/
@@ -142,11 +117,9 @@ sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d seudominio.com
 ```
 
-Siga o passo a passo. O certbot configura HTTPS automaticamente e renova sozinho.
-
 ---
 
-## 7. Firewall (UFW)
+## 6. Firewall (UFW)
 
 ```bash
 sudo ufw allow OpenSSH
@@ -154,14 +127,20 @@ sudo ufw allow 'Nginx Full'
 sudo ufw enable
 ```
 
-**NÃO exponha a porta 3100 diretamente** — deixe o nginx na frente.
+> Se estiver usando nginx, **não precisa expor a porta 3100** ao público — o nginx faz o proxy.
 
 ---
 
-## 8. Atualizar em produção
+## 7. Atualizar em produção
 
 ```bash
-cd ~/.mwcode
+bash /opt/mwcode/update.sh
+```
+
+Ou manualmente:
+
+```bash
+cd /opt/mwcode
 git pull
 pnpm install
 pnpm build
@@ -170,55 +149,46 @@ pm2 restart mwcode
 
 ---
 
-## 9. Backup do banco (se usar PostgreSQL)
+## 8. Backup dos dados
+
+Os dados ficam em `~/.mwcode/data/` (usuários, agentes, histórico de chats, memórias). Faça backup regularmente:
 
 ```bash
-# backup
-pg_dump $DATABASE_URL > ~/backup-mwcode-$(date +%F).sql
-
-# restore
-psql $DATABASE_URL < ~/backup-mwcode-YYYY-MM-DD.sql
+tar -czf ~/backup-mwcode-$(date +%F).tgz ~/.mwcode/data/
 ```
 
-Agende com cron:
+Agendar backup diário com cron:
 
 ```bash
 crontab -e
 ```
 
-Adicione (backup diário às 3h):
+Adicione:
 
 ```
-0 3 * * * pg_dump $DATABASE_URL > /home/usuario/backups/mwcode-$(date +\%F).sql
+0 3 * * * tar -czf ~/backups/mwcode-$(date +\%F).tgz ~/.mwcode/data/ 2>/dev/null
 ```
 
 ---
 
-## 10. Monitoramento
+## 9. Monitoramento
 
 ```bash
-# Uso de CPU/memória
-pm2 monit
-
-# Logs
-pm2 logs mwcode --lines 200
-
-# Status do sistema
-htop
-df -h
-free -h
+pm2 monit                      # CPU e memória em tempo real
+pm2 logs mwcode --lines 200    # últimos logs
+htop                           # sistema geral
+df -h                          # espaço em disco
+free -h                        # memória
 ```
 
 ---
 
 ## Checklist de produção
 
-- [ ] `NODE_ENV=production` no `.env`
-- [ ] `.env` com permissão `600` (`chmod 600 .env`)
 - [ ] PM2 configurado com `pm2 startup` + `pm2 save`
 - [ ] nginx com HTTPS (certbot)
-- [ ] UFW habilitado
-- [ ] Backups agendados
-- [ ] Autenticação ativada (veja SECURITY.md)
-- [ ] Rate limiting configurado (veja SECURITY.md)
-- [ ] Logs monitorados
+- [ ] UFW habilitado (só 22, 80, 443)
+- [ ] `/opt/mwcode/.env` com permissão `600` (`chmod 600 /opt/mwcode/.env`)
+- [ ] `NODE_ENV=production` no `.env`
+- [ ] Backup diário de `~/.mwcode/data/` agendado
+- [ ] Logs monitorados (`pm2 logs`)

@@ -116,18 +116,23 @@ git push origin main
 
 ```
 mwcode/
-├── bin/              # CLI global (mwcode)
-├── cli/              # Modo chat terminal
-├── server/           # Backend Express + rotas
-├── ui/               # Frontend React + Vite
+├── server/              # API Express + TypeScript
+│   └── src/routes/      # auth, chat, enterprise, skills, workflows, models, ...
+├── ui/                  # React + Vite
+│   └── src/pages/       # Login, Onboarding, Dashboard, Chat, Agents, Workflows, Settings
 ├── packages/
-│   ├── shared/       # Types + validators + constantes
-│   ├── db/           # Drizzle schema + migrations
-│   └── adapters/     # Providers de IA (OpenAI, OpenRouter, etc.)
-├── docker/           # Dockerfile + docker-compose
-├── doc/              # Documentação
-├── vscode-extension/ # Extensão VS Code
-└── install.sh        # Instalador bash
+│   ├── shared/          # tipos e constantes compartilhadas
+│   ├── adapters/        # provedores de IA (OpenRouter, OpenAI, Gemini, DeepSeek, Ollama)
+│   └── db/              # schemas Drizzle (integração PostgreSQL futura)
+├── cli/                 # modo chat interativo no terminal
+├── bin/                 # CLI global (mwcode)
+├── docker/              # Dockerfile + docker-compose
+├── vscode-extension/    # extensão VS Code (em desenvolvimento)
+├── scripts/
+│   └── skills.sh        # CLI para gerenciar skills
+├── doc/                 # documentação
+├── install-unico.sh     # instalador Linux/VPS
+└── install-unico.ps1    # instalador Windows
 ```
 
 ---
