@@ -1,8 +1,8 @@
-# MWCode — Sistema Único de Agentes de IA
+# MWCode — Sistema de Agentes de IA
 
-Plataforma open-source de agentes de IA que une **Modo Pessoal** (assistente individual) e **Modo Empresa** (gestão de múltiplos agentes como funcionários) em uma única instalação. Construído com **React + Node.js**, **100% em português brasileiro**.
+Plataforma open-source de agentes de IA para gerenciar equipes de assistentes como funcionários da sua empresa. Construído com **React + Node.js**, **100% em português brasileiro**.
 
-Pertence à empresa [**Loja MWO**](https://lojamwo.com.br), fundada por **Michel Weslley**. O projeto democratiza o acesso a agentes de IA para empresas e desenvolvedores brasileiros, permitindo criar **assistentes personalizados**, gerenciar equipes de agentes e integrar múltiplos provedores em uma única plataforma.
+Pertence à empresa [**Loja MWO**](https://lojamwo.com.br), fundada por **Michel Weslley**.
 
 [![License](https://img.shields.io/badge/license-MIT-2563eb)](LICENSE)
 [![Node](https://img.shields.io/badge/node-20+-339933)](https://nodejs.org/)
@@ -12,82 +12,86 @@ Pertence à empresa [**Loja MWO**](https://lojamwo.com.br), fundada por **Michel
 
 ## 🚀 Instalação rápida (Linux / VPS)
 
-Um comando instala, configura e inicia tudo:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mweslley/mwcode/main/install-unico.sh -o /tmp/install-mwcode.sh && bash /tmp/install-mwcode.sh
 ```
 
 O instalador faz, em ordem:
 
-1. Verifica Node.js 20+ e instala pnpm se faltar
+1. Verifica Node.js 20+ e instala pnpm se necessário
 2. Clona o MWCode em `/opt/mwcode`
-3. Instala todas as dependências (`pnpm install`)
-4. **Pergunta seu provedor de IA** (1=OpenRouter, 2=OpenAI, 3=Gemini, 4=DeepSeek, 5=Ollama)
-5. **Pede sua chave de API** (digitação invisível) e **valida** com o provedor antes de salvar
-6. Libera as portas 3100 (API) e 5173 (UI) no firewall (UFW ou iptables)
-7. Compila a UI (`pnpm build`)
-8. Inicia o servidor + UI em background
-9. Mostra as URLs prontas pra acessar
+3. Instala todas as dependências
+4. Libera as portas 3100 no firewall
+5. Compila a UI e inicia o servidor
+6. Mostra a URL pronta para acessar
 
-> 💡 **Onde pegar chave grátis:** [openrouter.ai/keys](https://openrouter.ai/keys) — modelos como Llama 3.2, DeepSeek e Qwen são gratuitos.
+> 💡 Cada usuário configura sua própria chave de API diretamente no app — sem precisar editar o `.env` do servidor.
 
 ---
 
-## 🌐 Como acessar depois de instalar
+## 🌐 Como acessar
 
-| Serviço | Porta | URL local | URL via VPS |
-|---------|-------|-----------|-------------|
-| Interface (UI) | 5173 | `http://localhost:5173` | `http://SEU-IP:5173` |
-| API REST | 3100 | `http://localhost:3100` | `http://SEU-IP:3100` |
-| Status / saúde | 3100 | `http://localhost:3100/api/health` | — |
+| Serviço | Porta | URL |
+|---------|-------|-----|
+| Interface (UI) | 3100 | `http://SEU-IP:3100` |
+| API REST | 3100 | `http://SEU-IP:3100/api` |
+| Status | 3100 | `http://SEU-IP:3100/api/health` |
 
-Pra descobrir o IP público do seu VPS:
 ```bash
+# Descobrir o IP público do VPS
 curl ifconfig.me
 ```
-
-> ⚠️ Em VPS, **não** use `localhost` no navegador do seu PC — `localhost` aponta pro seu próprio computador. Use o IP do servidor.
 
 ---
 
 ## ✨ Funcionalidades
 
-### 👤 Modo Pessoal — para uso individual
+### 🏢 Workspace de Agentes
 
-Cada usuário tem seu próprio espaço com:
+- **Onboarding guiado** — configure empresa, missão, metas e chave de API em 4 passos
+- **CEO automático** — um agente CEO é criado no onboarding para orquestrar sua equipe
+- **Contratar / demitir agentes** — cada agente tem função, modelo, personalidade e skills próprias
+- **Aprovação humana** — mensagens com `[APROVAÇÃO NECESSÁRIA]` pedem confirmação antes de agir
+- **Dashboard** — visão geral dos agentes ativos, tarefas e atividade recente
 
-- **Chat com IA** — converse direto com qualquer modelo dos provedores configurados
-- **Múltiplos provedores** — OpenRouter, OpenAI, Gemini, DeepSeek e Ollama (modelos locais)
-- **Memórias persistidas** — o agente lembra de conversas anteriores e preferências (salvas em `data/memories/`)
-- **Skills customizáveis** — você cria habilidades específicas (ex: "revisor de código", "tradutor jurídico") e ativa quando precisar
-- **Login com JWT** — sua conta protegida, dados isolados de outros usuários
+### 💬 Chat
 
-### 🏢 Modo Empresa — gestão de equipes de agentes
+- **Histórico persistido** — conversas salvas por usuário e por agente
+- **Multi-agente** — converse com vários agentes em sequência na mesma janela
+- **Deletar conversa** — apague o histórico de qualquer thread pelo sidebar
+- **Cancelar envio** — interrompa uma resposta em andamento
 
-Trate agentes de IA como funcionários da sua empresa:
+### ⚙️ Configurações por Usuário
 
-- **Hierarquia organizacional** — CEO → CTO → Engenheiros → outros cargos
-- **Contratar / demitir agentes** — adicione agentes com função, modelo e personalidade definidos
-- **Controle de orçamento** — limite gastos por agente, monitore custos em tempo real
-- **Dashboard executivo** — veja todos os agentes ativos, tarefas em andamento e desempenho
-- **Atribuição de tarefas** — distribua trabalho entre agentes com prioridades
-- **Auditoria** — histórico de cada agente (contratação, tarefas concluídas, demissão e motivo)
+- **Chaves de API individuais** — cada usuário usa sua própria conta (OpenRouter, OpenAI, Gemini, DeepSeek)
+- **Validação em tempo real** — o sistema testa a chave no provedor e confirma antes de salvar
+- **Modelos reais** — lista de modelos buscada direto da API do provedor ao configurar
+- **Perfil editável** — nome, email e senha pelo painel de configurações
+
+### 🔁 Workflows
+
+- **Agendamento automático** — execute mensagens para agentes em horários definidos (cron)
+- **Fuso Brasília** — horários configurados em BRT, convertidos automaticamente para UTC
+- **Presets prontos** — "Todo dia às 9h", "Toda segunda", etc.
+- **Ativar/pausar** — toggle rápido por workflow
+
+### 🛠 Skills
+
+- **Skills personalizadas** — crie habilidades específicas (ex: "revisor de código", "copywriter")
+- **Atribuir a agentes** — associe skills a agentes pelo modal de edição
+- **CLI de gerenciamento** — `bash scripts/skills.sh` para criar, listar e usar skills pelo terminal
 
 ---
 
-## 🤖 Modelos gratuitos recomendados
+## 🤖 Provedores suportados
 
-Disponíveis via OpenRouter (basta colocar a chave grátis):
-
-| Modelo | Melhor para | Provider |
-|--------|-------------|----------|
-| `deepseek/deepseek-coder` | Programação e geração de código | OpenRouter |
-| `meta-llama/llama-3.2-90b-instruct` | Conversas longas e raciocínio | OpenRouter |
-| `qwen/qwen-2.5-72b-instruct` | Melhor qualidade geral grátis | OpenRouter |
-| `google/gemini-2.0-flash-exp:free` | Rápido e bom em pt-BR | OpenRouter |
-
-Pra modelos locais (sem chave nem internet), use **Ollama**: [ollama.com/download](https://ollama.com/download)
+| Provider | Modelos | Chave grátis |
+|----------|---------|--------------|
+| **OpenRouter** ⭐ | 200+ modelos (Llama, Gemini, DeepSeek, etc.) | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| OpenAI | GPT-4o, GPT-4o-mini | [platform.openai.com](https://platform.openai.com) |
+| Google Gemini | Gemini 1.5 Flash, Pro | [aistudio.google.com](https://aistudio.google.com) |
+| DeepSeek | DeepSeek Chat, Coder | [platform.deepseek.com](https://platform.deepseek.com) |
+| Ollama | Qualquer modelo local | [ollama.com](https://ollama.com) — sem internet |
 
 ---
 
@@ -95,19 +99,23 @@ Pra modelos locais (sem chave nem internet), use **Ollama**: [ollama.com/downloa
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| `POST` | `/api/auth/register` | Criar conta de usuário |
+| `POST` | `/api/auth/register` | Criar conta |
 | `POST` | `/api/auth/login` | Login (retorna JWT) |
-| `GET` | `/api/chat/single` | Chat do modo pessoal |
-| `POST` | `/api/chat/:agentId` | Conversar com um agente específico |
-| `GET` | `/api/enterprise/company` | Dados da empresa do usuário logado |
-| `POST` | `/api/enterprise/agents/hire` | Contratar novo agente |
+| `PUT` | `/api/auth/profile` | Editar nome/email/senha |
+| `GET/PUT` | `/api/user/keys` | Chaves de API do usuário |
+| `GET` | `/api/models/validate?provider=X` | Validar chave de API |
+| `GET` | `/api/models/list?provider=X` | Listar modelos do provider |
+| `POST` | `/api/chat/:agentId` | Conversar com agente |
+| `GET` | `/api/chat/:agentId` | Histórico de conversa |
+| `DELETE` | `/api/chat/:agentId` | Apagar histórico |
+| `GET` | `/api/enterprise/company` | Dados da empresa |
+| `POST` | `/api/enterprise/company` | Criar/atualizar empresa |
+| `GET` | `/api/enterprise/agents` | Listar agentes |
+| `POST` | `/api/enterprise/agents/hire` | Contratar agente |
 | `DELETE` | `/api/enterprise/agents/:id` | Demitir agente |
-| `GET` | `/api/skills` | Listar suas skills |
-| `POST` | `/api/skills` | Criar nova skill |
-| `GET` | `/api/memories` | Listar memórias |
-| `POST` | `/api/memories` | Salvar memória |
-
-Documentação completa de cada rota em [doc/](doc/).
+| `GET/POST` | `/api/skills` | Listar / criar skills |
+| `GET/POST` | `/api/workflows` | Listar / criar workflows |
+| `GET/POST` | `/api/memories` | Listar / salvar memórias |
 
 ---
 
@@ -115,32 +123,38 @@ Documentação completa de cada rota em [doc/](doc/).
 
 ```
 mwcode/
-├── server/             # API REST (Express)
+├── server/             # API REST (Express + TypeScript)
 │   └── src/
-│       ├── routes/      # /auth, /chat, /skills, /memories, /enterprise
-│       └── middleware/  # autenticação, escopo de empresa
+│       ├── routes/     # auth, chat, skills, enterprise, workflows, models, ...
+│       └── middleware/ # JWT, company scope
 ├── ui/                 # Frontend (React + Vite)
 │   └── src/
-│       ├── pages/       # Login, Register, Onboarding, Dashboard, Chat
-│       └── lib/         # cliente HTTP da API
-├── packages/           # workspace pnpm
-│   ├── adapters/       # provedores de IA (OpenRouter, OpenAI, Gemini, ...)
-│   └── shared/         # tipos compartilhados
-├── data/               # dados persistidos (criado em runtime)
-│   ├── users.json       # contas de usuário
-│   ├── memories/        # 1 arquivo JSON por usuário
-│   ├── skills/          # 1 arquivo JSON por usuário
-│   └── agents/          # agentes empresariais
-├── install-unico.sh    # instalador único (Linux/VPS)
-├── install-unico.ps1   # instalador único (Windows)
-└── doc/                # documentação operacional
+│       ├── pages/      # Login, Onboarding, Dashboard, Chat, Agents, Workflows, Settings
+│       └── components/ # ModelPicker, MessageRenderer, ...
+├── packages/
+│   ├── adapters/       # provedores de IA (OpenRouter, OpenAI, Gemini, Ollama, DeepSeek)
+│   └── shared/         # tipos e constantes compartilhadas
+├── scripts/
+│   └── skills.sh       # CLI para gerenciar skills pelo terminal
+├── install-unico.sh    # instalador Linux/VPS
+└── install-unico.ps1   # instalador Windows
+```
+
+**Dados em runtime** ficam em `~/.mwcode/data/` (fora do código):
+
+```
+~/.mwcode/data/
+├── users.json           # contas
+├── keys/{userId}.json   # chaves de API por usuário
+├── agents/{userId}/     # agentes contratados
+├── chats/{userId}/      # histórico de conversas
+├── memories/{userId}/   # memórias persistidas
+└── skills/{userId}/     # skills criadas
 ```
 
 ---
 
-## 🔧 Desenvolvimento (rodar localmente)
-
-Pra contribuir ou testar mudanças no código:
+## 🔧 Desenvolvimento local
 
 ```bash
 # 1. Clonar
@@ -150,18 +164,17 @@ cd mwcode
 # 2. Instalar dependências
 pnpm install
 
-# 3. Configurar chave de API
+# 3. (Opcional) Chave de API padrão do servidor
 cp .env.example .env
-nano .env   # cole sua OPENROUTER_API_KEY (ou outra)
+# Edite .env com sua OPENROUTER_API_KEY — usuários podem sobrescrever com a própria chave
 
-# 4. Rodar em modo dev (hot reload)
+# 4. Rodar em modo dev
 pnpm dev
 ```
 
-- **UI:** http://localhost:5173 (Vite, hot reload)
-- **API:** http://localhost:3100 (tsx watch)
+- **UI:** http://localhost:5173
+- **API:** http://localhost:3100
 
-Pra rodar só uma parte:
 ```bash
 pnpm dev:server   # só a API
 pnpm dev:ui       # só a interface
@@ -169,59 +182,47 @@ pnpm dev:ui       # só a interface
 
 ---
 
-## 🌍 Deploy em VPS (produção)
-
-Depois de instalar com `install-unico.sh`, pra colocar em produção com domínio próprio + HTTPS:
+## 🔄 Atualizar
 
 ```bash
-# 1. nginx como reverse proxy
-bash setup-nginx.sh
+bash /opt/mwcode/update.sh
+```
 
-# 2. HTTPS grátis com Let's Encrypt
-bash setup-https.sh seudominio.com
+Faz `git pull` + `pnpm install` + rebuild + reinicia o servidor.
 
-# 3. Manter rodando após reboot (PM2)
-pm2 startup
-pm2 save
+---
+
+## 🌍 Produção (domínio + HTTPS)
+
+```bash
+bash setup-nginx.sh              # nginx como reverse proxy
+bash setup-https.sh seudominio.com  # HTTPS grátis com Let's Encrypt
+pm2 startup && pm2 save          # manter rodando após reboot
 ```
 
 Guia completo em [doc/VPS.md](doc/VPS.md).
 
 ---
 
-## 🔄 Atualizar para a versão mais nova
-
-```bash
-bash /opt/mwcode/update.sh
-```
-
-Faz `git pull` + `pnpm install` + reinicia o servidor automaticamente.
-
----
-
 ## 🔒 Segurança
 
-Antes de expor em produção, leia [SECURITY.md](SECURITY.md). Pontos essenciais:
-
 - `.env` com permissão `600` (`chmod 600 .env`)
-- HTTPS obrigatório (nginx + Let's Encrypt)
-- Autenticação JWT já implementada — **ative em produção**
-- Rate limiting recomendado (express-rate-limit)
-- Backup do diretório `data/` (contém usuários, memórias, skills)
+- HTTPS obrigatório em produção
+- Autenticação JWT em todas as rotas protegidas
+- Dados de usuários em `~/.mwcode/data/` — faça backup regularmente
 - Reportar vulnerabilidades: **suporte@lojamwo.com.br**
 
 ---
 
-## 🤝 Comunidade & Contribuir
+## 🤝 Comunidade
 
 - [GitHub Issues](https://github.com/mweslley/mwcode/issues) — bugs e sugestões
-- [CONTRIBUTING.md](CONTRIBUTING.md) — como fazer fork, abrir PR, padrões de código
-- [SECURITY.md](SECURITY.md) — práticas de segurança e como reportar vulnerabilidades
+- [CONTRIBUTING.md](CONTRIBUTING.md) — como contribuir
+- Site: **[lojamwo.com.br](https://lojamwo.com.br)**
 - E-mail: **suporte@lojamwo.com.br**
-- Site da empresa: **[lojamwo.com.br](https://lojamwo.com.br)**
 
 ---
 
 ## 📄 Licença
 
-[MIT](LICENSE) — use, modifique e distribua livremente, inclusive comercialmente.
+[MIT](LICENSE) — use, modifique e distribua livremente.
