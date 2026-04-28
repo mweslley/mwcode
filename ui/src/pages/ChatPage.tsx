@@ -247,6 +247,16 @@ export function ChatPage() {
     }
   }
 
+  async function deleteThread(threadAgentId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm('Apagar histórico desta conversa?')) return;
+    await api.delete(`/chat/${threadAgentId}`).catch(() => {});
+    if (threadAgentId === agentId) {
+      setMessages([]);
+    }
+    window.dispatchEvent(new Event('mwcode:chat-updated'));
+  }
+
   function clearChat() {
     if (!confirm('Limpar conversa? O histórico salvo não será apagado.')) return;
     setMessages([]);
@@ -303,6 +313,7 @@ export function ChatPage() {
                   key={agent.id}
                   className={`thread-item${agentId === agent.id ? ' active' : ''}`}
                   onClick={() => { setSelectedAgents([agent]); navigate(`/chat/${agent.id}`); }}
+                  style={{ position: 'relative' }}
                 >
                   <div className="thread-agents">
                     <div className="thread-agent-dot">{agentEmoji(agent.role)}</div>
@@ -311,6 +322,14 @@ export function ChatPage() {
                     <div className="thread-title">{agent.name}</div>
                     <div className="thread-preview">{agent.role}</div>
                   </div>
+                  <button
+                    className="ghost"
+                    title="Apagar histórico"
+                    onClick={e => deleteThread(agent.id, e)}
+                    style={{ padding: '2px 6px', fontSize: 12, opacity: 0, color: 'var(--muted)', flexShrink: 0 }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+                  >🗑</button>
                 </div>
               ))}
             </>

@@ -1,5 +1,14 @@
 import { useState } from 'react';
 import { MODELOS_OPENROUTER, MODELOS_GRATIS, MODELOS_DESTAQUE } from '@mwcode/shared';
+import { api } from '../lib/api';
+
+interface RemoteModel {
+  id: string;
+  name: string;
+  description?: string;
+  free?: boolean;
+  contextLength?: number;
+}
 
 interface Props {
   value: string;
@@ -7,6 +16,7 @@ interface Props {
   mostrarPagos?: boolean;
   modo?: 'select' | 'cards';
   label?: string;
+  provider?: string;
 }
 
 export function ModelPicker({
@@ -15,12 +25,29 @@ export function ModelPicker({
   mostrarPagos = true,
   modo = 'select',
   label = 'Modelo de IA',
+  provider,
 }: Props) {
   const [filtro, setFiltro] = useState<'todos' | 'gratis'>(
     mostrarPagos ? 'todos' : 'gratis'
   );
+  const [remoteModels, setRemoteModels] = useState<RemoteModel[] | null>(null);
+  const [loadingRemote, setLoadingRemote] = useState(false);
 
   const modelos = filtro === 'gratis' ? MODELOS_GRATIS : MODELOS_OPENROUTER;
+
+  async function fetchRemoteModels() {
+    if (remoteModels !== null || loadingRemote) return;
+    setLoadingRemote(true);
+    try {
+      const p = provider || 'openrouter';
+      const list = await api.get<RemoteModel[]>(`/models/list?provider=${p}`);
+      if (list && list.length > 0) setRemoteModels(list);
+    } catch {
+      // fall back to static list
+    } finally {
+      setLoadingRemote(false);
+    }
+  }
 
   if (modo === 'cards') {
     return (
@@ -60,17 +87,40 @@ export function ModelPicker({
             </button>
           ))}
         </div>
-        <details style={{ marginTop: 12 }}>
+        <details style={{ marginTop: 12 }} onToggle={e => (e.currentTarget as any).open && fetchRemoteModels()}>
           <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>
-            Ver todos os modelos ({MODELOS_OPENROUTER.length})
+            {loadingRemote
+              ? 'Carregando modelos...'
+              : remoteModels
+              ? `Ver todos os modelos (${remoteModels.length})`
+              : `Ver todos os modelos (${MODELOS_OPENROUTER.length})`}
           </summary>
-          <select
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            style={{ marginTop: 8, width: '100%' }}
-          >
-            <SelectOptions modelos={MODELOS_OPENROUTER} />
-          </select>
+          {remoteModels ? (
+            <select
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              style={{ marginTop: 8, width: '100%' }}
+            >
+              <optgroup label="🆓 Grátis">
+                {remoteModels.filter(m => m.free).map(m => (
+                  <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                ))}
+              </optgroup>
+              <optgroup label="💎 Pagos">
+                {remoteModels.filter(m => !m.free).map(m => (
+                  <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                ))}
+              </optgroup>
+            </select>
+          ) : (
+            <select
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              style={{ marginTop: 8, width: '100%' }}
+            >
+              <SelectOptions modelos={MODELOS_OPENROUTER} />
+            </select>
+          )}
         </details>
       </div>
     );

@@ -18,7 +18,22 @@ export function Login() {
       if (res.token) {
         localStorage.setItem('token', res.token);
         localStorage.setItem('user', JSON.stringify(res.user));
+
+        // Tenta carregar company do servidor (usuário já configurou antes)
         const company = localStorage.getItem('company');
+        if (!company) {
+          try {
+            const serverCompany = await api.get<any>('/enterprise/company');
+            if (serverCompany?.name) {
+              localStorage.setItem('company', JSON.stringify(serverCompany));
+              navigate('/dashboard');
+              return;
+            }
+          } catch {
+            // empresa não encontrada no servidor → onboarding
+          }
+        }
+
         navigate(company ? '/dashboard' : '/onboarding');
       }
     } catch (err: any) {

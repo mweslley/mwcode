@@ -4,6 +4,8 @@ import { api } from '../lib/api';
 import { ModelPicker } from '../components/ModelPicker';
 import { MODELO_PADRAO } from '@mwcode/shared';
 
+type KeyStatus = 'idle' | 'validating' | 'valid' | 'invalid';
+
 const TOTAL_STEPS = 4;
 
 const PROVIDER_OPTIONS = [
@@ -34,6 +36,7 @@ export function Onboarding() {
     gemini: '',
     deepseek: '',
   });
+  const [keyStatuses, setKeyStatuses] = useState<Record<string, KeyStatus>>({});
 
   function addGoal() {
     if (goalInput.trim()) {
@@ -44,15 +47,41 @@ export function Onboarding() {
 
   const hasAtLeastOneKey = Object.values(apiKeys).some(v => v.trim().length > 10);
 
+  async function validateKey(provider: string, key: string) {
+    if (!key.trim() || key.trim().length < 10) return;
+    setKeyStatuses(s => ({ ...s, [provider]: 'validating' }));
+    try {
+      // save key first so the server can use it for validation
+      await api.put('/user/keys', { [provider]: key.trim() });
+      const result = await api.get<{ valid: boolean; error?: string }>(`/models/validate?provider=${provider}`);
+      setKeyStatuses(s => ({ ...s, [provider]: result.valid ? 'valid' : 'invalid' }));
+    } catch {
+      setKeyStatuses(s => ({ ...s, [provider]: 'invalid' }));
+    }
+  }
+
   async function saveApiKeys() {
     setApiKeySaving(true);
     setApiKeyError(null);
     try {
-      const payload: Record<string, string> = {};
-      for (const [k, v] of Object.entries(apiKeys)) {
-        if (v.trim()) payload[k] = v.trim();
+      const toValidate = Object.entries(apiKeys).filter(([, v]) => v.trim().length > 10);
+      // validate keys not yet confirmed valid
+      for (const [provider, key] of toValidate) {
+        if (keyStatuses[provider] !== 'valid') {
+          await validateKey(provider, key);
+        }
       }
-      await api.put('/user/keys', payload);
+      // read updated statuses from state is async — check directly from API results
+      const results = await Promise.all(
+        toValidate.map(([provider]) =>
+          api.get<{ valid: boolean }>(`/models/validate?provider=${provider}`).catch(() => ({ valid: false }))
+        )
+      );
+      const anyValid = results.some(r => r.valid);
+      if (!anyValid && toValidate.length > 0) {
+        setApiKeyError('Nenhuma chave válida. Verifique e tente novamente.');
+        return;
+      }
       setStep(4);
     } catch (e: any) {
       setApiKeyError(e.message || 'Erro ao salvar chaves');
@@ -66,7 +95,13 @@ export function Onboarding() {
     try {
       const company = await api.post<any>('/enterprise/company', data);
 
-      const ceo = await api.post<any>('/enterprise/agents/hire', {
+      // Check if CEO already exists to prevent duplicates
+      const existingAgents = await api.get<any[]>('/enterprise/agents').catch(() => []);
+      const existingCeo = (existingAgents || []).find((a: any) =>
+        a.role === 'ceo' || (a.name || '').toLowerCase() === 'ceo'
+      );
+      const isNewCeo = !existingCeo;
+      const ceo = existingCeo || await api.post<any>('/enterprise/agents/hire', {
         name: 'CEO',
         role: 'ceo',
         title: 'CEO — Chief Executive Officer',
@@ -86,8 +121,8 @@ export function Onboarding() {
         model: data.ceoModel,
       });
 
-      // Boot do CEO
-      if (ceo?.id) {
+      // Boot do CEO (apenas quando é novo)
+      if (ceo?.id && isNewCeo) {
         const bootMsg =
           `Você acabou de ser contratado como CEO da ${data.companyName}. ` +
           (data.mission ? `Nossa missão é: ${data.mission}. ` : '') +
@@ -302,26 +337,37 @@ export function Onboarding() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {PROVIDER_OPTIONS.map(p => (
-                  <div key={p.key} className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      {p.label}
-                      {p.key === 'openrouter' && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#00BC8A', background: 'rgba(0,188,138,0.12)', padding: '1px 6px', borderRadius: 4 }}>
-                          RECOMENDADO
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="password"
-                      value={apiKeys[p.key]}
-                      onChange={e => setApiKeys(k => ({ ...k, [p.key]: e.target.value }))}
-                      placeholder={p.placeholder}
-                      autoComplete="off"
-                    />
-                    <small style={{ color: 'var(--muted)', fontSize: 11 }}>{p.hint}</small>
-                  </div>
-                ))}
+                {PROVIDER_OPTIONS.map(p => {
+                  const status = keyStatuses[p.key];
+                  return (
+                    <div key={p.key} className="form-group" style={{ marginBottom: 0 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        {p.label}
+                        {p.key === 'openrouter' && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#00BC8A', background: 'rgba(0,188,138,0.12)', padding: '1px 6px', borderRadius: 4 }}>
+                            RECOMENDADO
+                          </span>
+                        )}
+                        {status === 'validating' && <span style={{ fontSize: 11, color: 'var(--muted)' }}>verificando...</span>}
+                        {status === 'valid' && <span style={{ fontSize: 11, color: 'var(--success)' }}>✅ válida</span>}
+                        {status === 'invalid' && <span style={{ fontSize: 11, color: 'var(--danger)' }}>❌ inválida</span>}
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKeys[p.key]}
+                        onChange={e => {
+                          setApiKeys(k => ({ ...k, [p.key]: e.target.value }));
+                          setKeyStatuses(s => ({ ...s, [p.key]: 'idle' }));
+                        }}
+                        onBlur={e => { if (e.target.value.trim().length > 10) validateKey(p.key, e.target.value); }}
+                        placeholder={p.placeholder}
+                        autoComplete="off"
+                        style={status === 'valid' ? { borderColor: 'var(--success)' } : status === 'invalid' ? { borderColor: 'var(--danger)' } : {}}
+                      />
+                      <small style={{ color: 'var(--muted)', fontSize: 11 }}>{p.hint}</small>
+                    </div>
+                  );
+                })}
               </div>
 
               {!hasAtLeastOneKey && (

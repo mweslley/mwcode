@@ -1345,19 +1345,22 @@ tbody tr:hover td { background: var(--bg-3); }
    ══════════════════════════════════════════════════════════════════════════ */
 
 .onboarding-page {
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: 24px 16px;
   background: var(--bg);
   background-image:
     radial-gradient(ellipse at 30% 20%, rgba(146,48,249,0.08) 0%, transparent 50%);
+  overflow-y: auto;
 }
 
 .onboarding-box {
-  width: 560px;
+  width: 540px;
   max-width: 100%;
+  padding-bottom: 24px;
 }
 
 .onboarding-progress {
