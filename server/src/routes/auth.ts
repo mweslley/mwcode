@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
-import { dataPath } from '../lib/data-dir.js';
+import { DATA_DIR, dataDir, dataPath } from '../lib/data-dir.js';
 
 const USERS_FILE = dataPath('users.json');
 
@@ -139,6 +139,49 @@ authRouter.put('/profile', async (req, res) => {
   } catch {
     res.status(401).json({ error: 'Token inválido' });
   }
+});
+
+// DELETE /auth/account — apaga conta completa: usuário + workspace + chaves
+authRouter.delete('/account', (req: any, res: any) => {
+  // Aceita tanto req.userId (injetado por authMiddleware quando montado com ele)
+  // quanto verificação manual do token (igual ao PUT /profile)
+  let userId: string | null = req.userId || null;
+
+  if (!userId) {
+    const auth = req.headers.authorization as string | undefined;
+    if (!auth) return res.status(401).json({ error: 'Não autorizado' });
+    try {
+      const decoded = jwt.verify(
+        auth.replace('Bearer ', ''),
+        process.env.JWT_SECRET || 'mwcode-secret-key-change-in-production'
+      ) as { userId: string };
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+  }
+
+  // Remove do users.json
+  const users = getUsers();
+  const idx = users.findIndex((u: User) => u.id === userId);
+  if (idx === -1) return res.status(404).json({ error: 'Usuário não encontrado' });
+  users.splice(idx, 1);
+  saveUsers(users);
+
+  // Remove todos os dados do workspace
+  const rmFile = (p: string) => { if (fs.existsSync(p)) fs.unlinkSync(p); };
+  const rmDirR = (p: string) => { if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true }); };
+
+  rmFile(path.join(DATA_DIR, `${userId}.json`));          // empresa
+  rmDirR(dataDir('agents', userId));                      // agentes
+  rmDirR(dataDir('chats', userId));                       // chats
+  rmFile(dataPath('memories', `${userId}.json`));         // memórias
+  rmDirR(path.join(DATA_DIR, 'skills', userId));          // skills
+  rmFile(dataPath('workflows', `${userId}.json`));        // workflows
+  rmFile(dataPath('tasks', `${userId}.json`));            // tarefas
+  rmFile(dataPath('keys', `${userId}.json`));             // chaves de API
+
+  res.json({ ok: true });
 });
 
 // GET /auth/me

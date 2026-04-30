@@ -163,14 +163,16 @@ export function Settings() {
     if (!mode) return;
     setResetting(true);
     try {
-      await api.delete(`/enterprise/reset?mode=${mode}`);
-      // Limpa localStorage
-      localStorage.removeItem('company');
-      localStorage.removeItem('company_backup');
       if (mode === 'account') {
+        // Deleta conta completa (usuário + workspace + chaves)
+        await api.delete('/auth/account');
         localStorage.clear();
         navigate('/login');
       } else {
+        // Reseta só o workspace (mantém login e chaves)
+        await api.delete('/enterprise/reset?mode=workspace');
+        localStorage.removeItem('company');
+        localStorage.removeItem('company_backup');
         setShowWorkspaceModal(false);
         navigate('/onboarding');
       }
@@ -511,12 +513,12 @@ export function Settings() {
                 {/* Opção 1 — Reconfigurar */}
                 <button
                   onClick={doReconfigurar}
-                  style={{ textAlign: 'left', padding: '14px 16px', background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+                  style={{ textAlign: 'left', padding: '14px 16px', background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start', width: '100%' }}
                 >
-                  <span style={{ fontSize: 22, lineHeight: 1 }}>🔄</span>
-                  <div>
+                  <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>🔄</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>Reconfigurar workspace</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, whiteSpace: 'normal' }}>
                       Reinicia o onboarding com novos dados de empresa e modelo. <strong style={{ color: 'var(--fg-2)' }}>Agentes, chats e skills são preservados.</strong> Um backup da configuração atual é salvo.
                     </div>
                   </div>
@@ -525,12 +527,12 @@ export function Settings() {
                 {/* Opção 2 — Resetar workspace */}
                 <button
                   onClick={() => { setResetMode('workspace'); setResetConfirmText(''); }}
-                  style={{ textAlign: 'left', padding: '14px 16px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+                  style={{ textAlign: 'left', padding: '14px 16px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start', width: '100%' }}
                 >
-                  <span style={{ fontSize: 22, lineHeight: 1 }}>🗑️</span>
-                  <div>
+                  <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>🗑️</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3, color: '#fbbf24' }}>Resetar workspace</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, whiteSpace: 'normal' }}>
                       Apaga empresa, todos os agentes, histórico de chats, skills e workflows. <strong style={{ color: '#fbbf24' }}>Irreversível.</strong> Sua conta e chaves de API são mantidas.
                     </div>
                   </div>
@@ -539,13 +541,13 @@ export function Settings() {
                 {/* Opção 3 — Resetar conta completa */}
                 <button
                   onClick={() => { setResetMode('account'); setResetConfirmText(''); }}
-                  style={{ textAlign: 'left', padding: '14px 16px', background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+                  style={{ textAlign: 'left', padding: '14px 16px', background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start', width: '100%' }}
                 >
-                  <span style={{ fontSize: 22, lineHeight: 1 }}>⚠️</span>
-                  <div>
+                  <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>⚠️</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3, color: 'var(--danger)' }}>Resetar conta completa</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                      Apaga <strong style={{ color: 'var(--danger)' }}>tudo</strong>: workspace completo + chaves de API. Sua conta de login permanece mas você precisará configurar tudo do zero.
+                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, whiteSpace: 'normal' }}>
+                      Apaga <strong style={{ color: 'var(--danger)' }}>tudo</strong>: workspace, agentes, chats, skills, workflows e chaves de API. Seu login também é removido — você precisará criar uma nova conta.
                     </div>
                   </div>
                 </button>
@@ -608,7 +610,7 @@ export function Settings() {
                     <li><strong style={{ color: 'var(--danger)' }}>Todas as suas chaves de API</strong></li>
                   </ul>
                   <p style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 8, marginBottom: 0 }}>
-                    Apenas seu <strong>login ({user?.email})</strong> será mantido. Você será redirecionado para o login.
+                    <strong style={{ color: 'var(--danger)' }}>Seu login também será removido.</strong> Você precisará criar uma nova conta do zero.
                   </p>
                 </div>
                 <div className="form-group" style={{ marginBottom: 16 }}>

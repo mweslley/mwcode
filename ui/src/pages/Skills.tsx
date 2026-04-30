@@ -75,6 +75,7 @@ export function Skills() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Skill | 'new' | null>(null);
+  const [showImport, setShowImport] = useState(false);
   // Skill padrão: aplicada automaticamente em novos chats.
   // Guardada em localStorage (não vai pro backend, é por dispositivo).
   const [skillPadrao, setSkillPadrao] = useState<string | null>(
@@ -126,7 +127,12 @@ export function Skills() {
             <h1 className="page-title">Skills</h1>
             <p className="page-subtitle">Personalidades e funções que você aplica em conversas. Crie, edite e use via site ou CLI.</p>
           </div>
-          <button onClick={() => setEditing('new')}>+ Nova skill</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="ghost" onClick={() => setShowImport(true)} style={{ fontSize: 13 }}>
+              🌐 Importar URL
+            </button>
+            <button onClick={() => setEditing('new')}>+ Nova skill</button>
+          </div>
         </div>
       </div>
 
@@ -269,6 +275,165 @@ export function Skills() {
           onClose={() => setEditing(null)}
         />
       )}
+
+      {showImport && (
+        <SkillImporter
+          onUse={(content) => {
+            setShowImport(false);
+            // Abre o editor pré-preenchido com o conteúdo importado como prompt
+            // id vazio = modo "nova skill"
+            setEditing({ id: '__import__', name: '', description: '', prompt: content, createdAt: '' });
+          }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SkillImporter({
+  onUse,
+  onClose,
+}: {
+  onUse: (content: string) => void;
+  onClose: () => void;
+}) {
+  const [url, setUrl] = useState('');
+  const [pasteText, setPasteText] = useState('');
+  const [preview, setPreview] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'url' | 'paste'>('url');
+
+  async function buscar() {
+    if (!url.trim()) return;
+    setFetching(true);
+    setError(null);
+    setPreview(null);
+    try {
+      const res = await api.post<{ content: string }>('/skills/import-url', { url: url.trim() });
+      setPreview(res.content);
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível buscar o conteúdo.');
+    } finally {
+      setFetching(false);
+    }
+  }
+
+  const content = tab === 'url' ? (preview ?? '') : pasteText;
+  const canUse = content.trim().length > 10;
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={onClose}
+    >
+      <div
+        className="card"
+        style={{ width: 680, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <h2 style={{ margin: 0 }}>🌐 Importar skill</h2>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0' }}>
+              Busque de uma URL (ex: skills.sh) ou cole o prompt direto. Revise antes de salvar.
+            </p>
+          </div>
+          <button className="ghost" style={{ padding: '4px 8px' }} onClick={onClose}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
+          {(['url', 'paste'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                fontSize: 12, padding: '5px 14px',
+                background: tab === t ? 'var(--primary)' : 'var(--bg-3)',
+                color: tab === t ? '#fff' : 'var(--fg-2)',
+                borderColor: tab === t ? 'var(--primary)' : 'var(--border)',
+              }}
+            >
+              {t === 'url' ? '🔗 Buscar por URL' : '📋 Colar texto'}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'url' && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && buscar()}
+                placeholder="https://skills.sh/exemplo ou qualquer URL com texto de prompt"
+                style={{ flex: 1 }}
+              />
+              <button onClick={buscar} disabled={fetching || !url.trim()} style={{ flexShrink: 0 }}>
+                {fetching ? '⏳ Buscando…' : '🔍 Buscar'}
+              </button>
+            </div>
+            {error && (
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)', background: 'rgba(244,63,94,0.08)', padding: '6px 10px', borderRadius: 6 }}>
+                ❌ {error}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'paste' && (
+          <div style={{ marginBottom: 14 }}>
+            <textarea
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+              placeholder="Cole aqui o prompt/texto da skill que você quer importar..."
+              rows={6}
+              style={{ width: '100%', resize: 'vertical', minHeight: 120 }}
+            />
+          </div>
+        )}
+
+        {/* Preview */}
+        {content.trim() && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', marginBottom: 6 }}>
+              👁️ Preview do conteúdo importado
+            </div>
+            <div style={{
+              background: 'var(--bg-3)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '12px 14px',
+              fontSize: 12,
+              color: 'var(--fg-2)',
+              maxHeight: 240,
+              overflowY: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              lineHeight: 1.55,
+              fontFamily: 'JetBrains Mono, monospace',
+            }}>
+              {content.slice(0, 3000)}{content.length > 3000 ? '\n\n… (conteúdo truncado na preview)' : ''}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+              {content.length} caracteres · Ao clicar em "Usar como skill", o editor vai abrir com esse conteúdo preenchido.
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="ghost" onClick={onClose}>Cancelar</button>
+          <button
+            disabled={!canUse}
+            onClick={() => onUse(content.trim())}
+            title={canUse ? undefined : 'Busque ou cole um conteúdo primeiro'}
+          >
+            ✅ Usar como skill
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -289,6 +454,9 @@ function SkillEditor({
   });
   const [saving, setSaving] = useState(false);
 
+  // id '__import__' = veio do importador → tratar como nova skill
+  const isNew = !initial || !initial.id || initial.id === '__import__';
+
   async function salvar() {
     if (!form.name || !form.prompt) {
       alert('Nome e prompt são obrigatórios.');
@@ -296,7 +464,7 @@ function SkillEditor({
     }
     setSaving(true);
     try {
-      if (initial) {
+      if (!isNew && initial) {
         await api.put(`/skills/${initial.id}`, form);
       } else {
         await api.post('/skills', form);
@@ -327,7 +495,7 @@ function SkillEditor({
         style={{ width: 600, maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>{initial ? 'Editar skill' : 'Nova skill'}</h2>
+        <h2>{isNew ? (initial?.id === '__import__' ? '📥 Skill importada' : 'Nova skill') : 'Editar skill'}</h2>
 
         <div className="form-group">
           <label>Nome</label>
