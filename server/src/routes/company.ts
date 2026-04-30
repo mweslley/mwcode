@@ -120,7 +120,7 @@ companyRouter.delete('/reset', (req: any, res: any) => {
   rmFile(dataPath('memories', `${userId}.json`));
 
   // Skills
-  rmFile(dataPath('skills', `${userId}.json`));
+  rmDir(dataDir('skills', userId));
 
   // Workflows
   rmFile(dataPath('workflows', `${userId}.json`));

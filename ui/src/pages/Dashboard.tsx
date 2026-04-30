@@ -44,6 +44,12 @@ function agentEmoji(role: string) {
   return '🤖';
 }
 
+interface UpdateInfo {
+  temAtualizacao: boolean;
+  atual: { sha: string; message: string };
+  ultima?: { sha: string; message: string };
+}
+
 export function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -51,6 +57,8 @@ export function Dashboard() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [doingUpdate, setDoingUpdate] = useState(false);
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
   const company = (() => { try { return JSON.parse(localStorage.getItem('company') || '{}'); } catch { return {}; } })();
@@ -72,14 +80,38 @@ export function Dashboard() {
     }
   }, []);
 
+  async function checkForUpdate() {
+    try {
+      const info = await api.get<UpdateInfo>('/system/update-check');
+      setUpdateInfo(info ?? null);
+    } catch {
+      // silencia erros — não queremos quebrar o dashboard por isso
+    }
+  }
+
+  async function runSystemUpdate() {
+    if (!confirm('Atualizar o MWCode para a versão mais recente?\n\nO servidor vai reiniciar e a página recarregará em ~30s.')) return;
+    setDoingUpdate(true);
+    try {
+      await api.post('/system/update', {});
+      setTimeout(() => window.location.reload(), 30_000);
+    } catch (e: any) {
+      alert('Erro ao iniciar atualização: ' + (e?.message || 'desconhecido'));
+      setDoingUpdate(false);
+    }
+  }
+
   useEffect(() => {
     refresh(true);
+    checkForUpdate(); // checa atualização ao abrir
     const interval = setInterval(() => refresh(), 15000);
+    const updateInterval = setInterval(checkForUpdate, 60 * 60 * 1000); // re-checa a cada 1h
     // Refresh imediato quando o chat enviar mensagem
     const onChatUpdate = () => refresh();
     window.addEventListener('mwcode:chat-updated', onChatUpdate);
     return () => {
       clearInterval(interval);
+      clearInterval(updateInterval);
       window.removeEventListener('mwcode:chat-updated', onChatUpdate);
     };
   }, [refresh]);
@@ -102,14 +134,21 @@ export function Dashboard() {
             <span style={{ fontSize: 11, color: 'var(--muted)' }}>
               Atualizado {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <button
-              className="ghost"
-              style={{ fontSize: 12, padding: '5px 12px' }}
-              onClick={() => refresh()}
-              disabled={loading}
-            >
-              {loading ? '...' : '↻ Atualizar'}
-            </button>
+            {updateInfo?.temAtualizacao && (
+              <button
+                onClick={runSystemUpdate}
+                disabled={doingUpdate}
+                title={updateInfo.ultima?.message ? `Nova versão: ${updateInfo.ultima.message}` : 'Atualização disponível'}
+                style={{
+                  fontSize: 12, padding: '5px 12px',
+                  background: 'rgba(245,158,11,0.15)',
+                  borderColor: 'rgba(245,158,11,0.45)',
+                  color: '#fbbf24',
+                }}
+              >
+                {doingUpdate ? '⏳ Atualizando…' : '⬆️ Nova versão'}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -1,12 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const SKILLS_DIR = path.resolve(__dirname, '../../../data/skills');
+import { dataDir } from '../lib/data-dir.js';
 
 interface Skill {
   id: string;
@@ -20,9 +15,7 @@ interface Skill {
 }
 
 function getSkillsDir(userId: string): string {
-  const dir = path.join(SKILLS_DIR, userId);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  return dataDir('skills', userId); // ~/.mwcode/data/skills/{userId}/
 }
 
 function getSkills(userId: string): Skill[] {
@@ -110,6 +103,35 @@ skillsRouter.delete('/:id', (req, res) => {
   }
   
   res.json({ success: true });
+});
+
+// POST /api/skills/import-url — busca conteúdo de uma URL para preview antes de salvar
+skillsRouter.post('/import-url', async (req: any, res: any) => {
+  const { url } = req.body;
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'URL obrigatória' });
+
+  try {
+    const r = await fetch(url, {
+      headers: { 'User-Agent': 'MWCode-SkillsImport/1.0', Accept: 'text/plain, text/html, */*' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) return res.status(502).json({ error: `O site retornou erro ${r.status}` });
+
+    const raw = await r.text();
+    // Extrai só texto legível (remove HTML tags se for HTML)
+    const isHtml = (r.headers.get('content-type') || '').includes('html');
+    const content = isHtml
+      ? raw.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+             .replace(/<[^>]+>/g, ' ')
+             .replace(/\s{2,}/g, '\n')
+             .trim()
+      : raw;
+
+    return res.json({ content: content.slice(0, 12_000), url });
+  } catch (e: any) {
+    return res.status(502).json({ error: 'Não foi possível acessar a URL: ' + e.message });
+  }
 });
 
 // Use skill in chat

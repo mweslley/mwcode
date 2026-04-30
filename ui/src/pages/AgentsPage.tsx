@@ -89,7 +89,17 @@ export function AgentsPage() {
         api.get<Agent[]>('/enterprise/agents'),
         api.get<Skill[]>('/skills').catch(() => []),
       ]);
-      setAgents(list || []);
+
+      // Dedup: mantém só o primeiro agente por combinação nome+função
+      const seen = new Set<string>();
+      const deduped = (list || []).filter(a => {
+        const key = `${a.name.trim().toLowerCase()}::${a.role.trim().toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      setAgents(deduped);
       setAvailableSkills(skills || []);
     } catch {}
     setLoading(false);
