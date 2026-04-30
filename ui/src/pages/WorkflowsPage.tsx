@@ -277,40 +277,62 @@ export function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<WFForm>({
     name: '', description: '', triggerType: 'manual',
     triggerConfig: '', agentIds: '', actionType: 'message', actionConfig: '',
   });
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState<string | null>(null);
+  const [runResult, setRunResult] = useState<{ id: string; msg: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const BLANK_FORM: WFForm = { name: '', description: '', triggerType: 'manual', triggerConfig: '', agentIds: '', actionType: 'message', actionConfig: '' };
+
+  async function loadList() {
+    const list = await api.get<(Workflow & { agentIds?: string[] })[]>('/workflows').catch(() => []);
+    const seen = new Set<string>();
+    const deduped = (list || []).filter(w => {
+      const key = w.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    setWorkflows(deduped);
+  }
+
   useEffect(() => {
-    api.get<Workflow[]>('/workflows')
-      .then(list => {
-        // Dedup: mantém só o primeiro workflow por nome
-        const seen = new Set<string>();
-        const deduped = (list || []).filter(w => {
-          const key = w.name.trim().toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        setWorkflows(deduped);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    loadList().finally(() => setLoading(false));
   }, []);
+
+  function openEdit(wf: Workflow & { agentIds?: string[] }) {
+    setEditingId(wf.id);
+    setForm({
+      name: wf.name,
+      description: wf.description || '',
+      triggerType: (wf as any).triggerType || 'manual',
+      triggerConfig: (wf as any).triggerConfig || '',
+      agentIds: Array.isArray(wf.agentIds) ? wf.agentIds.join(', ') : ((wf as any).agentIds || ''),
+      actionType: (wf as any).actionType || 'message',
+      actionConfig: (wf as any).actionConfig || '',
+    });
+    setShowCreate(true);
+  }
 
   async function save() {
     if (!form.name) { setError('Nome é obrigatório'); return; }
     setSaving(true);
     setError(null);
     try {
-      await api.post('/workflows', form);
-      const list = await api.get<Workflow[]>('/workflows');
-      setWorkflows(list || []);
+      if (editingId) {
+        await api.put(`/workflows/${editingId}`, form);
+      } else {
+        await api.post('/workflows', form);
+      }
+      await loadList();
       setShowCreate(false);
-      setForm({ name: '', description: '', triggerType: 'manual', triggerConfig: '', agentIds: '', actionType: 'message', actionConfig: '' });
+      setEditingId(null);
+      setForm({ ...BLANK_FORM });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -323,12 +345,18 @@ export function WorkflowsPage() {
     setWorkflows(wfs => wfs.map(w => w.id === id ? { ...w, enabled: !enabled } : w));
   }
 
-  async function run(id: string) {
+  async function run(id: string, name: string) {
+    setRunning(id);
+    setRunResult(null);
     try {
-      await api.post(`/workflows/${id}/run`, {});
-      alert('Workflow executado!');
+      const res = await api.post<any>(`/workflows/${id}/run`, {});
+      const preview = res?.results?.map((r: any) => `${r.agentName}: ${r.preview}`).join('\n\n') || '';
+      setRunResult({ id, msg: preview || 'Rotina executada com sucesso.' });
+      await loadList();
     } catch (e: any) {
-      alert('Erro ao executar: ' + e.message);
+      setRunResult({ id, msg: `Erro: ${e.message}` });
+    } finally {
+      setRunning(null);
     }
   }
 
@@ -394,48 +422,69 @@ export function WorkflowsPage() {
         <div style={{ color: 'var(--muted)', padding: 24, textAlign: 'center' }}>Carregando...</div>
       ) : workflows.length > 0 && (
         <>
-          <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Meus workflows</h2>
+          <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Minhas rotinas</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {workflows.map(wf => (
-              <div key={wf.id} className="workflow-card">
-                <div className="workflow-icon">{wf.enabled ? '⚡' : '⏸'}</div>
-                <div className="workflow-info">
-                  <div className="workflow-name">{wf.name}</div>
-                  <div className="workflow-desc">{wf.description || 'Sem descrição'}</div>
-                  {wf.lastRun && (
-                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                      Última execução: {new Date(wf.lastRun).toLocaleString('pt-BR')}
+              <div key={wf.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <div className="workflow-card">
+                  <div className="workflow-icon">{wf.enabled ? '⚡' : '⏸'}</div>
+                  <div className="workflow-info">
+                    <div className="workflow-name">{wf.name}</div>
+                    <div className="workflow-desc">{wf.description || 'Sem descrição'}</div>
+                    {wf.lastRun && (
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                        Última execução: {new Date(wf.lastRun).toLocaleString('pt-BR')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="workflow-meta">
+                    <span className={`badge ${wf.enabled ? 'badge-green' : 'badge-gray'}`}>
+                      {wf.enabled ? 'Ativo' : 'Pausado'}
+                    </span>
+                    <span className="badge badge-gray">{wf.runs ?? 0} runs</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="ghost"
+                        style={{ fontSize: 11, padding: '4px 10px' }}
+                        onClick={() => toggleEnabled(wf.id, wf.enabled)}
+                      >
+                        {wf.enabled ? 'Pausar' : 'Ativar'}
+                      </button>
+                      <button
+                        className="ghost"
+                        style={{ fontSize: 11, padding: '4px 8px' }}
+                        onClick={() => openEdit(wf as any)}
+                        title="Editar"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        style={{ fontSize: 11, padding: '4px 10px' }}
+                        disabled={running === wf.id}
+                        onClick={() => run(wf.id, wf.name)}
+                      >
+                        {running === wf.id ? '⏳ Executando…' : '▶ Executar'}
+                      </button>
+                      <button
+                        className="ghost"
+                        style={{ fontSize: 11, padding: '4px 8px', color: 'var(--danger)' }}
+                        onClick={() => remove(wf.id)}
+                      >
+                        🗑
+                      </button>
                     </div>
-                  )}
-                </div>
-                <div className="workflow-meta">
-                  <span className={`badge ${wf.enabled ? 'badge-green' : 'badge-gray'}`}>
-                    {wf.enabled ? 'Ativo' : 'Pausado'}
-                  </span>
-                  <span className="badge badge-gray">{wf.runs ?? 0} runs</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      className="ghost"
-                      style={{ fontSize: 11, padding: '4px 10px' }}
-                      onClick={() => toggleEnabled(wf.id, wf.enabled)}
-                    >
-                      {wf.enabled ? 'Pausar' : 'Ativar'}
-                    </button>
-                    <button
-                      style={{ fontSize: 11, padding: '4px 10px' }}
-                      onClick={() => run(wf.id)}
-                    >
-                      ▶ Executar
-                    </button>
-                    <button
-                      className="ghost"
-                      style={{ fontSize: 11, padding: '4px 8px', color: 'var(--danger)' }}
-                      onClick={() => remove(wf.id)}
-                    >
-                      🗑
-                    </button>
                   </div>
                 </div>
+                {runResult?.id === wf.id && (
+                  <div style={{
+                    background: 'var(--bg-2)', border: '1px solid var(--border)',
+                    borderTop: 'none', borderRadius: '0 0 10px 10px',
+                    padding: '10px 14px', fontSize: 12, color: 'var(--fg-2)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {runResult.msg}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -444,9 +493,9 @@ export function WorkflowsPage() {
 
       {/* Modal de criação */}
       {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="modal-overlay" onClick={() => { setShowCreate(false); setEditingId(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 600, maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2>Criar Workflow</h2>
+            <h2>{editingId ? 'Editar Rotina' : 'Criar Rotina'}</h2>
 
             <div className="form-group">
               <label>Nome *</label>
@@ -593,9 +642,9 @@ export function WorkflowsPage() {
             {error && <div className="auth-error">{error}</div>}
 
             <div className="modal-actions">
-              <button className="ghost" onClick={() => setShowCreate(false)}>Cancelar</button>
+              <button className="ghost" onClick={() => { setShowCreate(false); setEditingId(null); }}>Cancelar</button>
               <button onClick={save} disabled={saving || !form.name}>
-                {saving ? 'Salvando...' : '⚡ Criar Workflow'}
+                {saving ? 'Salvando...' : editingId ? '💾 Salvar' : '⚡ Criar Rotina'}
               </button>
             </div>
           </div>
