@@ -10,6 +10,7 @@ import { WorkflowsPage } from './pages/WorkflowsPage';
 import { IntegrationsPage } from './pages/IntegrationsPage';
 import { Skills } from './pages/Skills';
 import { Settings } from './pages/Settings';
+import { CompanyFeed } from './pages/CompanyFeed';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
@@ -60,6 +61,7 @@ export function App() {
                   <Route path="/chat/:agentId" element={<ChatPage />} />
                   <Route path="/agents" element={<AgentsPage />} />
                   <Route path="/workflows" element={<WorkflowsPage />} />
+                  <Route path="/feed" element={<CompanyFeed />} />
                   <Route path="/integrations" element={<IntegrationsPage />} />
                   <Route path="/skills" element={<Skills />} />
                   <Route path="/settings" element={<Settings />} />

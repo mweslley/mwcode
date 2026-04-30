@@ -286,7 +286,17 @@ export function WorkflowsPage() {
 
   useEffect(() => {
     api.get<Workflow[]>('/workflows')
-      .then(list => setWorkflows(list || []))
+      .then(list => {
+        // Dedup: mantém só o primeiro workflow por nome
+        const seen = new Set<string>();
+        const deduped = (list || []).filter(w => {
+          const key = w.name.trim().toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setWorkflows(deduped);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

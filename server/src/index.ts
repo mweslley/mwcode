@@ -21,6 +21,7 @@ import { systemRouter } from './routes/system.js';
 import { workflowsRouter } from './routes/workflows.js';
 import { userKeysRouter } from './routes/user-keys.js';
 import { modelsRouter } from './routes/models.js';
+import { feedRouter } from './routes/feed.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,6 +79,7 @@ app.use('/api/system', authMiddleware, systemRouter);
 app.use('/api/workflows', authMiddleware, workflowsRouter);
 app.use('/api/user/keys', authMiddleware, userKeysRouter);
 app.use('/api/models', authMiddleware, modelsRouter);
+app.use('/api/feed', authMiddleware, feedRouter);
 
 // Servir UI compilada em produção
 const uiDist = path.resolve(__dirname, '../../ui/dist');
