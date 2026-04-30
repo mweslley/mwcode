@@ -138,8 +138,8 @@ workflowsRouter.post('/:id/run', async (req: any, res: any) => {
 
   for (const agentId of wf.agentIds) {
     try {
-      const r = await sendMessageToAgent(req.userId, agentId, triggerMsg, { source: `Rotina: ${wf.name}` });
-      results.push({ agentId: r.agentId, agentName: r.agentName, preview: r.content.slice(0, 200) });
+      const content = await sendMessageToAgent(req.userId, agentId, triggerMsg, { source: `Rotina: ${wf.name}` });
+      results.push({ agentId, agentName: agentId, preview: content.slice(0, 200) });
     } catch (e: any) {
       results.push({ agentId, agentName: agentId, preview: `Erro: ${e.message}` });
     }

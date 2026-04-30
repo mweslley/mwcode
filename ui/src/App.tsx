@@ -13,6 +13,7 @@ import { Settings } from './pages/Settings';
 import { CompanyFeed } from './pages/CompanyFeed';
 import { TarefasPage } from './pages/IssuesPage';
 import { InboxPage } from './pages/InboxPage';
+import { UsagePage } from './pages/UsagePage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
@@ -68,6 +69,7 @@ export function App() {
                   <Route path="/inbox" element={<InboxPage />} />
                   <Route path="/integrations" element={<IntegrationsPage />} />
                   <Route path="/skills" element={<Skills />} />
+                  <Route path="/usage" element={<UsagePage />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
