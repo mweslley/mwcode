@@ -19,6 +19,7 @@ import { skillsRouter } from './routes/skills.js';
 import { enterpriseAgentsRouter } from './routes/enterprise-agents.js';
 import { systemRouter } from './routes/system.js';
 import { workflowsRouter, startWorkflowScheduler } from './routes/workflows.js';
+import { startAgentLoop } from './services/agent-loop.js';
 import { userKeysRouter } from './routes/user-keys.js';
 import { modelsRouter } from './routes/models.js';
 import { feedRouter } from './routes/feed.js';
@@ -106,6 +107,7 @@ function getLocalIPs(): string[] {
 }
 
 startWorkflowScheduler();
+startAgentLoop();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 MWCode API rodando na porta ${PORT}`);

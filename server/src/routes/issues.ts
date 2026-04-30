@@ -2,6 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import crypto from 'crypto';
 import { dataPath, dataDir } from '../lib/data-dir.js';
+import { notifyCEOTaskComplete } from '../services/agent-loop.js';
 
 export const issuesRouter = Router();
 
@@ -99,6 +100,8 @@ issuesRouter.put('/:id', (req: any, res: any) => {
   const idx = issues.findIndex(i => i.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Issue não encontrada' });
 
+  const previousStatus = issues[idx].status;
+
   const updated: Issue = {
     ...issues[idx],
     ...req.body,
@@ -113,6 +116,12 @@ issuesRouter.put('/:id', (req: any, res: any) => {
 
   issues[idx] = updated;
   saveIssues(req.userId, issues);
+
+  // Notifica CEO quando tarefa é concluída (fire-and-forget)
+  if (req.body.status === 'concluido' && previousStatus !== 'concluido') {
+    notifyCEOTaskComplete(req.userId, updated).catch(() => {});
+  }
+
   res.json(updated);
 });
 
