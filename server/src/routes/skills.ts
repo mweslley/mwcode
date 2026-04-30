@@ -118,15 +118,43 @@ skillsRouter.post('/import-url', async (req: any, res: any) => {
     if (!r.ok) return res.status(502).json({ error: `O site retornou erro ${r.status}` });
 
     const raw = await r.text();
-    // Extrai só texto legível (remove HTML tags se for HTML)
     const isHtml = (r.headers.get('content-type') || '').includes('html');
-    const content = isHtml
-      ? raw.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-             .replace(/<[^>]+>/g, ' ')
-             .replace(/\s{2,}/g, '\n')
-             .trim()
-      : raw;
+    let content = raw;
+
+    if (isHtml) {
+      // Remove blocos que não são conteúdo útil
+      let html = raw
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+        .replace(/<header[\s\S]*?<\/header>/gi, '')
+        .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+        .replace(/<aside[\s\S]*?<\/aside>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '');
+
+      // Tenta extrair só o bloco principal de conteúdo
+      const mainMatch =
+        html.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+        html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+        html.match(/<div[^>]*(?:class|id)="[^"]*(?:content|main|body|prompt|skill)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+
+      if (mainMatch) html = mainMatch[1];
+
+      // Preserva quebras de linha de blocos semânticos antes de tirar as tags
+      html = html
+        .replace(/<\/(p|div|li|h[1-6]|tr|blockquote|pre)>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n');
+
+      content = html
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
 
     return res.json({ content: content.slice(0, 12_000), url });
   } catch (e: any) {

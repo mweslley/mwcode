@@ -146,7 +146,7 @@ export function Onboarding() {
         model: data.ceoModel,
       });
 
-      // Boot do CEO (apenas quando é novo)
+      // Boot do CEO (apenas quando é novo) — fire-and-forget, não bloqueia o onboarding
       if (ceo?.id && isNewCeo) {
         const bootMsg =
           `Você acabou de ser contratado como CEO da ${data.companyName}. ` +
@@ -158,15 +158,16 @@ export function Onboarding() {
           `3) Como vai medir o sucesso nas próximas semanas. ` +
           `Para ações que precisem de aprovação, use [APROVAÇÃO NECESSÁRIA]. Seja direto e prático.`;
 
-        await api.post(`/chat/${ceo.id}`, { message: bootMsg }).catch(() => {});
+        // Não aguardar — a resposta do CEO aparece no Feed ao Vivo e Conversas quando pronta
+        api.post(`/chat/${ceo.id}`, { message: bootMsg }).catch(() => {});
 
-        // Cria workflow semanal do CEO automaticamente
+        // Workflow semanal — também fire-and-forget
         const mainGoal = data.goals[0] || data.mission || 'acompanhar progresso da empresa';
-        await api.post('/workflows', {
+        api.post('/workflows', {
           name: `Relatório Semanal — CEO`,
           description: `CEO apresenta relatório semanal de progresso: ${mainGoal}`,
           triggerType: 'schedule',
-          triggerConfig: '0 12 * * 1', // toda segunda às 9h BRT (12h UTC)
+          triggerConfig: '0 12 * * 1',
           agentIds: ceo.id,
           actionType: 'message',
           actionConfig: '',
