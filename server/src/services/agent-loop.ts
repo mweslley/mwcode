@@ -8,6 +8,28 @@ import crypto from 'crypto';
 import { dataDir, dataPath } from '../lib/data-dir.js';
 import { sendMessageToAgent } from '../lib/agent-chat.js';
 
+function hireAgent(userId: string, ceoModel: string, hire: { name: string; role: string; instructions: string; model: string }): any {
+  const id = crypto.randomUUID();
+  const agent = {
+    id, userId,
+    name: hire.name,
+    role: hire.role,
+    personality: hire.instructions ||
+      `Você é ${hire.name}, responsável por ${hire.role}. Responda sempre em português brasileiro.`,
+    goals: [],
+    skills: [],
+    model: hire.model || ceoModel || 'openrouter/auto',
+    provider: 'openrouter',
+    status: 'active',
+    hireDate: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    createdBy: 'CEO',
+  };
+  const dir = dataDir('agents', userId);
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(agent, null, 2));
+  return agent;
+}
+
 // ── Tipos internos ────────────────────────────────────────────────────────────
 
 interface Agent {
@@ -89,11 +111,13 @@ function findAgentByName(agents: Agent[], name: string): Agent | null {
 interface ParsedCommands {
   tasks: Array<{ title: string; agentName: string; description: string; priority: string }>;
   approvals: Array<{ title: string; description: string }>;
+  hires: Array<{ name: string; role: string; instructions: string; model: string }>;
 }
 
 function parseCEOResponse(content: string): ParsedCommands {
   const tasks: ParsedCommands['tasks'] = [];
   const approvals: ParsedCommands['approvals'] = [];
+  const hires: ParsedCommands['hires'] = [];
 
   // [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="..."]
   const taskRe = /\[CRIAR TAREFA:([^\]]+)\]/gi;
@@ -112,6 +136,25 @@ function parseCEOResponse(content: string): ParsedCommands {
     if (title) tasks.push({ title, agentName, description, priority });
   }
 
+  // [CONTRATAR AGENTE: nome="..."; função="..."; instruções="..."; modelo="..."]
+  const hireRe = /\[CONTRATAR AGENTE:([^\]]+)\]/gi;
+  while ((m = hireRe.exec(content)) !== null) {
+    const p = m[1];
+    const name =
+      p.match(/nome=["']([^"']+)["']/i)?.[1] ||
+      p.match(/name=["']([^"']+)["']/i)?.[1];
+    const role =
+      p.match(/fun[çc][aã]o=["']([^"']+)["']/i)?.[1] ||
+      p.match(/funcao=["']([^"']+)["']/i)?.[1] ||
+      p.match(/role=["']([^"']+)["']/i)?.[1] || '';
+    const instructions =
+      p.match(/instru[çc][oõ]es=["']([^"']+)["']/i)?.[1] ||
+      p.match(/descri[çc][aã]o=["']([^"']+)["']/i)?.[1] ||
+      p.match(/desc=["']([^"']+)["']/i)?.[1] || '';
+    const model = p.match(/modelo=["']([^"']+)["']/i)?.[1] || 'openrouter/auto';
+    if (name) hires.push({ name, role, instructions, model });
+  }
+
   // [APROVAÇÃO NECESSÁRIA: ...]  ou  [APROVAÇÃO NECESSÁRIA] (sem parâmetros)
   const aprRe = /\[APROVAÇÃO NECESSÁRIA[:\s]*([^\]]*)\]/gi;
   while ((m = aprRe.exec(content)) !== null) {
@@ -124,7 +167,7 @@ function parseCEOResponse(content: string): ParsedCommands {
     approvals.push({ title: 'CEO solicita aprovação', description: m[1]?.trim() || content.slice(0, 400) });
   }
 
-  return { tasks, approvals };
+  return { tasks, approvals, hires };
 }
 
 // ── Executar comandos criados pelo CEO ────────────────────────────────────────
@@ -135,7 +178,34 @@ function executeCommands(
   commands: ParsedCommands,
   agents: Agent[]
 ): void {
-  if (!commands.tasks.length && !commands.approvals.length) return;
+  if (!commands.tasks.length && !commands.approvals.length && !commands.hires.length) return;
+
+  // ── Contratar novos agentes ──────────────────────────────────────────────
+  const company = loadCompany(userId);
+  const ceoModel = company?.ceoModel || ceo?.model || 'openrouter/auto';
+
+  for (const hire of commands.hires) {
+    // Evita duplicata de agente com mesmo nome
+    const exists = agents.find(a =>
+      a.name?.toLowerCase().trim() === hire.name.toLowerCase().trim()
+    );
+    if (exists) {
+      console.log(`[AgentLoop] Agente "${hire.name}" já existe, pulando contratação`);
+      continue;
+    }
+    const newAgent = hireAgent(userId, ceoModel, hire);
+    agents.push(newAgent); // disponível nas tarefas desta mesma execução
+    console.log(`[AgentLoop] CEO contratou: "${hire.name}" (${hire.role})`);
+
+    // Apresenta o novo agente
+    const introMsg =
+      `[CEO — Bem-vindo à equipe]\n\n` +
+      `Você foi contratado como ${hire.role}. ` +
+      (hire.instructions ? `Suas instruções: ${hire.instructions}. ` : '') +
+      `Apresente-se brevemente e confirme que está pronto para receber tarefas.`;
+    sendMessageToAgent(userId, newAgent.id, introMsg, { source: 'CEO' })
+      .catch(e => console.error(`[AgentLoop] Erro ao apresentar ${hire.name}:`, e.message));
+  }
 
   const issues = loadIssues(userId);
   const now = new Date().toISOString();
@@ -248,13 +318,14 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       (pending.length ? pending.map(i => `- [${i.assigneeAgentName || 'sem agente'}] ${i.title}`).join('\n') : '- Nenhuma') +
       `\n\nConcluídas recentemente:\n` +
       (recentDone.length ? recentDone.map(i => `- ${i.title} (${i.assigneeAgentName || 'sem agente'})`).join('\n') : '- Nenhuma') +
-      `\n\n---\nCom base nas informações acima, tome as ações necessárias:\n` +
-      `1. Crie tarefas práticas para avançar os objetivos da empresa:\n` +
+      `\n\n---\nCom base nas informações acima, tome as ações necessárias AGORA:\n` +
+      `\nA) Se precisar de novos agentes, contrate-os com:\n` +
+      `   [CONTRATAR AGENTE: nome="Nome do Agente"; função="Cargo/Função"; instruções="Descrição de responsabilidades"; modelo="openrouter/auto"]\n` +
+      `\nB) Crie tarefas práticas para avançar os objetivos:\n` +
       `   [CRIAR TAREFA: título="..."; agente="Nome Exato do Agente"; descrição="..."; prioridade="medio"]\n` +
-      `2. Se precisar de decisão humana para algo importante:\n` +
+      `\nC) Se precisar de decisão humana:\n` +
       `   [APROVAÇÃO NECESSÁRIA: descreva claramente o que precisa ser decidido]\n` +
-      `3. Seja objetivo. Crie pelo menos 2 tarefas concretas agora.\n` +
-      `4. Priorize: o que mais impacta os objetivos da empresa hoje?`;
+      `\nRegras: Seja direto e objetivo. ${otherAgents.length === 0 ? 'Você não tem agentes — contrate pelo menos 2 agentes especializados para a área da empresa AGORA.' : 'Crie pelo menos 2 tarefas concretas para os agentes disponíveis.'}`;
 
     console.log(`[AgentLoop] Heartbeat CEO — userId: ${userId}`);
     const response = await sendMessageToAgent(userId, ceo.id, contextMsg, { source: 'Sistema' });
@@ -289,6 +360,14 @@ export async function notifyCEOTaskComplete(userId: string, issue: any): Promise
   } catch (e: any) {
     console.error(`[AgentLoop] Erro ao notificar CEO sobre tarefa concluída:`, e.message);
   }
+}
+
+// ── Bootstrap imediato quando empresa é criada ────────────────────────────────
+
+/** Chamado quando o usuário finaliza o onboarding. CEO age imediatamente. */
+export async function bootstrapCEO(userId: string): Promise<void> {
+  // Pequeno delay para garantir que a empresa foi salva no disco
+  setTimeout(() => runCEOHeartbeat(userId).catch(() => {}), 2000);
 }
 
 // ── Iniciar o loop ────────────────────────────────────────────────────────────

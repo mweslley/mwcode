@@ -26,13 +26,15 @@ export function Sidebar() {
 
   const [agents, setAgents] = useState<Agent[]>([]);
   const [inboxCount, setInboxCount] = useState(0);
+  const [usage, setUsage] = useState<{ todayCost: number; monthCost: number; monthLimit?: number } | null>(null);
 
   useEffect(() => {
     async function fetchSidebarData() {
       try {
-        const [agList, inboxRes] = await Promise.all([
+        const [agList, inboxRes, usageRes] = await Promise.all([
           api.get<Agent[]>('/enterprise/agents').catch(() => []),
           api.get<{ count: number }>('/issues/count/inbox').catch(() => ({ count: 0 })),
+          api.get<any>('/usage').catch(() => null),
         ]);
         const seen = new Set<string>();
         const deduped = ((agList || []) as Agent[]).filter(a => {
@@ -44,6 +46,14 @@ export function Sidebar() {
         });
         setAgents(deduped);
         setInboxCount((inboxRes as any)?.count ?? 0);
+        if (usageRes) {
+          const limRes = await api.get<any>('/usage/limits').catch(() => ({}));
+          setUsage({
+            todayCost: usageRes.today?.costUsd || 0,
+            monthCost: usageRes.thisMonth?.costUsd || 0,
+            monthLimit: limRes?.global?.monthlyUsd,
+          });
+        }
       } catch { /* silencioso */ }
     }
     fetchSidebarData();
@@ -169,11 +179,59 @@ export function Sidebar() {
           Habilidades
         </NavLink>
 
+        <NavLink to="/usage" className={linkStyle}>
+          <span className="link-icon">📈</span>
+          <span style={{ flex: 1 }}>Uso de Tokens</span>
+          {usage && usage.todayCost > 0 && (
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+              ${usage.todayCost < 0.001 ? '<0.001' : usage.todayCost.toFixed(3)}
+            </span>
+          )}
+        </NavLink>
+
         <NavLink to="/settings" className={linkStyle}>
           <span className="link-icon">⚙️</span>
           Configurações
         </NavLink>
       </nav>
+
+      {/* Token usage gauge */}
+      {usage && (usage.monthCost > 0 || usage.monthLimit) && (
+        <div
+          onClick={() => navigate('/usage')}
+          style={{
+            margin: '0 10px 8px',
+            padding: '8px 10px',
+            background: 'var(--bg-2)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>
+            <span>Gasto hoje</span>
+            <span style={{ fontWeight: 600 }}>
+              ${usage.todayCost < 0.001 ? '0.000' : usage.todayCost.toFixed(3)}
+              {usage.monthLimit ? ` / $${usage.monthLimit.toFixed(2)} mês` : ''}
+            </span>
+          </div>
+          {usage.monthLimit ? (
+            <div style={{ height: 4, borderRadius: 3, background: 'var(--bg-3)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(100, (usage.monthCost / usage.monthLimit) * 100)}%`,
+                background: usage.monthCost / usage.monthLimit > 0.8 ? '#f97316' : 'var(--primary)',
+                borderRadius: 3,
+                transition: 'width 0.4s',
+              }} />
+            </div>
+          ) : (
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+              Este mês: ${usage.monthCost.toFixed(3)} — clique para configurar limite
+            </div>
+          )}
+        </div>
+      )}
 
       {/* User */}
       <div className="sidebar-bottom">

@@ -5,6 +5,7 @@ import { dataDir } from './data-dir.js';
 import { getAdapter, type UserKeys } from '@mwcode/adapters';
 import { getUserKeys } from '../routes/user-keys.js';
 import type { AdapterName } from '@mwcode/shared';
+import { recordUsage, checkLimits } from './usage-tracker.js';
 
 export interface AgentChatResult {
   content: string;
@@ -36,9 +37,15 @@ export async function sendMessageToAgent(
   agentId: string,
   text: string,
   opts?: { source?: string }
-): Promise<AgentChatResult> {
+): Promise<string> {
   const agent = loadAgentFile(userId, agentId);
   if (!agent || agent.status === 'fired') throw new Error('Agente não disponível');
+
+  // ── Check spending limits ─────────────────────────────────────────────────
+  const limitCheck = checkLimits(userId, agentId);
+  if (limitCheck.blocked) {
+    throw new Error(`Limite de gastos: ${limitCheck.reason}`);
+  }
 
   const history = loadChatHistory(userId, agentId);
   const contextMessages = history.messages.slice(-12).map((m: any) => ({
@@ -56,6 +63,20 @@ export async function sendMessageToAgent(
   const adapter = getAdapter(adapterName, modelName, userKeys);
 
   const result = await adapter.call(text, { system: systemPrompt, history: contextMessages });
+
+  // ── Record token usage ────────────────────────────────────────────────────
+  const usage = result.usage;
+  if (usage?.total_tokens) {
+    recordUsage(userId, {
+      agentId: agent.id,
+      agentName: agent.name,
+      model: result.model || modelName,
+      promptTokens: usage.prompt_tokens || 0,
+      completionTokens: usage.completion_tokens || 0,
+      totalTokens: usage.total_tokens,
+      source: opts?.source,
+    });
+  }
 
   history.messages.push(
     {
@@ -76,5 +97,5 @@ export async function sendMessageToAgent(
   );
   saveChatHistory(userId, history);
 
-  return { content: result.content, agentName: agent.name, agentId: agent.id };
+  return result.content;
 }

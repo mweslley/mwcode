@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { DATA_DIR, dataDir, dataPath } from '../lib/data-dir.js';
+import { bootstrapCEO } from '../services/agent-loop.js';
 
 const COMPANY_DIR = DATA_DIR;
 
@@ -58,6 +60,9 @@ const handlers = {
       path.join(getCompanyDir(), `${userId}.json`),
       JSON.stringify(company, null, 2)
     );
+
+    // Aciona CEO imediatamente para contratar agentes e criar tarefas
+    bootstrapCEO(userId).catch(() => {});
 
     res.json(company);
   },
