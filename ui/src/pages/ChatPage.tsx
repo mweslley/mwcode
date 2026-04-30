@@ -70,15 +70,29 @@ export function ChatPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [pendingAbort, setPendingAbort] = useState(false);
+  const [deletingThread, setDeletingThread] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef(false);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
 
   // Load agents
   useEffect(() => {
     api.get<Agent[]>('/enterprise/agents')
       .then(list => {
-        const active = (list || []).filter(a => a.status === 'active');
+        // Dedup: mantém só o primeiro por nome+role (igual AgentsPage)
+        const seen = new Set<string>();
+        const active = (list || []).filter(a => a.status === 'active').filter(a => {
+          const key = `${a.name.trim().toLowerCase()}::${(a.role || '').trim().toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
         setAgents(active);
         if (agentId) {
           const a = active.find(ag => ag.id === agentId);
@@ -249,12 +263,18 @@ export function ChatPage() {
 
   async function deleteThread(threadAgentId: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm('Apagar histórico desta conversa?')) return;
-    await api.delete(`/chat/${threadAgentId}`).catch(() => {});
-    if (threadAgentId === agentId) {
-      setMessages([]);
+    if (!confirm('Apagar todo o histórico desta conversa? Isso não remove o agente.')) return;
+    setDeletingThread(threadAgentId);
+    try {
+      await api.delete(`/chat/${threadAgentId}`);
+      if (threadAgentId === agentId) setMessages([]);
+      showToast('✓ Histórico apagado');
+      window.dispatchEvent(new Event('mwcode:chat-updated'));
+    } catch {
+      showToast('❌ Erro ao apagar');
+    } finally {
+      setDeletingThread(null);
     }
-    window.dispatchEvent(new Event('mwcode:chat-updated'));
   }
 
   function clearChat() {
@@ -324,12 +344,22 @@ export function ChatPage() {
                   </div>
                   <button
                     className="ghost"
-                    title="Apagar histórico"
+                    title="Apagar histórico da conversa"
                     onClick={e => deleteThread(agent.id, e)}
-                    style={{ padding: '2px 6px', fontSize: 12, opacity: 0, color: 'var(--muted)', flexShrink: 0 }}
+                    disabled={deletingThread === agent.id}
+                    style={{
+                      padding: '2px 7px', fontSize: 11,
+                      color: deletingThread === agent.id ? 'var(--muted)' : 'var(--danger)',
+                      borderColor: 'transparent',
+                      flexShrink: 0,
+                      opacity: 0.55,
+                      transition: 'opacity 0.15s',
+                    }}
                     onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
-                  >🗑</button>
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.55')}
+                  >
+                    {deletingThread === agent.id ? '…' : '🗑'}
+                  </button>
                 </div>
               ))}
             </>
@@ -586,6 +616,18 @@ export function ChatPage() {
           </div>
         </div>
       </div>
+      {/* Toast notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--bg-3)', border: '1px solid var(--border-2)',
+          color: 'var(--fg)', padding: '8px 18px', borderRadius: 20,
+          fontSize: 13, fontWeight: 500, zIndex: 999,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

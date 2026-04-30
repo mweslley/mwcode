@@ -39,7 +39,16 @@ export function UpdateBadge() {
     setErroUpdate(null);
     try {
       await api.post('/system/update', {});
-      setTimeout(() => window.location.reload(), 30_000);
+      // Polling até servidor voltar (evita ERR_CONNECTION_REFUSED)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch('/api/health');
+          if (r.ok) { clearInterval(poll); window.location.reload(); }
+        } catch { /* servidor ainda offline */ }
+        if (attempts > 60) { clearInterval(poll); window.location.reload(); }
+      }, 3000);
     } catch (e: any) {
       setErroUpdate(e?.message || 'Falha ao iniciar atualização.');
       setAtualizando(false);

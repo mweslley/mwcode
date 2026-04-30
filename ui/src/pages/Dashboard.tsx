@@ -90,11 +90,22 @@ export function Dashboard() {
   }
 
   async function runSystemUpdate() {
-    if (!confirm('Atualizar o MWCode para a versão mais recente?\n\nO servidor vai reiniciar e a página recarregará em ~30s.')) return;
+    if (!confirm('Atualizar o MWCode para a versão mais recente?\n\nO servidor vai reiniciar. A página recarregará automaticamente quando estiver pronto.')) return;
     setDoingUpdate(true);
     try {
       await api.post('/system/update', {});
-      setTimeout(() => window.location.reload(), 30_000);
+      // Aguarda o servidor reiniciar: polling a cada 3s por até 3 minutos
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch('/api/health');
+          if (r.ok) { clearInterval(poll); window.location.reload(); }
+        } catch {
+          // servidor ainda offline — continua aguardando
+        }
+        if (attempts > 60) { clearInterval(poll); window.location.reload(); } // desiste após 3min
+      }, 3000);
     } catch (e: any) {
       alert('Erro ao iniciar atualização: ' + (e?.message || 'desconhecido'));
       setDoingUpdate(false);
