@@ -124,14 +124,14 @@ export function Skills() {
       <div className="page-header">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="page-title">Skills</h1>
-            <p className="page-subtitle">Personalidades e funções que você aplica em conversas. Crie, edite e use via site ou CLI.</p>
+            <h1 className="page-title">Habilidades</h1>
+            <p className="page-subtitle">Personalidades e funções que você aplica em conversas. Crie, edite e importe.</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="ghost" onClick={() => setShowImport(true)} style={{ fontSize: 13 }}>
               🌐 Importar URL
             </button>
-            <button onClick={() => setEditing('new')}>+ Nova skill</button>
+            <button onClick={() => setEditing('new')}>+ Nova habilidade</button>
           </div>
         </div>
       </div>
