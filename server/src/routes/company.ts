@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { DATA_DIR } from '../lib/data-dir.js';
+import { DATA_DIR, dataDir, dataPath } from '../lib/data-dir.js';
 
 const COMPANY_DIR = DATA_DIR;
 
@@ -89,3 +89,49 @@ companyRouter.put('/company', handlers.put);
 companyRouter.get('/', handlers.get);
 companyRouter.post('/', handlers.post);
 companyRouter.put('/', handlers.put);
+
+// ── DELETE /api/enterprise/reset — apaga workspace ou conta completa ────────
+// query: ?mode=workspace (padrão) | account
+//   workspace: apaga empresa, agentes, chats, skills, workflows, memórias
+//   account:   tudo do workspace + chaves de API do usuário
+companyRouter.delete('/reset', (req: any, res: any) => {
+  const userId = req.userId;
+  const mode = (req.query.mode as string) || 'workspace';
+
+  const removed: string[] = [];
+
+  function rmFile(p: string) {
+    if (fs.existsSync(p)) { fs.unlinkSync(p); removed.push(p); }
+  }
+  function rmDir(p: string) {
+    if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force: true }); removed.push(p); }
+  }
+
+  // Empresa
+  rmFile(path.join(DATA_DIR, `${userId}.json`));
+
+  // Agentes
+  rmDir(dataDir('agents', userId));
+
+  // Chats
+  rmDir(dataDir('chats', userId));
+
+  // Memórias
+  rmFile(dataPath('memories', `${userId}.json`));
+
+  // Skills
+  rmFile(dataPath('skills', `${userId}.json`));
+
+  // Workflows
+  rmFile(dataPath('workflows', `${userId}.json`));
+
+  // Tarefas
+  rmFile(dataPath('tasks', `${userId}.json`));
+
+  if (mode === 'account') {
+    // Chaves de API
+    rmFile(dataPath('keys', `${userId}.json`));
+  }
+
+  res.json({ ok: true, mode, removed: removed.length });
+});

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { ModelPicker } from '../components/ModelPicker';
 import { MODELO_PADRAO } from '@mwcode/shared';
 
 type KeyStatus = 'idle' | 'validating' | 'valid' | 'invalid';
+type EntryMode = 'detecting' | 'existing' | 'new';
 
 const TOTAL_STEPS = 4;
 
@@ -37,6 +38,30 @@ export function Onboarding() {
     deepseek: '',
   });
   const [keyStatuses, setKeyStatuses] = useState<Record<string, KeyStatus>>({});
+
+  // Detecção de instalação existente
+  const [entryMode, setEntryMode] = useState<EntryMode>('detecting');
+  const [existingCompany, setExistingCompany] = useState<any>(null);
+
+  useEffect(() => {
+    const hasBackup = !!localStorage.getItem('company_backup');
+    if (hasBackup) {
+      // Veio do botão "Reconfigurar workspace" — pula detecção, vai direto para setup
+      setEntryMode('new');
+      return;
+    }
+    // Verifica se já existe empresa configurada no servidor
+    api.get<any>('/enterprise/company')
+      .then(company => {
+        if (company?.name) {
+          setExistingCompany(company);
+          setEntryMode('existing');
+        } else {
+          setEntryMode('new');
+        }
+      })
+      .catch(() => setEntryMode('new'));
+  }, []);
 
   function addGoal() {
     if (goalInput.trim()) {
@@ -162,6 +187,121 @@ export function Onboarding() {
   // Verifica se tem backup (usuário veio de "Reconfigurar workspace")
   const hasBackup = !!localStorage.getItem('company_backup');
 
+  // ── Tela de detecção ──────────────────────────────────────────────────────
+  if (entryMode === 'detecting') {
+    return (
+      <div className="onboarding-page">
+        <div className="onboarding-box" style={{ textAlign: 'center', paddingTop: 60 }}>
+          <div style={{ fontSize: 36, marginBottom: 16 }}>⚡</div>
+          <p style={{ color: 'var(--muted)', fontSize: 14 }}>Verificando instalação...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Tela de instalação existente ──────────────────────────────────────────
+  if (entryMode === 'existing' && existingCompany) {
+    return (
+      <div className="onboarding-page">
+        <div className="onboarding-box">
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>⚡</div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>
+              Workspace já configurado
+            </h1>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
+              Detectamos uma instalação existente para sua conta.
+            </p>
+          </div>
+
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: 'var(--primary-dim)', border: '1px solid var(--primary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
+              }}>🏢</div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{existingCompany.name}</div>
+                {existingCompany.area && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{existingCompany.area}</div>}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+              {/* Continuar */}
+              <button
+                onClick={() => {
+                  localStorage.setItem('company', JSON.stringify(existingCompany));
+                  navigate('/dashboard');
+                }}
+                style={{ width: '100%', justifyContent: 'flex-start', gap: 10, padding: '12px 16px' }}
+              >
+                <span>✅</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Continuar com este workspace</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 400 }}>Ir para o dashboard normalmente</div>
+                </div>
+              </button>
+
+              {/* Reconfigurar */}
+              <button
+                className="ghost"
+                onClick={() => {
+                  localStorage.setItem('company_backup', JSON.stringify(existingCompany));
+                  localStorage.removeItem('company');
+                  setEntryMode('new');
+                }}
+                style={{ width: '100%', justifyContent: 'flex-start', gap: 10, padding: '12px 16px' }}
+              >
+                <span>🔄</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Reconfigurar workspace</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Atualizar empresa, missão ou modelo do CEO. Agentes e chats preservados.</div>
+                </div>
+              </button>
+
+              {/* Resetar workspace */}
+              <button
+                className="ghost"
+                onClick={() => {
+                  const confirmName = prompt(`Para resetar o workspace, digite o nome da empresa:\n"${existingCompany.name}"`);
+                  if (!confirmName || confirmName.trim().toLowerCase() !== existingCompany.name.trim().toLowerCase()) {
+                    if (confirmName !== null) alert('Nome incorreto. Operação cancelada.');
+                    return;
+                  }
+                  const sure = confirm('⚠️ Isso vai apagar empresa, agentes, chats e workflows permanentemente. Esta ação não pode ser desfeita. Confirmar?');
+                  if (!sure) return;
+                  setLoading(true);
+                  api.delete('/enterprise/reset?mode=workspace')
+                    .then(() => {
+                      localStorage.removeItem('company');
+                      localStorage.removeItem('company_backup');
+                      setExistingCompany(null);
+                      setEntryMode('new');
+                    })
+                    .catch(e => alert('Erro: ' + e.message))
+                    .finally(() => setLoading(false));
+                }}
+                style={{ width: '100%', justifyContent: 'flex-start', gap: 10, padding: '12px 16px', borderColor: 'rgba(245,158,11,0.4)' }}
+              >
+                <span>🗑️</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: '#fbbf24' }}>Resetar workspace</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Apaga tudo e começa do zero. Mantém login e chaves de API.</div>
+                </div>
+              </button>
+
+            </div>
+          </div>
+
+          {loading && <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Processando...</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Setup normal (novo ou reconfigurar) ───────────────────────────────────
   return (
     <div className="onboarding-page">
       <div className="onboarding-box">

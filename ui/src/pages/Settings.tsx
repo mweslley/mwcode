@@ -28,6 +28,8 @@ const KEY_LABELS: Record<string, { label: string; placeholder: string; type?: st
   ollama_url: { label: 'Ollama URL', placeholder: 'http://localhost:11434', type: 'url' },
 };
 
+type ResetMode = 'workspace' | 'account' | null;
+
 export function Settings() {
   const navigate = useNavigate();
   const [health, setHealth] = useState<any>(null);
@@ -48,8 +50,13 @@ export function Settings() {
   const [keysMsg, setKeysMsg] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState(false);
 
+  // Workspace modal
+  const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
+  const [resetMode, setResetMode] = useState<ResetMode>(null);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [resetting, setResetting] = useState(false);
+
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
-  const company = (() => { try { return JSON.parse(localStorage.getItem('company') || '{}'); } catch { return {}; } })();
 
   useEffect(() => {
     api.get('/health').catch(() => null).then(setHealth);
@@ -136,6 +143,47 @@ export function Settings() {
     localStorage.clear();
     navigate('/login');
   }
+
+  function openReconfigurar() {
+    setResetMode(null);
+    setResetConfirmText('');
+    setShowWorkspaceModal(true);
+  }
+
+  function doReconfigurar() {
+    // Salva backup e redireciona para onboarding (mantém agentes/chats)
+    const current = localStorage.getItem('company');
+    if (current) localStorage.setItem('company_backup', current);
+    localStorage.removeItem('company');
+    setShowWorkspaceModal(false);
+    navigate('/onboarding');
+  }
+
+  async function doReset(mode: ResetMode) {
+    if (!mode) return;
+    setResetting(true);
+    try {
+      await api.delete(`/enterprise/reset?mode=${mode}`);
+      // Limpa localStorage
+      localStorage.removeItem('company');
+      localStorage.removeItem('company_backup');
+      if (mode === 'account') {
+        localStorage.clear();
+        navigate('/login');
+      } else {
+        setShowWorkspaceModal(false);
+        navigate('/onboarding');
+      }
+    } catch (e: any) {
+      alert('Erro ao resetar: ' + e.message);
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  const company = (() => { try { return JSON.parse(localStorage.getItem('company') || '{}'); } catch { return {}; } })();
+  const confirmNeeded = resetMode === 'workspace' ? (company?.name || 'RESETAR') : (user?.email || 'CONFIRMAR');
+  const confirmValid = resetConfirmText.trim().toLowerCase() === confirmNeeded.trim().toLowerCase();
 
   const hasUserKeys = Object.keys(maskedKeys).filter(k => k !== 'updatedAt' && maskedKeys[k as keyof MaskedKeys]).length > 0;
 
@@ -413,27 +461,187 @@ export function Settings() {
 
       {/* Conta */}
       <div className="card">
-        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Conta</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Conta</h3>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+          Gerencie seu workspace ou encerre a sessão.
+        </p>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            className="ghost"
-            onClick={() => {
-              if (confirm('Reconfigurar workspace reinicia o setup. Os agentes e chats não serão apagados. Continuar?')) {
-                const current = localStorage.getItem('company');
-                if (current) localStorage.setItem('company_backup', current);
-                localStorage.removeItem('company');
-                navigate('/onboarding');
-              }
-            }}
-            style={{ fontSize: 12 }}
-          >
-            Reconfigurar workspace
+          <button className="ghost" onClick={openReconfigurar} style={{ fontSize: 12 }}>
+            ⚙️ Gerenciar workspace
           </button>
           <button className="danger" onClick={sair} style={{ fontSize: 12 }}>
             ↩ Sair da conta
           </button>
         </div>
       </div>
+
+      {/* ── Modal de gerenciamento de workspace ─────────────────────────── */}
+      {showWorkspaceModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(8,7,15,0.85)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowWorkspaceModal(false); setResetMode(null); setResetConfirmText(''); } }}
+        >
+          <div style={{
+            background: 'var(--bg-2)', border: '1px solid var(--border-2)',
+            borderRadius: 'var(--radius-lg)', padding: 28, width: '100%', maxWidth: 480,
+            boxShadow: 'var(--shadow-lg)',
+          }}>
+            {/* Cabeçalho */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>⚙️ Gerenciar workspace</h2>
+                <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0' }}>
+                  Escolha uma ação abaixo. Ações destrutivas pedem confirmação extra.
+                </p>
+              </div>
+              <button className="ghost" style={{ padding: '4px 8px' }}
+                onClick={() => { setShowWorkspaceModal(false); setResetMode(null); setResetConfirmText(''); }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Seleção de opção */}
+            {!resetMode && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                {/* Opção 1 — Reconfigurar */}
+                <button
+                  onClick={doReconfigurar}
+                  style={{ textAlign: 'left', padding: '14px 16px', background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+                >
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>🔄</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>Reconfigurar workspace</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                      Reinicia o onboarding com novos dados de empresa e modelo. <strong style={{ color: 'var(--fg-2)' }}>Agentes, chats e skills são preservados.</strong> Um backup da configuração atual é salvo.
+                    </div>
+                  </div>
+                </button>
+
+                {/* Opção 2 — Resetar workspace */}
+                <button
+                  onClick={() => { setResetMode('workspace'); setResetConfirmText(''); }}
+                  style={{ textAlign: 'left', padding: '14px 16px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+                >
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>🗑️</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3, color: '#fbbf24' }}>Resetar workspace</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                      Apaga empresa, todos os agentes, histórico de chats, skills e workflows. <strong style={{ color: '#fbbf24' }}>Irreversível.</strong> Sua conta e chaves de API são mantidas.
+                    </div>
+                  </div>
+                </button>
+
+                {/* Opção 3 — Resetar conta completa */}
+                <button
+                  onClick={() => { setResetMode('account'); setResetConfirmText(''); }}
+                  style={{ textAlign: 'left', padding: '14px 16px', background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+                >
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>⚠️</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3, color: 'var(--danger)' }}>Resetar conta completa</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                      Apaga <strong style={{ color: 'var(--danger)' }}>tudo</strong>: workspace completo + chaves de API. Sua conta de login permanece mas você precisará configurar tudo do zero.
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* Confirmação — Resetar workspace */}
+            {resetMode === 'workspace' && (
+              <div>
+                <div style={{ padding: '14px 16px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 'var(--radius)', marginBottom: 18 }}>
+                  <p style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600, marginBottom: 6 }}>⚠️ Isso vai apagar permanentemente:</p>
+                  <ul style={{ fontSize: 12, color: 'var(--muted)', paddingLeft: 18, margin: 0, lineHeight: 2 }}>
+                    <li>Empresa e configurações do workspace</li>
+                    <li>Todos os agentes contratados</li>
+                    <li>Todo o histórico de conversas</li>
+                    <li>Skills e workflows criados</li>
+                  </ul>
+                  <p style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 8, marginBottom: 0 }}>
+                    Suas <strong>chaves de API</strong> e login serão mantidos.
+                  </p>
+                </div>
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 13 }}>
+                    Para confirmar, digite o nome da empresa: <strong style={{ color: '#fbbf24' }}>{company?.name || 'RESETAR'}</strong>
+                  </label>
+                  <input
+                    value={resetConfirmText}
+                    onChange={e => setResetConfirmText(e.target.value)}
+                    placeholder={company?.name || 'RESETAR'}
+                    autoFocus
+                    style={{ borderColor: confirmValid ? 'var(--warning)' : undefined }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="ghost" style={{ flex: 1 }}
+                    onClick={() => { setResetMode(null); setResetConfirmText(''); }}>
+                    ← Voltar
+                  </button>
+                  <button
+                    disabled={!confirmValid || resetting}
+                    onClick={() => doReset('workspace')}
+                    style={{ flex: 2, background: 'rgba(245,158,11,0.2)', borderColor: 'rgba(245,158,11,0.5)', color: '#fbbf24' }}
+                  >
+                    {resetting ? 'Resetando...' : '🗑️ Confirmar reset do workspace'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Confirmação — Resetar conta completa */}
+            {resetMode === 'account' && (
+              <div>
+                <div style={{ padding: '14px 16px', background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: 'var(--radius)', marginBottom: 18 }}>
+                  <p style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 600, marginBottom: 6 }}>🚨 Isso vai apagar permanentemente:</p>
+                  <ul style={{ fontSize: 12, color: 'var(--muted)', paddingLeft: 18, margin: 0, lineHeight: 2 }}>
+                    <li>Empresa e configurações do workspace</li>
+                    <li>Todos os agentes contratados</li>
+                    <li>Todo o histórico de conversas</li>
+                    <li>Skills e workflows criados</li>
+                    <li><strong style={{ color: 'var(--danger)' }}>Todas as suas chaves de API</strong></li>
+                  </ul>
+                  <p style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 8, marginBottom: 0 }}>
+                    Apenas seu <strong>login ({user?.email})</strong> será mantido. Você será redirecionado para o login.
+                  </p>
+                </div>
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 13 }}>
+                    Para confirmar, digite seu e-mail: <strong style={{ color: 'var(--danger)' }}>{user?.email}</strong>
+                  </label>
+                  <input
+                    value={resetConfirmText}
+                    onChange={e => setResetConfirmText(e.target.value)}
+                    placeholder={user?.email}
+                    autoFocus
+                    style={{ borderColor: confirmValid ? 'var(--danger)' : undefined }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="ghost" style={{ flex: 1 }}
+                    onClick={() => { setResetMode(null); setResetConfirmText(''); }}>
+                    ← Voltar
+                  </button>
+                  <button
+                    disabled={!confirmValid || resetting}
+                    onClick={() => doReset('account')}
+                    style={{ flex: 2, background: 'rgba(244,63,94,0.12)', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                  >
+                    {resetting ? 'Resetando...' : '⚠️ Confirmar reset completo'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
