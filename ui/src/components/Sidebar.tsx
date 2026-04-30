@@ -73,7 +73,7 @@ export function Sidebar() {
 
         <button className="btn-new-chat" onClick={() => navigate('/issues')}>
           <span className="icon">+</span>
-          Nova Issue
+          Nova Tarefa
         </button>
       </div>
 
@@ -83,12 +83,12 @@ export function Sidebar() {
 
         <NavLink to="/dashboard" className={linkStyle}>
           <span className="link-icon">📊</span>
-          Dashboard
+          Painel
         </NavLink>
 
         <NavLink to="/inbox" className={linkStyle}>
           <span className="link-icon">📥</span>
-          <span style={{ flex: 1 }}>Inbox</span>
+          <span style={{ flex: 1 }}>Caixa de Entrada</span>
           {inboxCount > 0 && (
             <span style={{
               background: 'var(--primary)', color: '#fff',
@@ -108,12 +108,12 @@ export function Sidebar() {
 
         <NavLink to="/issues" className={linkStyle}>
           <span className="link-icon">📋</span>
-          Issues
+          Tarefas
         </NavLink>
 
         <NavLink to="/feed" className={linkStyle}>
           <span className="link-icon">📡</span>
-          Atividade
+          Atividade ao Vivo
         </NavLink>
 
         <NavLink to="/workflows" className={linkStyle}>
@@ -135,14 +135,20 @@ export function Sidebar() {
               key={agent.id}
               to={`/chat/${agent.id}`}
               className={linkStyle}
+              style={{ alignItems: 'flex-start' }}
             >
-              <span className="link-icon">{agentEmoji(agent.role)}</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {agent.name}
-              </span>
+              <span className="link-icon" style={{ marginTop: 2 }}>{agentEmoji(agent.role)}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {agent.name}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                  {agent.role}
+                </div>
+              </div>
               <span style={{
                 width: 7, height: 7, borderRadius: '50%',
-                background: '#10b981', flexShrink: 0,
+                background: '#10b981', flexShrink: 0, marginTop: 4,
               }} title="Ativo" />
             </NavLink>
           ))
@@ -160,7 +166,7 @@ export function Sidebar() {
 
         <NavLink to="/skills" className={linkStyle}>
           <span className="link-icon">🎯</span>
-          Skills
+          Habilidades
         </NavLink>
 
         <NavLink to="/settings" className={linkStyle}>

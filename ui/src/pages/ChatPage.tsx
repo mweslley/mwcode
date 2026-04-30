@@ -72,6 +72,9 @@ export function ChatPage() {
   const [pendingAbort, setPendingAbort] = useState(false);
   const [deletingThread, setDeletingThread] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medio' });
+  const [savingTask, setSavingTask] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef(false);
@@ -282,6 +285,29 @@ export function ChatPage() {
     setMessages([]);
   }
 
+  async function createTask() {
+    if (!taskForm.title.trim()) return;
+    setSavingTask(true);
+    try {
+      const agent = selectedAgents[0];
+      await api.post('/issues', {
+        title: taskForm.title.trim(),
+        description: taskForm.description.trim(),
+        priority: taskForm.priority,
+        assigneeAgentId: agent?.id,
+        assigneeAgentName: agent?.name,
+        status: 'todo',
+      });
+      setShowTaskModal(false);
+      setTaskForm({ title: '', description: '', priority: 'medio' });
+      showToast('✓ Tarefa criada!');
+    } catch {
+      showToast('❌ Erro ao criar tarefa');
+    } finally {
+      setSavingTask(false);
+    }
+  }
+
   const userJson = localStorage.getItem('user');
   const user = userJson ? JSON.parse(userJson) : null;
   const userInitials = user?.name?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() ?? '?';
@@ -391,6 +417,18 @@ export function ChatPage() {
             <span className="badge badge-gray" style={{ fontSize: 10, fontFamily: 'monospace' }}>
               🧠 {currentModel}
             </span>
+          )}
+
+          {/* Criar tarefa (só quando há agente selecionado) */}
+          {selectedAgents.length >= 1 && (
+            <button
+              className="ghost"
+              style={{ fontSize: 11, padding: '4px 10px', color: 'var(--primary)' }}
+              title="Criar tarefa para este agente"
+              onClick={() => setShowTaskModal(true)}
+            >
+              📋 Criar tarefa
+            </button>
           )}
 
           {/* Add agent */}
@@ -616,6 +654,68 @@ export function ChatPage() {
           </div>
         </div>
       </div>
+      {/* Modal criar tarefa */}
+      {showTaskModal && (
+        <div className="modal-overlay" onClick={() => setShowTaskModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 440 }}>
+            <h2 style={{ marginBottom: 16 }}>
+              📋 Criar tarefa{selectedAgents[0] ? ` para ${selectedAgents[0].name}` : ''}
+            </h2>
+
+            <div className="form-group">
+              <label>Título *</label>
+              <input
+                value={taskForm.title}
+                onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="O que precisa ser feito?"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') createTask(); }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Descrição</label>
+              <textarea
+                value={taskForm.description}
+                onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Contexto ou detalhes adicionais..."
+                rows={3}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Prioridade</label>
+              <select
+                value={taskForm.priority}
+                onChange={e => setTaskForm(f => ({ ...f, priority: e.target.value }))}
+              >
+                <option value="critico">🔴 Crítica</option>
+                <option value="alto">🟠 Alta</option>
+                <option value="medio">🟡 Média</option>
+                <option value="baixo">⚪ Baixa</option>
+              </select>
+            </div>
+
+            {selectedAgents[0] && (
+              <div style={{
+                fontSize: 12, color: 'var(--muted)', marginBottom: 16,
+                padding: '8px 10px', background: 'var(--bg-2)', borderRadius: 6,
+              }}>
+                → Será atribuída a <strong style={{ color: 'var(--primary)' }}>{selectedAgents[0].name}</strong>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="ghost" onClick={() => setShowTaskModal(false)}>Cancelar</button>
+              <button onClick={createTask} disabled={!taskForm.title.trim() || savingTask}>
+                {savingTask ? 'Criando...' : '✓ Criar tarefa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast notification */}
       {toast && (
         <div style={{

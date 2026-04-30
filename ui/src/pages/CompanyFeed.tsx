@@ -141,7 +141,7 @@ export function CompanyFeed() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              Feed ao Vivo
+              Atividade ao Vivo
               {live && (
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,

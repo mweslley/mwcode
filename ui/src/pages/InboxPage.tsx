@@ -48,7 +48,7 @@ export function InboxPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1 className="page-title">Inbox</h1>
+        <h1 className="page-title">Caixa de Entrada</h1>
         <p className="page-subtitle">Solicitações dos agentes que precisam da sua aprovação.</p>
       </div>
 
@@ -57,7 +57,7 @@ export function InboxPage() {
       ) : items.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 48 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>📥</div>
-          <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>Inbox vazio</p>
+          <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>Caixa de entrada vazia</p>
           <p style={{ color: 'var(--muted)', fontSize: 13 }}>
             Nenhuma solicitação pendente dos seus agentes.
           </p>

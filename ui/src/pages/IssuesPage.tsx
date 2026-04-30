@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
-type IssueStatus = 'backlog' | 'todo' | 'em_progresso' | 'em_revisao' | 'concluido' | 'cancelado';
-type IssuePriority = 'critico' | 'alto' | 'medio' | 'baixo';
+type TarefaStatus = 'backlog' | 'todo' | 'em_progresso' | 'em_revisao' | 'concluido' | 'cancelado';
+type TarefaPriority = 'critico' | 'alto' | 'medio' | 'baixo';
 
-interface Issue {
+interface Tarefa {
   id: string;
   title: string;
   description: string;
-  status: IssueStatus;
-  priority: IssuePriority;
+  status: TarefaStatus;
+  priority: TarefaPriority;
   assigneeAgentId?: string;
   assigneeAgentName?: string;
   createdByAgentName?: string;
@@ -23,15 +23,15 @@ interface Issue {
 
 interface Agent { id: string; name: string; role: string; status: string; }
 
-const STATUS_LABELS: Record<IssueStatus, string> = {
+const STATUS_LABELS: Record<TarefaStatus, string> = {
   backlog: 'Backlog', todo: 'A fazer', em_progresso: 'Em progresso',
   em_revisao: 'Em revisão', concluido: 'Concluído', cancelado: 'Cancelado',
 };
-const STATUS_COLORS: Record<IssueStatus, string> = {
+const STATUS_COLORS: Record<TarefaStatus, string> = {
   backlog: '#6b7280', todo: '#9230f9', em_progresso: '#f59e0b',
   em_revisao: '#3b82f6', concluido: '#10b981', cancelado: '#ef4444',
 };
-const PRIORITY_LABELS: Record<IssuePriority, string> = {
+const PRIORITY_LABELS: Record<TarefaPriority, string> = {
   critico: '🔴 Crítico', alto: '🟠 Alto', medio: '🟡 Médio', baixo: '⚪ Baixo',
 };
 
@@ -45,14 +45,14 @@ const FILTER_TABS = [
 ];
 
 const BLANK_FORM = {
-  title: '', description: '', status: 'todo' as IssueStatus,
-  priority: 'medio' as IssuePriority, assigneeAgentId: '',
+  title: '', description: '', status: 'todo' as TarefaStatus,
+  priority: 'medio' as TarefaPriority, assigneeAgentId: '',
   requiresApproval: false,
 };
 
-export function IssuesPage() {
+export function TarefasPage() {
   const navigate = useNavigate();
-  const [issues, setIssues] = useState<Issue[]>([]);
+  const [issues, setTarefas] = useState<Tarefa[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -63,10 +63,10 @@ export function IssuesPage() {
 
   async function load() {
     const [list, agList] = await Promise.all([
-      api.get<Issue[]>('/issues').catch(() => []),
+      api.get<Tarefa[]>('/issues').catch(() => []),
       api.get<Agent[]>('/enterprise/agents').catch(() => []),
     ]);
-    setIssues(list || []);
+    setTarefas(list || []);
     setAgents((agList || []).filter((a: Agent) => a.status === 'active'));
     setLoading(false);
   }
@@ -79,7 +79,7 @@ export function IssuesPage() {
     setShowForm(true);
   }
 
-  function openEdit(issue: Issue) {
+  function openEdit(issue: Tarefa) {
     setEditingId(issue.id);
     setForm({
       title: issue.title,
@@ -113,15 +113,15 @@ export function IssuesPage() {
     }
   }
 
-  async function updateStatus(id: string, status: IssueStatus) {
+  async function updateStatus(id: string, status: TarefaStatus) {
     await api.put(`/issues/${id}`, { status }).catch(() => {});
-    setIssues(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+    setTarefas(prev => prev.map(i => i.id === id ? { ...i, status } : i));
   }
 
   async function remove(id: string) {
     if (!confirm('Deletar esta issue?')) return;
     await api.delete(`/issues/${id}`).catch(() => {});
-    setIssues(prev => prev.filter(i => i.id !== id));
+    setTarefas(prev => prev.filter(i => i.id !== id));
   }
 
   const displayed = filter ? issues.filter(i => i.status === filter) : issues;
@@ -131,10 +131,10 @@ export function IssuesPage() {
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h1 className="page-title">Issues</h1>
+            <h1 className="page-title">Tarefas</h1>
             <p className="page-subtitle">Tarefas, delegações e acompanhamento do trabalho dos agentes.</p>
           </div>
-          <button onClick={openNew}>+ Nova Issue</button>
+          <button onClick={openNew}>+ Nova Tarefa</button>
         </div>
       </div>
 
@@ -214,7 +214,7 @@ export function IssuesPage() {
                 {/* Status selector */}
                 <select
                   value={issue.status}
-                  onChange={e => updateStatus(issue.id, e.target.value as IssueStatus)}
+                  onChange={e => updateStatus(issue.id, e.target.value as TarefaStatus)}
                   style={{
                     fontSize: 11, padding: '4px 8px', borderRadius: 6,
                     background: STATUS_COLORS[issue.status] + '22',
@@ -244,7 +244,7 @@ export function IssuesPage() {
       {showForm && (
         <div className="modal-overlay" onClick={() => setShowForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 520 }}>
-            <h2>{editingId ? 'Editar Issue' : 'Nova Issue'}</h2>
+            <h2>{editingId ? 'Editar Tarefa' : 'Nova Tarefa'}</h2>
 
             <div className="form-group">
               <label>Título *</label>
@@ -270,13 +270,13 @@ export function IssuesPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
                 <label>Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as IssueStatus }))}>
+                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as TarefaStatus }))}>
                   {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label>Prioridade</label>
-                <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value as IssuePriority }))}>
+                <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value as TarefaPriority }))}>
                   {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
@@ -302,7 +302,7 @@ export function IssuesPage() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="ghost" onClick={() => setShowForm(false)}>Cancelar</button>
               <button onClick={save} disabled={!form.title || saving}>
-                {saving ? 'Salvando...' : editingId ? 'Salvar' : 'Criar Issue'}
+                {saving ? 'Salvando...' : editingId ? 'Salvar' : 'Criar Tarefa'}
               </button>
             </div>
           </div>
