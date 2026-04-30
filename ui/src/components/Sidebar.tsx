@@ -50,6 +50,11 @@ export function Sidebar() {
           Agentes
         </NavLink>
 
+        <NavLink to="/feed" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+          <span className="link-icon">📡</span>
+          Feed ao Vivo
+        </NavLink>
+
         <span className="sidebar-section" style={{ marginTop: 4 }}>Automação</span>
 
         <NavLink to="/workflows" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
