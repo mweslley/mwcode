@@ -8,6 +8,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { dataDir } from '../lib/data-dir.js';
+import { bootstrapCEO } from '../services/agent-loop.js';
 
 export const userKeysRouter = Router();
 
@@ -80,6 +81,10 @@ userKeysRouter.put('/', (req: any, res: any) => {
   updated.updatedAt = new Date().toISOString();
 
   fs.writeFileSync(keysFile(req.userId), JSON.stringify(updated, null, 2));
+
+  // Aciona CEO para que ele possa usar a nova chave imediatamente
+  bootstrapCEO(req.userId).catch(() => {});
+
   res.json({ ok: true });
 });
 

@@ -85,6 +85,12 @@ const handlers = {
   }
 };
 
+// POST /api/enterprise/company/bootstrap — aciona CEO manualmente
+companyRouter.post('/company/bootstrap', (req: any, res: any) => {
+  bootstrapCEO(req.userId).catch(() => {});
+  res.json({ ok: true, message: 'CEO acionado — tarefas e contratações aparecerão em breve.' });
+});
+
 // /api/enterprise/company  (usado pelo frontend e documentado no README)
 companyRouter.get('/company', handlers.get);
 companyRouter.post('/company', handlers.post);

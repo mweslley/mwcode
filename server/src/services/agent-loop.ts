@@ -364,10 +364,50 @@ export async function notifyCEOTaskComplete(userId: string, issue: any): Promise
 
 // ── Bootstrap imediato quando empresa é criada ────────────────────────────────
 
-/** Chamado quando o usuário finaliza o onboarding. CEO age imediatamente. */
+function createDefaultCEO(userId: string, company: any): Agent {
+  const id = crypto.randomUUID();
+  const agent = {
+    id, userId,
+    name: 'CEO',
+    role: 'CEO',
+    personality:
+      `Você é o CEO de ${company.name || 'nossa empresa'}. ` +
+      (company.mission ? `Missão: ${company.mission}. ` : '') +
+      (company.area ? `Área: ${company.area}. ` : '') +
+      `Tome decisões estratégicas, contrate agentes especializados e crie tarefas concretas para avançar os objetivos da empresa. ` +
+      `Responda sempre em português brasileiro.`,
+    goals: company.goals || [],
+    skills: [],
+    model: 'google/gemma-3-27b-it:free',
+    provider: 'openrouter',
+    status: 'active',
+    hireDate: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    createdBy: 'System',
+  };
+  const dir = dataDir('agents', userId);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(agent, null, 2));
+  console.log(`[AgentLoop] CEO padrão criado para ${userId}`);
+  return agent;
+}
+
+/** Chamado quando o usuário finaliza o onboarding ou adiciona uma chave de API. CEO age imediatamente. */
 export async function bootstrapCEO(userId: string): Promise<void> {
-  // Pequeno delay para garantir que a empresa foi salva no disco
-  setTimeout(() => runCEOHeartbeat(userId).catch(() => {}), 2000);
+  setTimeout(async () => {
+    try {
+      const agents = loadAgents(userId);
+      const ceo = findCEO(agents);
+      if (!ceo) {
+        const company = loadCompany(userId);
+        if (!company) return;
+        createDefaultCEO(userId, company);
+      }
+      await runCEOHeartbeat(userId);
+    } catch (e: any) {
+      console.error('[AgentLoop] Erro no bootstrap CEO:', e.message);
+    }
+  }, 2000);
 }
 
 // ── Iniciar o loop ────────────────────────────────────────────────────────────

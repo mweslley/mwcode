@@ -89,6 +89,7 @@ export function AgentsPage() {
   const [showHire, setShowHire] = useState(false);
   const [editAgent, setEditAgent] = useState<Agent | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'fired'>('active');
+  const [triggeringCEO, setTriggeringCEO] = useState(false);
   const [form, setForm] = useState<AgentForm>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +134,7 @@ export function AgentsPage() {
       );
       if (r.valid) {
         setKeyStatus('valid');
-        setKeyInfo(r.label ? `${r.label}${r.credits !== undefined ? ` · $${r.credits?.toFixed(2)} créditos` : ''}` : 'Chave válida');
+        setKeyInfo(r.label ? `${r.label}${r.credits != null ? ` · $${Number(r.credits).toFixed(2)} créditos` : ''}` : 'Chave válida');
       } else {
         setKeyStatus('invalid');
         setKeyInfo(r.error || 'Chave inválida');
@@ -213,6 +214,16 @@ export function AgentsPage() {
     }
   }
 
+  async function triggerCEO() {
+    setTriggeringCEO(true);
+    try {
+      await api.post('/enterprise/company/bootstrap', {});
+      setTimeout(() => { load(); setTriggeringCEO(false); }, 4000);
+    } catch {
+      setTriggeringCEO(false);
+    }
+  }
+
   async function reactivate(id: string) {
     try {
       await api.post(`/enterprise/agents/${id}/reactivate`, {});
@@ -232,7 +243,18 @@ export function AgentsPage() {
             <h1 className="page-title">Agentes</h1>
             <p className="page-subtitle">Sua equipe de IA — crie, configure e converse com seus agentes.</p>
           </div>
-          <button onClick={openHire}>+ Contratar Agente</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="ghost"
+              onClick={triggerCEO}
+              disabled={triggeringCEO}
+              title="Aciona o CEO agora para criar tarefas e contratar agentes"
+              style={{ fontSize: 12 }}
+            >
+              {triggeringCEO ? '⏳ Acionando...' : '⚡ Acionar CEO'}
+            </button>
+            <button onClick={openHire}>+ Contratar Agente</button>
+          </div>
         </div>
       </div>
 
@@ -298,14 +320,21 @@ export function AgentsPage() {
                 )}
               </div>
 
+              {agent.personality && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.5,
+                  overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                  {agent.personality.slice(0, 140)}{agent.personality.length > 140 ? '…' : ''}
+                </div>
+              )}
+
               {agent.goals && agent.goals.length > 0 && (
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.4 }}>
-                  🎯 {agent.goals.slice(0, 2).join(' · ')}{agent.goals.length > 2 ? ' ...' : ''}
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.4 }}>
+                  🎯 {agent.goals.slice(0, 2).join(' · ')}{agent.goals.length > 2 ? ` +${agent.goals.length - 2}` : ''}
                 </div>
               )}
 
               {/* Stats */}
-              <div style={{ display: 'flex', gap: 16, marginBottom: 14, fontSize: 12, color: 'var(--muted)' }}>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 11, color: 'var(--muted)' }}>
                 <span>📈 {agent.performance ?? 0}% perf</span>
                 <span>✅ {agent.tasksCompleted ?? 0} tarefas</span>
               </div>
@@ -314,24 +343,23 @@ export function AgentsPage() {
                 {agent.status === 'active' ? (
                   <>
                     <button
+                      className="ghost"
+                      style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px' }}
+                      onClick={() => openEdit(agent)}
+                    >
+                      ✏️ Editar
+                    </button>
+                    <button
                       style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px' }}
                       onClick={() => navigate(`/chat/${agent.id}`)}
                     >
                       💬 Conversar
                     </button>
                     <button
-                      className="ghost"
-                      title="Editar agente"
-                      onClick={() => openEdit(agent)}
-                      style={{ width: 34, height: 34, padding: 0, justifyContent: 'center' }}
-                    >
-                      ✏️
-                    </button>
-                    <button
                       className="danger icon-btn"
                       title="Demitir agente"
                       onClick={() => fire(agent.id, agent.name)}
-                      style={{ width: 34, height: 34, padding: 0, justifyContent: 'center' }}
+                      style={{ width: 34, height: 34, padding: 0, justifyContent: 'center', flexShrink: 0 }}
                     >
                       🗑
                     </button>
