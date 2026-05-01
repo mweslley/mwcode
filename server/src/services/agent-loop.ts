@@ -33,7 +33,7 @@ function hireAgent(userId: string, ceoModel: string, hire: { name: string; role:
 // ── Tipos internos ────────────────────────────────────────────────────────────
 
 interface Agent {
-  id: string; name: string; role: string; status: string;
+  id: string; name: string; role: string; status: string; model?: string;
 }
 
 interface Issue {
