@@ -26,10 +26,13 @@ interface Limits {
   byAgent?: Record<string, { dailyUsd?: number; dailyTokens?: number }>;
 }
 
-function fmt$(n: number) {
-  if (n === 0) return '$0.00';
-  if (n < 0.001) return '<$0.001';
-  return '$' + n.toFixed(n < 0.01 ? 4 : 3);
+const USD_BRL = 5.75; // taxa aproximada, atualizar conforme necessário
+
+function fmt$(n: number, showBrl = false) {
+  const usd = n === 0 ? '$0.00' : n < 0.001 ? '<$0.001' : '$' + n.toFixed(n < 0.01 ? 4 : 3);
+  if (!showBrl || n === 0) return usd;
+  const brl = 'R$' + (n * USD_BRL).toFixed(n * USD_BRL < 0.01 ? 4 : 2);
+  return `${usd} (${brl})`;
 }
 function fmtK(n: number) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -160,11 +163,11 @@ export function UsagePage() {
           {/* Stats row */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
             <StatCard label="Total de tokens" value={fmtK(d?.totals.tokens || 0)} sub={`${d?.totals.calls || 0} chamadas`} />
-            <StatCard label="Custo estimado total" value={fmt$(d?.totals.costUsd || 0)} />
-            <StatCard label="Hoje" value={fmtK(d?.today.tokens || 0)} sub={fmt$(d?.today.costUsd || 0)} />
+            <StatCard label="Custo estimado total" value={fmt$(d?.totals.costUsd || 0, true)} />
+            <StatCard label="Hoje" value={fmtK(d?.today.tokens || 0)} sub={fmt$(d?.today.costUsd || 0, true)} />
             <StatCard
               label="Este mês"
-              value={fmt$(d?.thisMonth.costUsd || 0)}
+              value={fmt$(d?.thisMonth.costUsd || 0, true)}
               sub={`${fmtK(d?.thisMonth.tokens || 0)} tokens`}
               warn={monthWarn}
             />
@@ -176,7 +179,7 @@ export function UsagePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
                 <span style={{ color: 'var(--muted)' }}>Limite mensal</span>
                 <span style={{ fontWeight: 600, color: monthWarn ? '#f97316' : 'var(--fg)' }}>
-                  {fmt$(d?.thisMonth.costUsd || 0)} / {fmt$(limits.global.monthlyUsd)}
+                  {fmt$(d?.thisMonth.costUsd || 0, true)} / {fmt$(limits.global.monthlyUsd, true)}
                   {' '}({pct(d?.thisMonth.costUsd || 0, limits.global.monthlyUsd).toFixed(0)}%)
                 </span>
               </div>
@@ -202,7 +205,7 @@ export function UsagePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
                 <span style={{ color: 'var(--muted)' }}>Limite diário</span>
                 <span style={{ fontWeight: 600 }}>
-                  {fmt$(d?.today.costUsd || 0)} / {fmt$(limits.global.dailyUsd)}
+                  {fmt$(d?.today.costUsd || 0, true)} / {fmt$(limits.global.dailyUsd, true)}
                   {' '}({pct(d?.today.costUsd || 0, limits.global.dailyUsd).toFixed(0)}%)
                 </span>
               </div>
@@ -339,6 +342,9 @@ export function UsagePage() {
 
           <div className="card" style={{ padding: '14px 18px' }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Referência de preços (estimativas)</div>
+            <div style={{ fontSize: 11, color: '#00bc8a', marginBottom: 8 }}>
+              Câmbio usado: 1 USD ≈ R${USD_BRL.toFixed(2)} — atualizado manualmente, pode variar.
+            </div>
             <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.8 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0 16px' }}>
                 <span>GPT-4o</span><span>~$5.00 / 1M tokens</span>

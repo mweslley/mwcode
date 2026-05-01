@@ -24,7 +24,7 @@ interface Tarefa {
 interface Agent { id: string; name: string; role: string; status: string; }
 
 const STATUS_LABELS: Record<TarefaStatus, string> = {
-  backlog: 'Backlog', todo: 'A fazer', em_progresso: 'Em progresso',
+  backlog: 'Pendente', todo: 'A fazer', em_progresso: 'Em progresso',
   em_revisao: 'Em revisão', concluido: 'Concluído', cancelado: 'Cancelado',
 };
 const STATUS_COLORS: Record<TarefaStatus, string> = {
@@ -41,7 +41,7 @@ const FILTER_TABS = [
   { key: 'em_progresso', label: 'Em progresso' },
   { key: 'em_revisao', label: 'Em revisão' },
   { key: 'concluido', label: 'Concluídas' },
-  { key: 'backlog', label: 'Backlog' },
+  { key: 'backlog', label: 'Pendente' },
 ];
 
 const BLANK_FORM = {

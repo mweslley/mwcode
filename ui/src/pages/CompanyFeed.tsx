@@ -58,7 +58,10 @@ export function CompanyFeed() {
       const since = initial ? '' : `?since=${encodeURIComponent(latestTimestamp.current)}&limit=50`;
       const url = initial ? '/feed?limit=200' : `/feed${since}`;
       const data = await api.get<FeedMessage[]>(url);
-      if (!data?.length) return;
+      if (!data?.length) {
+        if (initial) setLoading(false);
+        return;
+      }
 
       if (initial) {
         const sorted = [...data].reverse();

@@ -174,6 +174,11 @@ export function Sidebar() {
 
         <span className="sidebar-section" style={{ marginTop: 4 }}>Empresa</span>
 
+        <NavLink to="/workspace" className={linkStyle}>
+          <span className="link-icon">🏢</span>
+          Área de Trabalho
+        </NavLink>
+
         <NavLink to="/skills" className={linkStyle}>
           <span className="link-icon">🎯</span>
           Habilidades
