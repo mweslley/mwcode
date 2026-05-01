@@ -80,7 +80,7 @@ export function UsagePage() {
   async function load() {
     const [d, l] = await Promise.all([
       api.get<UsageData>('/usage').catch(() => null),
-      api.get<Limits>('/usage/limits').catch(() => ({})),
+      api.get<Limits>('/usage/limits').catch(() => ({} as Limits)),
     ]);
     setData(d);
     setLimits(l || {});
