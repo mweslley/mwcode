@@ -31,7 +31,10 @@ interface AgentForm {
   skills: string[];
   personality: string;
   goals: string;
+  apiKey: string;
 }
+
+type KeyStatus = 'idle' | 'validating' | 'valid' | 'invalid';
 
 interface Skill {
   id: string;
@@ -67,8 +70,17 @@ const ROLE_TEMPLATES = [
 
 const emptyForm = (): AgentForm => ({
   name: '', role: '', title: '', adapter: 'openrouter', model: MODELO_PADRAO,
-  skills: [], personality: '', goals: '',
+  skills: [], personality: '', goals: '', apiKey: '',
 });
+
+const PROVIDER_LABELS: Record<string, { label: string; placeholder: string; keyName: string }> = {
+  openrouter: { label: 'OpenRouter', placeholder: 'sk-or-v1-...', keyName: 'openrouter' },
+  openai: { label: 'OpenAI', placeholder: 'sk-...', keyName: 'openai' },
+  gemini: { label: 'Google Gemini', placeholder: 'AIza...', keyName: 'gemini' },
+  deepseek: { label: 'DeepSeek', placeholder: 'sk-...', keyName: 'deepseek' },
+  github: { label: 'GitHub Models', placeholder: 'ghp_...', keyName: 'github' },
+  ollama: { label: 'Ollama (local)', placeholder: 'http://localhost:11434', keyName: 'ollama_url' },
+};
 
 export function AgentsPage() {
   const navigate = useNavigate();
@@ -81,6 +93,8 @@ export function AgentsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
+  const [keyStatus, setKeyStatus] = useState<KeyStatus>('idle');
+  const [keyInfo, setKeyInfo] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -107,10 +121,35 @@ export function AgentsPage() {
 
   useEffect(() => { load(); }, []);
 
+  async function validateKey(provider: string, key: string) {
+    if (!key.trim() || key.trim().length < 8) return;
+    setKeyStatus('validating');
+    setKeyInfo(null);
+    try {
+      // Save key first so server can validate it
+      await api.put('/user/keys', { [PROVIDER_LABELS[provider]?.keyName || provider]: key.trim() });
+      const r = await api.get<{ valid: boolean; error?: string; label?: string; credits?: number }>(
+        `/models/validate?provider=${provider}`
+      );
+      if (r.valid) {
+        setKeyStatus('valid');
+        setKeyInfo(r.label ? `${r.label}${r.credits !== undefined ? ` · $${r.credits?.toFixed(2)} créditos` : ''}` : 'Chave válida');
+      } else {
+        setKeyStatus('invalid');
+        setKeyInfo(r.error || 'Chave inválida');
+      }
+    } catch {
+      setKeyStatus('invalid');
+      setKeyInfo('Erro ao validar');
+    }
+  }
+
   function openHire() {
     setForm(emptyForm());
     setEditAgent(null);
     setError(null);
+    setKeyStatus('idle');
+    setKeyInfo(null);
     setShowHire(true);
   }
 
@@ -125,8 +164,11 @@ export function AgentsPage() {
       skills: agent.skills || [],
       personality: agent.personality || '',
       goals: (agent.goals || []).join('\n'),
+      apiKey: '',
     });
     setError(null);
+    setKeyStatus('idle');
+    setKeyInfo(null);
     setShowHire(true);
   }
 
@@ -390,32 +432,83 @@ export function AgentsPage() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group">
-                <label>Provedor</label>
-                <select value={form.adapter} onChange={e => setForm(f => ({ ...f, adapter: e.target.value }))}>
-                  {ADAPTERS.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
+            <div className="form-group">
+              <label>Provedor de IA</label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                {Object.entries(PROVIDER_LABELS).map(([key, info]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      setForm(f => ({ ...f, adapter: key, apiKey: '', model: key === 'openrouter' ? MODELO_PADRAO : f.model }));
+                      setKeyStatus('idle');
+                      setKeyInfo(null);
+                    }}
+                    style={{
+                      fontSize: 12, padding: '5px 12px',
+                      background: form.adapter === key ? 'var(--primary)' : 'var(--bg-2)',
+                      color: form.adapter === key ? '#fff' : 'var(--fg-2)',
+                      borderColor: form.adapter === key ? 'var(--primary)' : 'var(--border)',
+                    }}
+                  >
+                    {info.label}
+                  </button>
+                ))}
               </div>
-              <div className="form-group">
-                {form.adapter === 'openrouter' ? (
-                  <ModelPicker
+
+              {/* API key input for non-openrouter providers or when user wants to update */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="password"
+                  value={form.apiKey}
+                  onChange={e => { setForm(f => ({ ...f, apiKey: e.target.value })); setKeyStatus('idle'); }}
+                  onBlur={() => { if (form.apiKey.trim().length > 8) validateKey(form.adapter, form.apiKey); }}
+                  placeholder={`Chave ${PROVIDER_LABELS[form.adapter]?.label || form.adapter} (${PROVIDER_LABELS[form.adapter]?.placeholder || 'API key'})`}
+                  style={{ flex: 1, fontSize: 12, borderColor: keyStatus === 'valid' ? 'var(--success)' : keyStatus === 'invalid' ? 'var(--danger)' : 'var(--border)' }}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => validateKey(form.adapter, form.apiKey)}
+                  disabled={!form.apiKey || keyStatus === 'validating'}
+                  style={{ fontSize: 12, padding: '7px 12px', whiteSpace: 'nowrap' }}
+                >
+                  {keyStatus === 'validating' ? '...' : 'Verificar'}
+                </button>
+              </div>
+              {keyStatus === 'valid' && <small style={{ color: 'var(--success)', fontSize: 11 }}>✅ {keyInfo}</small>}
+              {keyStatus === 'invalid' && <small style={{ color: 'var(--danger)', fontSize: 11 }}>❌ {keyInfo}</small>}
+              {form.adapter !== 'openrouter' && !form.apiKey && (
+                <small style={{ color: 'var(--muted)', fontSize: 11 }}>
+                  Insira sua chave de API para {PROVIDER_LABELS[form.adapter]?.label}. A chave será salva nas suas configurações.
+                </small>
+              )}
+            </div>
+
+            <div className="form-group">
+              {form.adapter === 'openrouter' ? (
+                <ModelPicker
+                  value={form.model}
+                  onChange={model => setForm(f => ({ ...f, model }))}
+                  mostrarPagos={true}
+                  label="Modelo"
+                  provider="openrouter"
+                />
+              ) : (
+                <>
+                  <label>Modelo</label>
+                  <input
                     value={form.model}
-                    onChange={model => setForm(f => ({ ...f, model }))}
-                    mostrarPagos={false}
-                    label="Modelo"
+                    onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+                    placeholder={
+                      form.adapter === 'openai' ? 'Ex: gpt-4o-mini' :
+                      form.adapter === 'gemini' ? 'Ex: gemini-1.5-flash' :
+                      form.adapter === 'deepseek' ? 'Ex: deepseek-chat' :
+                      form.adapter === 'ollama' ? 'Ex: llama3' : 'ID do modelo'
+                    }
                   />
-                ) : (
-                  <>
-                    <label>Modelo</label>
-                    <input
-                      value={form.model}
-                      onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
-                      placeholder="Ex: gpt-4o-mini"
-                    />
-                  </>
-                )}
-              </div>
+                </>
+              )}
             </div>
 
             <div className="form-group">
