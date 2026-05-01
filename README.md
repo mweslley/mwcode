@@ -207,7 +207,7 @@ Rode modelos de IA **no seu próprio computador ou servidor**, sem enviar dados 
 
 ## ✨ Funcionalidades
 
-### 🏢 Workspace de Agentes
+### 🏢 Área de Trabalho (Workspace)
 
 **Onboarding guiado em 4 passos:**
 1. **Sua empresa** — nome, área de atuação e tamanho da equipe
@@ -215,82 +215,124 @@ Rode modelos de IA **no seu próprio computador ou servidor**, sem enviar dados 
 3. **Chave de API** — configura e valida o acesso ao provedor de IA escolhido
 4. **Modelo do CEO** — escolhe o modelo de IA para o agente principal
 
-**CEO automático:** No final do onboarding, um agente CEO é criado automaticamente. Ele recebe um briefing inicial sobre a empresa, elabora um plano de ação, sugere quais outros agentes contratar e começa a organizar as primeiras tarefas. O CEO também pode criar outros agentes conforme a necessidade.
+**Editar workspace:** Após o onboarding, acesse **Área de Trabalho** na sidebar para alterar nome, missão, objetivos e área da empresa — sem precisar reiniciar o sistema.
+
+---
+
+### 🤖 Sistema Autônomo de Agentes (CEO Loop)
+
+O MWCode opera como uma **empresa autônoma** — os agentes trabalham sem intervenção humana constante:
+
+- **CEO acorda periodicamente** (padrão: a cada 4h, configurável via `CEO_HEARTBEAT_HOURS`) e analisa o estado da empresa
+- **Contrata agentes automaticamente** usando `[CONTRATAR AGENTE: nome="..."; função="..."; instruções="..."]`
+- **Cria e delega tarefas** para os agentes via `[CRIAR TAREFA: título="..."; agente="..."]`
+- **Agentes executam e reportam** — quando uma tarefa é concluída, o CEO é notificado automaticamente
+- **Escalona decisões importantes** ao humano via `[APROVAÇÃO NECESSÁRIA: ...]` — aparece na Caixa de Entrada
+- Primeira execução ocorre **2 segundos após o onboarding** — agentes já começam a trabalhar enquanto você configura
 
 **Contratar e gerenciar agentes:**
-- Cada agente tem: nome, cargo, título, personalidade personalizada, modelo de IA e skills atribuídas
-- Agentes inativos ficam arquivados (histórico preservado)
-- É possível reativar agentes demitidos
+- Cada agente tem: nome, cargo, título, personalidade/alma, modelo de IA, skills e objetivos
+- Seletor de provedor com validação de chave em tempo real (OpenRouter, OpenAI, Gemini, DeepSeek, Ollama)
+- Agentes inativos ficam arquivados (histórico preservado), podem ser reativados
+- Mudanças de modelo, personalidade e skills aplicadas **na hora**, sem reiniciar o sistema
 
-**Aprovação humana:** Quando um agente precisar tomar uma ação importante (gastos, ações irreversíveis), ele inclui `[APROVAÇÃO NECESSÁRIA]` na mensagem — o chat exibe botões de **Aprovar** ou **Cancelar** para o usuário decidir.
+---
+
+### 📋 Tarefas e Caixa de Entrada
+
+**Tarefas (Issues):**
+- Status: Pendente → A fazer → Em progresso → Em revisão → Concluído
+- Prioridade: Crítico, Alto, Médio, Baixo
+- Atribuição a agentes específicos
+- Criadas pelo CEO automaticamente ou pelo usuário no chat/painel
+- Quando uma tarefa é concluída, o CEO recebe notificação e pode criar tarefas de acompanhamento
+
+**Caixa de Entrada:**
+- Centraliza todas as solicitações de aprovação dos agentes
+- Badge de contagem no sidebar atualizado em tempo real
+- Aprovar ou rejeitar com nota opcional
+- Histórico de aprovações e rejeições
 
 ---
 
 ### 💬 Chat
 
 - **Conversa direta** com qualquer agente
-- **Multi-agente** — selecione múltiplos agentes para responderem em sequência à mesma mensagem
-- **Histórico persistido** — cada conversa é salva e recuperada ao retornar para o agente
-- **Assistente Geral** — chat livre sem agente específico, para perguntas rápidas
-- **Cancelar envio** — interrompa uma resposta que está sendo gerada
-- **Deletar histórico** — apague o histórico de qualquer conversa pelo sidebar
+- **Multi-agente** — selecione múltiplos agentes para responderem em sequência
+- **Histórico persistido** — cada conversa é salva por agente
+- **Criar tarefa pelo chat** — botão "📋 Criar tarefa" atribui uma tarefa ao agente da conversa
+- **Assistente Geral** — chat livre sem agente específico
 - **Badges de modelo** — cada resposta exibe qual modelo de IA foi usado
+
+---
+
+### 📡 Atividade ao Vivo
+
+Feed em tempo real de tudo que acontece na empresa:
+- Atualização automática a cada 3 segundos
+- Layout compacto de log: `HH:MM:SS | 👔 Agente | mensagem...`
+- Filtro por agente específico
+- Expandir mensagens longas com um clique
+- Badge de novas mensagens quando não está no final
+
+---
+
+### 📈 Uso de Tokens e Controle de Gastos
+
+- **Rastreamento em tempo real** de tokens consumidos por cada chamada de IA
+- Valores em **USD e BRL** (câmbio configurável)
+- Breakdown por agente — veja quem consome mais
+- Histórico de chamadas com modelo, horário, tokens e custo
+- **Limites de gasto configuráveis:**
+  - Limite diário (bloqueia todos os agentes se ultrapassar)
+  - Limite mensal (idem)
+  - Barra de progresso no sidebar mostra uso do mês em tempo real
+  - Agentes são **bloqueados automaticamente** quando o limite é atingido
+- Tabela de referência de preços por modelo (GPT-4o, Claude, Gemini, DeepSeek, modelos gratuitos = $0)
 
 ---
 
 ### ⚙️ Configurações por Usuário
 
-- **Chaves de API individuais** — cada conta do MWCode tem suas próprias chaves, separadas dos outros usuários
-- **Validação em tempo real** — ao digitar uma chave e sair do campo, o sistema já testa com o provedor e mostra ✅ ou ❌
-- **Lista de modelos atualizada** — ao abrir "Ver todos os modelos", o MWCode busca a lista atual diretamente do provedor usando a sua chave
+- **Chaves de API individuais** — cada conta usa suas próprias chaves
+- **Validação em tempo real** — testa a chave no provedor e exibe ✅/❌ + créditos disponíveis
+- **Lista de modelos dinâmica** — busca modelos diretamente do provedor com a sua chave
 - **Perfil** — edite nome, email e senha a qualquer momento
 
 ---
 
-### 🔁 Workflows Automáticos
+### 🔁 Rotinas (Workflows Automáticos)
 
-Workflows permitem **enviar mensagens automaticamente para agentes** em horários programados, como um agendador de tarefas.
+Enviam mensagens automaticamente para agentes em horários programados.
 
-Exemplos de uso:
+Exemplos:
 - CEO envia relatório semanal toda segunda às 9h
 - Agente de marketing gera sugestões de conteúdo todo dia às 8h
 - Agente financeiro consolida custos na última sexta do mês
 
-**Configurações disponíveis:**
-- Horário personalizado com seletor visual (sem precisar escrever cron manualmente)
+**Configurações:**
+- Horário personalizado com seletor visual (sem escrever cron manualmente)
 - Presets prontos: "Todo dia", "Toda segunda", "Dias úteis", etc.
-- Todo o horário é configurado em **horário de Brasília (BRT)** — a conversão para UTC é automática
-- Ativar/pausar workflows individualmente sem excluí-los
+- Horário de Brasília (BRT) — conversão para UTC automática
+- Ativar/pausar/editar rotinas individualmente
 
 ---
 
-### 🛠️ Skills
+### 🎯 Habilidades (Skills)
 
-Skills são **habilidades ou conjuntos de instruções** que podem ser criadas e atribuídas a agentes para especializar o comportamento deles.
-
-Exemplos:
-- `revisor-de-codigo` — instrui o agente a revisar código com foco em segurança e performance
-- `copywriter-pt-br` — define tom de voz e estilo para criação de textos em português
-- `atendimento-ao-cliente` — define protocolos de resposta para suporte
-
-**Gerenciamento via app** ou pelo terminal:
+Skills são instruções especializadas atribuíveis a qualquer agente:
 
 ```bash
-bash scripts/skills.sh list          # listar skills
-bash scripts/skills.sh add           # criar nova skill interativamente
-bash scripts/skills.sh use <nome>    # usar skill em uma conversa
+bash scripts/skills.sh list   # listar
+bash scripts/skills.sh add    # criar
 ```
 
 ---
 
-### 📊 Dashboard
+### 📊 Painel (Dashboard)
 
-Visão executiva do workspace:
-- Agentes ativos e seus status
-- Tarefas recentes e em andamento
-- Atividade de chat por agente
-- Custo estimado de uso (quando disponível via API do provedor)
-- Auto-refresh a cada 15 segundos + atualização por evento em tempo real
+- Agentes ativos, tarefas em andamento e atividade recente
+- Auto-refresh a cada 15 segundos
 
 ---
 
