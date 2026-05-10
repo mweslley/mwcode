@@ -12,10 +12,12 @@ interface Agent {
   adapter?: string;
   provider?: string;
   model: string;
+  lastUsedModel?: string;
   skills: string[];
   personality?: string;
   goals?: string[];
   status: string;
+  firedAt?: string;
   performance?: number;
   tasksCompleted?: number;
   hireDate?: string;
@@ -314,7 +316,15 @@ export function AgentsPage() {
 
               <div className="agent-meta">
                 <span className="badge badge-purple">{agent.adapter || agent.provider}</span>
-                <span className="badge badge-gray">{agent.model?.split('/').pop()?.split(':')[0] ?? agent.model}</span>
+                {agent.lastUsedModel ? (
+                  <span className="badge badge-gray" title={`Configurado: ${agent.model}`}>
+                    {agent.lastUsedModel.split('/').pop()?.split(':')[0] ?? agent.lastUsedModel}
+                  </span>
+                ) : (
+                  <span className="badge badge-gray" style={{ opacity: 0.6 }} title="Modelo real ainda não registrado — aguarda primeira execução">
+                    {agent.model?.split('/').pop()?.split(':')[0] ?? agent.model}
+                  </span>
+                )}
                 {agent.skills?.length > 0 && (
                   <span className="badge badge-yellow">🎯 {agent.skills.length} skill{agent.skills.length > 1 ? 's' : ''}</span>
                 )}
@@ -332,6 +342,14 @@ export function AgentsPage() {
                   🎯 {agent.goals.slice(0, 2).join(' · ')}{agent.goals.length > 2 ? ` +${agent.goals.length - 2}` : ''}
                 </div>
               )}
+              {agent.status === 'fired' && agent.firedAt && (() => {
+                const days = Math.max(0, 7 - Math.floor((Date.now() - new Date(agent.firedAt).getTime()) / 86400000));
+                return (
+                  <div style={{ fontSize: 11, color: days <= 1 ? 'var(--danger)' : 'var(--muted)', marginBottom: 8 }}>
+                    🗑 Excluído permanentemente em {days} dia{days !== 1 ? 's' : ''}
+                  </div>
+                );
+              })()}
 
               {/* Stats */}
               <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 11, color: 'var(--muted)' }}>

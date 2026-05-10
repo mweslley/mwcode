@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { dataDir } from '../lib/data-dir.js';
 
+const FIRED_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+
 interface Agent {
   id: string;
   userId: string;
@@ -17,6 +19,8 @@ interface Agent {
   status: 'active' | 'fired';
   salary?: number;
   hireDate?: string;
+  firedAt?: string;
+  lastUsedModel?: string;
   createdAt: string;
 }
 
@@ -27,17 +31,28 @@ function getAgentsDir(userId: string): string {
 function getAgents(userId: string, status?: string): Agent[] {
   const dir = getAgentsDir(userId);
   if (!fs.existsSync(dir)) return [];
-  
+
   const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
   const agents: Agent[] = [];
-  
+  const now = Date.now();
+
   for (const file of files) {
-    const agent = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+    const filePath = path.join(dir, file);
+    const agent: Agent = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+    // Hard-delete fired agents after 7 days
+    if (agent.status === 'fired' && agent.firedAt) {
+      if (now - new Date(agent.firedAt).getTime() > FIRED_TTL_MS) {
+        fs.unlinkSync(filePath);
+        continue;
+      }
+    }
+
     if (!status || agent.status === status) {
       agents.push(agent);
     }
   }
-  
+
   return agents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
@@ -120,12 +135,12 @@ enterpriseAgentsRouter.delete('/:id', (req, res) => {
   
   const agent = getAgent(userId, id);
   if (agent) {
-    // Não apaga, marca como fired
     agent.status = 'fired';
+    agent.firedAt = new Date().toISOString();
     const dir = getAgentsDir(userId);
     fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(agent, null, 2));
   }
-  
+
   res.json({ success: true });
 });
 

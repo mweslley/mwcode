@@ -64,13 +64,24 @@ export async function sendMessageToAgent(
 
   const result = await adapter.call(text, { system: systemPrompt, history: contextMessages });
 
+  // ── Persist actual model used (resolves openrouter/auto → real model) ────
+  const actualModel = result.model || modelName;
+  if (actualModel && actualModel !== modelName) {
+    try {
+      const agentFile = path.join(dataDir('agents', userId), `${agent.id}.json`);
+      const fresh = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
+      fresh.lastUsedModel = actualModel;
+      fs.writeFileSync(agentFile, JSON.stringify(fresh, null, 2));
+    } catch {}
+  }
+
   // ── Record token usage ────────────────────────────────────────────────────
   const usage = result.usage;
   if (usage?.total_tokens) {
     recordUsage(userId, {
       agentId: agent.id,
       agentName: agent.name,
-      model: result.model || modelName,
+      model: actualModel,
       promptTokens: usage.prompt_tokens || 0,
       completionTokens: usage.completion_tokens || 0,
       totalTokens: usage.total_tokens,
