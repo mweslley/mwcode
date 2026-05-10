@@ -9,6 +9,7 @@ interface Company {
   mission: string;
   employees: string;
   goals: string[];
+  ceoPaused?: boolean;
 }
 
 export function WorkspacePage() {
@@ -154,6 +155,40 @@ export function WorkspacePage() {
             <button onClick={save} disabled={saving || !form.name} style={{ width: '100%', justifyContent: 'center' }}>
               {saving ? 'Salvando...' : saved ? '✅ Salvo!' : '💾 Salvar alterações'}
             </button>
+          </div>
+
+          {/* Controle do CEO */}
+          <div className="card" style={{ padding: '16px 20px', marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Controle do CEO</div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+              O CEO acorda automaticamente a cada ciclo para delegar tarefas.
+              Pause para impedir qualquer ação autônoma sem sua interação direta.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                background: company.ceoPaused ? '#f59e0b' : '#10b981',
+              }} />
+              <span style={{ fontSize: 13, flex: 1 }}>
+                {company.ceoPaused ? 'CEO pausado — heartbeat suspenso' : 'CEO ativo — executando heartbeat automaticamente'}
+              </span>
+              <button
+                className="ghost"
+                style={{ fontSize: 12, color: company.ceoPaused ? 'var(--secondary)' : 'var(--warning)' }}
+                onClick={async () => {
+                  const next = !company.ceoPaused;
+                  try {
+                    const updated = await api.put<Company>('/enterprise/company', { ceoPaused: next });
+                    setCompany(updated);
+                    localStorage.setItem('company', JSON.stringify(updated));
+                  } catch (e: any) {
+                    alert('Erro: ' + e.message);
+                  }
+                }}
+              >
+                {company.ceoPaused ? '▶️ Retomar CEO' : '⏸ Pausar CEO'}
+              </button>
+            </div>
           </div>
 
           {/* Danger zone */}

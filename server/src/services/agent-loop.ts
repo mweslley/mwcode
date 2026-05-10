@@ -351,6 +351,11 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
     const company = loadCompany(userId);
     if (!company) return; // sem empresa configurada, não faz nada
 
+    if (company.ceoPaused) {
+      console.log(`[AgentLoop] CEO pausado para userId ${userId} — pulando heartbeat`);
+      return;
+    }
+
     const issues = loadIssues(userId);
     const pending   = issues.filter(i => ['todo','backlog'].includes(i.status));
     const inProgress = issues.filter(i => i.status === 'em_progresso');
@@ -360,12 +365,21 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
 
     const otherAgents = agents.filter(a => a.id !== ceo.id);
 
+    const hasMission = !!(company.mission?.trim());
+    const hasGoals = !!(company.goals?.length);
+    const hasContext = hasMission || hasGoals;
+
     const contextMsg =
       `[Sistema MWCode — Atualização Automática]\n\n` +
       `Empresa: ${company.companyName || company.name || 'sua empresa'}\n` +
-      `Missão: ${company.mission || 'crescer com agentes de IA'}\n` +
+      (hasMission ? `Missão: ${company.mission}\n` : `Missão: não definida ainda\n`) +
       (company.area ? `Área: ${company.area}\n` : '') +
-      (company.goals?.length ? `Objetivos: ${company.goals.join('; ')}\n` : '') +
+      (hasGoals ? `Objetivos: ${company.goals.join('; ')}\n` : `Objetivos: não definidos ainda\n`) +
+      (!hasContext ? `\n⚠️ ATENÇÃO: O fundador não configurou missão nem objetivos ainda.\n` +
+        `Não crie agentes ou tarefas genéricas. Em vez disso, responda ao fundador PERGUNTANDO:\n` +
+        `1) Qual é a missão principal da empresa?\n` +
+        `2) Quais são os 3 objetivos prioritários agora?\n` +
+        `Só tome ações depois de receber essas informações.\n` : '') +
       `\nAgentes disponíveis (${otherAgents.length}):\n` +
       (otherAgents.length
         ? otherAgents.map(a => `- ${a.name}: ${a.role}`).join('\n')
@@ -378,16 +392,16 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       (recentDone.length ? recentDone.map(i => `- ${i.title} (${i.assigneeAgentName || 'sem agente'})`).join('\n') : '- Nenhuma') +
       `\n\n---\n${CORPORATE_HIERARCHY_GUIDE}\n\n` +
       `Com base no contexto da empresa acima, tome as ações necessárias AGORA:\n` +
-      `\nA) Para contratar um agente — analise o que a empresa precisa e escreva instruções PERSONALIZADAS:\n` +
-      `   [CONTRATAR AGENTE: nome="TÍTULO"; função="Título completo — Descrição do cargo"; instruções="Instruções específicas para esta empresa e momento"; modelo="openrouter/auto"]\n` +
-      `   As instruções DEVEM conter: o que a empresa faz, as prioridades concretas deste agente e o que se espera dele.\n` +
+      `\nA) Para contratar um agente — use um título real do C-suite (COO, CTO, CMO, CFO, etc.) com instruções PERSONALIZADAS:\n` +
+      `   [CONTRATAR AGENTE: nome="COO"; função="Chief Operating Officer — Diretor de Operações"; instruções="Descreva as prioridades reais deste agente para esta empresa específica"; modelo="openrouter/auto"]\n` +
+      `   NUNCA use nome="TÍTULO" ou nome="Nome do Agente" — sempre use o título real do cargo.\n` +
       `\nB) Para criar tarefas aos agentes existentes:\n` +
-      `   [CRIAR TAREFA: título="..."; agente="Nome Exato do Agente"; descrição="Descrição clara e acionável"; prioridade="alto|medio|baixo"]\n` +
+      `   [CRIAR TAREFA: título="Descrição concreta da tarefa"; agente="Nome Exato do Agente"; descrição="Contexto e resultado esperado"; prioridade="alto|medio|baixo"]\n` +
       `\nC) Para decisões que precisam de aprovação humana:\n` +
       `   [APROVAÇÃO NECESSÁRIA: descrição detalhada da decisão e impacto]\n` +
       `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
       (otherAgents.length === 0
-        ? `Você não tem agentes — analise os objetivos da empresa e CONTRATE AGORA os diretores C-suite mais relevantes para o momento atual. Contratação é autônoma.`
+        ? `Você não tem agentes ainda. CONTRATE AGORA os 2 ou 3 diretores C-suite mais urgentes para o contexto desta empresa. Use os títulos corretos (COO, CTO, CMO, etc.) com instruções personalizadas. Contratação é autônoma.`
         : `Distribua pelo menos 2 tarefas concretas e acionáveis entre os agentes disponíveis.`) +
       `\nContratação de agentes e criação de tarefas NÃO requerem aprovação. Execute diretamente.`;
 

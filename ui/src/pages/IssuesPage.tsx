@@ -220,6 +220,7 @@ export function TarefasPage() {
                     background: STATUS_COLORS[issue.status] + '22',
                     border: `1px solid ${STATUS_COLORS[issue.status]}55`,
                     color: STATUS_COLORS[issue.status], fontWeight: 600,
+                    width: 'auto', flexShrink: 0,
                   }}
                 >
                   {Object.entries(STATUS_LABELS).map(([k, v]) => (

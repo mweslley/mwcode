@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { MessageRenderer } from '../components/MessageRenderer';
@@ -22,6 +22,7 @@ interface Message {
   agentName?: string;
   model?: string;
   needsApproval?: boolean;
+  images?: string[];
 }
 
 const SUGGESTIONS = [
@@ -57,6 +58,12 @@ function needsApproval(content: string) {
   return content.includes('[APROVAÇÃO NECESSÁRIA]') || content.includes('[APPROVAL NEEDED]');
 }
 
+function isDevRole(role: string) {
+  const r = (role || '').toLowerCase();
+  return r.includes('cto') || r.includes('dev') || r.includes('código') || r.includes('code') ||
+    r.includes('tech') || r.includes('software') || r.includes('engineer') || r.includes('program');
+}
+
 export function ChatPage() {
   const { agentId } = useParams<{ agentId?: string }>();
   const navigate = useNavigate();
@@ -75,13 +82,34 @@ export function ChatPage() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medio' });
   const [savingTask, setSavingTask] = useState(false);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [ceoPaused, setCeoPaused] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
 
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
+  }
+
+  // Load CEO paused state from company
+  useEffect(() => {
+    api.get<any>('/enterprise/company').then(c => {
+      if (c?.ceoPaused) setCeoPaused(true);
+    }).catch(() => {});
+  }, []);
+
+  async function toggleCeoPause() {
+    const next = !ceoPaused;
+    try {
+      await api.put('/enterprise/company', { ceoPaused: next });
+      setCeoPaused(next);
+      showToast(next ? '⏸ CEO pausado — heartbeat suspenso' : '▶️ CEO ativo — heartbeat retomado');
+    } catch {
+      showToast('❌ Erro ao atualizar estado do CEO');
+    }
   }
 
   // Load agents
@@ -135,6 +163,34 @@ export function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = Array.from(e.clipboardData.items);
+    const imageItems = items.filter(item => item.type.startsWith('image/'));
+    if (imageItems.length === 0) return;
+    e.preventDefault();
+    imageItems.forEach(item => {
+      const file = item.getAsFile();
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => setPendingImages(prev => [...prev, reader.result as string]);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => setPendingImages(prev => [...prev, reader.result as string]);
+      reader.readAsDataURL(file);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function removeImage(idx: number) {
+    setPendingImages(prev => prev.filter((_, i) => i !== idx));
+  }
+
   function toggleAgent(agent: Agent) {
     setSelectedAgents(prev => {
       const has = prev.some(a => a.id === agent.id);
@@ -177,19 +233,24 @@ export function ChatPage() {
 
   async function send(text?: string) {
     const content = (text ?? input).trim();
-    if (!content || sending) return;
+    const imgs = pendingImages.slice();
+    if (!content && imgs.length === 0 || sending) return;
     abortRef.current = false;
 
     const userMsg: Message = {
       role: 'user',
       content,
       timestamp: new Date().toISOString(),
+      ...(imgs.length ? { images: imgs } : {}),
     };
 
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setPendingImages([]);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setSending(true);
+
+    const imagePayload = imgs.length ? { images: imgs } : {};
 
     try {
       if (selectedAgents.length === 0) {
@@ -209,7 +270,7 @@ export function ChatPage() {
         }
       } else if (selectedAgents.length === 1) {
         if (abortRef.current) return;
-        const res = await api.post<{ content: string; model?: string }>(`/chat/${selectedAgents[0].id}`, { message: content });
+        const res = await api.post<{ content: string; model?: string }>(`/chat/${selectedAgents[0].id}`, { message: content, ...imagePayload });
         if (!abortRef.current) {
           setMessages(prev => [...prev, {
             role: 'agent',
@@ -231,7 +292,7 @@ export function ChatPage() {
             timestamp: new Date().toISOString(),
           }]);
 
-          const res = await api.post<{ content: string; model?: string }>(`/chat/${agent.id}`, { message: content });
+          const res = await api.post<{ content: string; model?: string }>(`/chat/${agent.id}`, { message: content, ...imagePayload });
 
           if (!abortRef.current) {
             setMessages(prev => {
@@ -431,6 +492,18 @@ export function ChatPage() {
             </button>
           )}
 
+          {/* Pausar CEO */}
+          {selectedAgents.some(a => a.role?.toLowerCase().includes('ceo') || a.name?.toLowerCase() === 'ceo') && (
+            <button
+              className="ghost"
+              style={{ fontSize: 11, padding: '4px 10px', color: ceoPaused ? 'var(--warning)' : 'var(--muted)' }}
+              title={ceoPaused ? 'CEO pausado — clique para retomar' : 'Pausar heartbeat automático do CEO'}
+              onClick={toggleCeoPause}
+            >
+              {ceoPaused ? '▶️ Retomar CEO' : '⏸ Pausar CEO'}
+            </button>
+          )}
+
           {/* Add agent */}
           <div style={{ position: 'relative', marginLeft: 'auto' }}>
             <button className="add-agent-btn" onClick={() => setShowAgentPicker(p => !p)}>
@@ -481,6 +554,22 @@ export function ChatPage() {
             </button>
           )}
         </div>
+
+        {/* Aviso para agentes de desenvolvimento */}
+        {selectedAgents.some(a => isDevRole(a.role)) && (
+          <div style={{
+            padding: '6px 16px', fontSize: 11, color: '#fbbf24',
+            background: 'rgba(245,158,11,0.07)',
+            borderBottom: '1px solid rgba(245,158,11,0.15)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            ⚠️ Este agente usa IA e pode cometer erros. Verifique sempre o código gerado antes de aplicar. O MWCode é apenas um orquestrador.
+            <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer"
+              style={{ color: '#fbbf24', marginLeft: 'auto', textDecoration: 'underline' }}>
+              Usar modelo mais robusto →
+            </a>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="chat-messages" onClick={() => setShowAgentPicker(false)}>
@@ -559,7 +648,16 @@ export function ChatPage() {
                     >×</button>
                   </div>
                   <div className="msg-bubble">
-                    <MessageRenderer content={msg.content} />
+                    {msg.images?.length ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: msg.content ? 8 : 0 }}>
+                        {msg.images.map((src, ii) => (
+                          <img key={ii} src={src} alt="imagem anexada"
+                            style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 6, objectFit: 'contain', border: '1px solid var(--border)' }}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                    {msg.content && <MessageRenderer content={msg.content} />}
                   </div>
 
                   {/* Approval request buttons */}
@@ -603,12 +701,53 @@ export function ChatPage() {
 
         {/* Input */}
         <div className="chat-input-area">
+          {/* Image previews */}
+          {pendingImages.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, padding: '6px 12px 0', flexWrap: 'wrap' }}>
+              {pendingImages.map((src, i) => (
+                <div key={i} style={{ position: 'relative' }}>
+                  <img src={src} alt="imagem" style={{ height: 72, width: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                  <button
+                    onClick={() => removeImage(i)}
+                    style={{
+                      position: 'absolute', top: -6, right: -6,
+                      width: 18, height: 18, borderRadius: '50%', padding: 0,
+                      background: 'var(--danger)', color: '#fff', fontSize: 11,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="chat-input-box">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleFileSelect}
+            />
+            {/* Image attach button */}
+            <button
+              type="button"
+              className="ghost"
+              title="Anexar imagem (ou cole com Ctrl+V)"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending}
+              style={{ padding: '0 8px', color: 'var(--muted)', background: 'transparent', border: 'none', flexShrink: 0 }}
+            >
+              🖼
+            </button>
             <textarea
               ref={textareaRef}
               value={input}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
                 selectedAgents.length === 0
                   ? 'Mensagem para o Assistente Geral...'
@@ -632,7 +771,7 @@ export function ChatPage() {
               <button
                 className="chat-send-btn"
                 onClick={() => send()}
-                disabled={!input.trim()}
+                disabled={!input.trim() && pendingImages.length === 0}
                 title="Enviar (Enter)"
               >
                 ↑
@@ -640,7 +779,7 @@ export function ChatPage() {
             )}
           </div>
           <div className="chat-input-hint">
-            <span><kbd>Enter</kbd> envia · <kbd>Shift+Enter</kbd> quebra linha</span>
+            <span><kbd>Enter</kbd> envia · <kbd>Shift+Enter</kbd> quebra linha · <kbd>Ctrl+V</kbd> cola imagem</span>
             {selectedAgents.length === 1 && currentModel && (
               <span style={{ color: 'var(--muted)', fontSize: 11 }}>
                 modelo: {currentModel}

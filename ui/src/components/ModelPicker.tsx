@@ -230,12 +230,19 @@ export function ModelPicker({
               key={m.id}
               type="button"
               onClick={() => onChange(m.id)}
+              onMouseEnter={e => {
+                if (value !== m.id) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-3)';
+              }}
+              onMouseLeave={e => {
+                if (value !== m.id) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+              }}
               style={{
                 padding: '10px 12px', borderRadius: 10,
                 border: `1.5px solid ${value === m.id ? 'var(--primary)' : 'var(--border)'}`,
                 background: value === m.id ? 'rgba(146,48,249,0.08)' : 'transparent',
                 color: 'inherit', cursor: 'pointer', textAlign: 'left',
                 display: 'flex', flexDirection: 'column', height: '100%',
+                whiteSpace: 'normal',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, gap: 4 }}>

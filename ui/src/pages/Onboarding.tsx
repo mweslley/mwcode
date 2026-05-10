@@ -148,15 +148,23 @@ export function Onboarding() {
 
       // Boot do CEO (apenas quando é novo) — fire-and-forget, não bloqueia o onboarding
       if (ceo?.id && isNewCeo) {
-        const bootMsg =
-          `Você acabou de ser contratado como CEO da ${data.companyName}. ` +
-          (data.mission ? `Nossa missão é: ${data.mission}. ` : '') +
-          (data.goals.length > 0 ? `Nossos objetivos: ${data.goals.join(', ')}. ` : '') +
-          `Analise e me apresente: ` +
-          `1) Quais agentes contratar primeiro e por quê. ` +
-          `2) As 3 primeiras ações que vai tomar como CEO. ` +
-          `3) Como vai medir o sucesso nas próximas semanas. ` +
-          `Para ações que precisem de aprovação, use [APROVAÇÃO NECESSÁRIA]. Seja direto e prático.`;
+        const hasMissionOrGoals = !!(data.mission || data.goals.length > 0);
+        const bootMsg = hasMissionOrGoals
+          ? `Você acabou de ser contratado como CEO da ${data.companyName}. ` +
+            (data.mission ? `Nossa missão é: ${data.mission}. ` : '') +
+            (data.goals.length > 0 ? `Nossos objetivos: ${data.goals.join(', ')}. ` : '') +
+            `Analise e me apresente: ` +
+            `1) Quais agentes contratar primeiro e por quê. ` +
+            `2) As 3 primeiras ações que vai tomar como CEO. ` +
+            `3) Como vai medir o sucesso nas próximas semanas. ` +
+            `Para ações que precisem de aprovação, use [APROVAÇÃO NECESSÁRIA]. Seja direto e prático.`
+          : `Você foi contratado como CEO da ${data.companyName}. ` +
+            `O fundador ainda não definiu a missão nem os objetivos da empresa. ` +
+            `Apresente-se brevemente e PERGUNTE ao fundador: ` +
+            `1) Qual é a missão principal da empresa? ` +
+            `2) Quais são os 3 objetivos prioritários agora? ` +
+            `Aguarde as respostas antes de contratar agentes ou criar tarefas. ` +
+            `Não tome ações estratégicas sem saber a direção da empresa.`;
 
         // Não aguardar — a resposta do CEO aparece no Feed ao Vivo e Conversas quando pronta
         api.post(`/chat/${ceo.id}`, { message: bootMsg }).catch(() => {});

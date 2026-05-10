@@ -116,6 +116,7 @@ chatRouter.post('/:agentId', async (req: any, res: any) => {
     const { agentId } = req.params;
     const text = req.body.message || req.body.mensagem;
     if (!text) return res.status(400).json({ error: 'message é obrigatório' });
+    const images = Array.isArray(req.body.images) ? req.body.images as string[] : undefined;
 
     // Carrega agente do sistema de arquivos
     const agent = loadAgent(req.userId, agentId);
@@ -145,6 +146,7 @@ chatRouter.post('/:agentId', async (req: any, res: any) => {
     const result = await adapter.call(text, {
       system: systemPrompt,
       history: contextMessages,
+      ...(images?.length ? { images } : {}),
     });
 
     // Salvar mensagens no histórico

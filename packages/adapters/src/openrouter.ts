@@ -14,11 +14,20 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
   async call(prompt: string, context?: Record<string, unknown>): Promise<AdapterResponse> {
     const systemMsg = (context?.system as string) || 'Você é um assistente de IA em português brasileiro.';
     const history = (context?.history as Array<{ role: string; content: string }>) || [];
+    const images = (context?.images as string[]) || [];
+
+    // Build last user content — support images (vision models)
+    const lastUserContent: unknown = images.length > 0
+      ? [
+          { type: 'text', text: prompt },
+          ...images.map(url => ({ type: 'image_url', image_url: { url } })),
+        ]
+      : prompt;
 
     const messages = [
       { role: 'system', content: systemMsg },
       ...history.map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content })),
-      { role: 'user', content: prompt },
+      { role: 'user', content: lastUserContent },
     ];
 
     // 'openrouter/auto' não é um model ID real do OpenRouter — usa modelo gratuito padrão

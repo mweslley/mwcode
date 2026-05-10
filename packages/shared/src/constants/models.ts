@@ -57,14 +57,6 @@ export const MODELOS_OPENROUTER: ModeloIA[] = [
     gratis: true,
     destaque: true,
   },
-  {
-    id: 'google/gemma-4-31b-it:free',
-    nome: 'Gemma 4 31B',
-    descricao: 'Modelo aberto do Google (geração 4). Excelente em pt-BR e multilíngue.',
-    contexto: '128K',
-    melhorPara: ['português', 'instruções'],
-    gratis: true,
-  },
 
   // === GRÁTIS — OUTROS ===
   {
