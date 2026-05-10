@@ -324,9 +324,12 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `   [CONTRATAR AGENTE: nome="Nome do Agente"; função="Cargo/Função"; instruções="Descrição de responsabilidades"; modelo="openrouter/auto"]\n` +
       `\nB) Crie tarefas práticas para avançar os objetivos:\n` +
       `   [CRIAR TAREFA: título="..."; agente="Nome Exato do Agente"; descrição="..."; prioridade="medio"]\n` +
-      `\nC) Se precisar de decisão humana:\n` +
+      `\nC) Se precisar de decisão humana irreversível (gastos grandes, ações destrutivas):\n` +
       `   [APROVAÇÃO NECESSÁRIA: descreva claramente o que precisa ser decidido]\n` +
-      `\nRegras: Seja direto e objetivo. ${otherAgents.length === 0 ? 'Você não tem agentes — contrate pelo menos 2 agentes especializados para a área da empresa AGORA.' : 'Crie pelo menos 2 tarefas concretas para os agentes disponíveis.'}`;
+      `\nRegras: Seja direto e objetivo. ${otherAgents.length === 0
+        ? 'Você não tem agentes — CONTRATE AGORA pelo menos 2 agentes especializados usando [CONTRATAR AGENTE:...] diretamente, sem pedir aprovação. Contratação de agentes é autônoma.'
+        : 'Crie pelo menos 2 tarefas concretas para os agentes disponíveis usando [CRIAR TAREFA:...].'}` +
+      `\nIMPORTANTE: Contratação de agentes e criação de tarefas NÃO requerem aprovação humana. Execute diretamente.`;
 
     console.log(`[AgentLoop] Heartbeat CEO — userId: ${userId}`);
     const response = await sendMessageToAgent(userId, ceo.id, contextMsg, { source: 'Sistema' });
@@ -414,7 +417,7 @@ export async function bootstrapCEO(userId: string): Promise<void> {
 // ── Iniciar o loop ────────────────────────────────────────────────────────────
 
 export function startAgentLoop(): void {
-  const INTERVAL_HOURS = Math.max(1, Number(process.env.CEO_HEARTBEAT_HOURS || 4));
+  const INTERVAL_HOURS = Math.max(0.1, Number(process.env.CEO_HEARTBEAT_HOURS || 4));
   const INTERVAL_MS = INTERVAL_HOURS * 60 * 60 * 1000;
 
   // Primeira execução 3 minutos após o startup (aguarda sistema carregar)
