@@ -26,8 +26,12 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
       ? 'nvidia/nemotron-3-super-120b-a12b:free'
       : config.model;
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90_000); // 90s timeout
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`,
@@ -37,9 +41,11 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
       body: JSON.stringify({
         model: resolvedModel,
         messages,
-        temperature: 0.7
+        temperature: 0.7,
+        max_tokens: 1500,
       })
     });
+    clearTimeout(timer);
 
     if (!response.ok) {
       throw new Error(`OpenRouter ${response.status}: ${await response.text()}`);
