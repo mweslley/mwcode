@@ -71,6 +71,7 @@ function saveIssues(userId: string, issues: Issue[]): void {
 function loadCompany(userId: string): any {
   // Tenta o path direto primeiro, depois caminho alternativo
   for (const file of [
+    dataPath(`${userId}.json`),                      // caminho usado pela rota /company (raiz do data dir)
     dataPath('company', `${userId}.json`),
     path.join(dataDir('company'), `${userId}.json`),
   ]) {
