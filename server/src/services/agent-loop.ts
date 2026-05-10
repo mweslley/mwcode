@@ -379,7 +379,7 @@ function createDefaultCEO(userId: string, company: any): Agent {
       `Responda sempre em português brasileiro.`,
     goals: company.goals || [],
     skills: [],
-    model: 'google/gemma-3-27b-it:free',
+    model: 'google/gemma-4-31b-it:free',
     provider: 'openrouter',
     status: 'active',
     hireDate: new Date().toISOString(),

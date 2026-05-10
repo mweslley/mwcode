@@ -23,7 +23,7 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
 
     // 'openrouter/auto' não é um model ID real do OpenRouter — usa modelo gratuito padrão
     const resolvedModel = config.model === 'openrouter/auto'
-      ? 'google/gemma-3-27b-it:free'
+      ? 'google/gemma-4-31b-it:free'
       : config.model;
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
