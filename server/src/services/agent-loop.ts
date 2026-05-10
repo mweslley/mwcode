@@ -31,15 +31,25 @@ const CORPORATE_ROLES: Record<string, string> = {
 };
 
 const CORPORATE_HIERARCHY_GUIDE = `
-Estrutura de nomes para agentes (usar sempre que contratar):
-- C-Suite direto ao CEO: COO, CFO, CTO, CIO, CMO, CPO, CHRO, CCO, CRO, CISO, CLO
-- Abaixo do C-Suite: VP, Director, Manager, Coordinator, Specialist, Analyst
+Estrutura de nomes para agentes — use sempre que contratar:
+- C-Suite (reportam direto a você): COO, CFO, CTO, CIO, CMO, CPO, CHRO, CCO, CRO, CISO, CLO
+- Subordinados ao C-Suite: VP, Director, Manager, Coordinator, Specialist, Analyst
 
-Ao contratar, use o título correto como nome e descreva a função completa.
-Exemplos:
-  nome="CTO"; função="Chief Technology Officer — Diretor de Tecnologia"; instruções="..."
-  nome="CMO"; função="Chief Marketing Officer — Diretor de Marketing"; instruções="..."
-  nome="COO"; função="Chief Operating Officer — Diretor de Operações"; instruções="..."
+REGRA CRÍTICA para o campo "instruções":
+Não use descrições genéricas. Escreva instruções PERSONALIZADAS com base no contexto real da empresa:
+- O que a empresa faz e para quem
+- Quais são as prioridades imediatas DESTE agente nesta empresa
+- Quais responsabilidades concretas ele assume agora
+- O que o CEO espera dele nas próximas semanas
+
+Exemplo correto de contratação personalizada:
+  [CONTRATAR AGENTE: nome="CTO"; função="Chief Technology Officer — Diretor de Tecnologia";
+   instruções="Nossa empresa opera plataformas SaaS para hospedagem de jogos online. Suas prioridades são:
+   1) Garantir a estabilidade dos 29 servidores de jogos em produção;
+   2) Implementar pipeline de CI/CD para deploys mais rápidos;
+   3) Avaliar e reduzir custos de infraestrutura em nuvem.
+   Reporte ao CEO semanalmente com status técnico e riscos identificados.";
+   modelo="openrouter/auto"]
 `.trim();
 
 function hireAgent(userId: string, ceoModel: string, hire: { name: string; role: string; instructions: string; model: string }): any {
@@ -52,10 +62,15 @@ function hireAgent(userId: string, ceoModel: string, hire: { name: string; role:
     role: hire.role || roleDescription,
     personality:
       `IMPORTANTE: Responda SEMPRE em português brasileiro. Nunca use inglês.\n\n` +
-      `Você é ${hire.name} — ${roleDescription}.\n` +
-      (hire.instructions ? `${hire.instructions}\n\n` : '') +
-      `Reporte sempre ao CEO o andamento e conclusão das suas tarefas. ` +
-      `Quando concluir uma tarefa, informe claramente o que foi feito e os próximos passos sugeridos.`,
+      `Você é ${hire.name} — ${roleDescription}\n\n` +
+      (hire.instructions
+        ? `## Suas instruções (definidas pelo CEO)\n${hire.instructions}\n\n`
+        : '') +
+      `## Regras de operação\n` +
+      `- Você não toma decisões estratégicas por conta própria — consulte o CEO quando necessário\n` +
+      `- Ao receber uma tarefa, execute-a com foco e objetividade\n` +
+      `- Ao concluir, reporte ao CEO: o que foi feito, resultados obtidos e próximos passos sugeridos\n` +
+      `- Decisões irreversíveis ou de alto impacto: sinalize [APROVAÇÃO NECESSÁRIA] antes de agir`,
     goals: [],
     skills: [],
     model: hire.model || ceoModel || 'openrouter/auto',
@@ -238,12 +253,14 @@ function executeCommands(
     agents.push(newAgent); // disponível nas tarefas desta mesma execução
     console.log(`[AgentLoop] CEO contratou: "${hire.name}" (${hire.role})`);
 
-    // Apresenta o novo agente
+    // Apresenta o novo agente com contexto completo
     const introMsg =
       `[CEO — Bem-vindo à equipe]\n\n` +
-      `Você foi contratado como ${hire.role}. ` +
-      (hire.instructions ? `Suas instruções: ${hire.instructions}. ` : '') +
-      `Apresente-se brevemente e confirme que está pronto para receber tarefas.`;
+      `Você foi contratado como ${hire.name} (${hire.role}).\n\n` +
+      (hire.instructions
+        ? `Suas instruções personalizadas:\n${hire.instructions}\n\n`
+        : '') +
+      `Apresente-se em uma frase e confirme que entendeu suas responsabilidades e está pronto para receber a primeira tarefa.`;
     sendMessageToAgent(userId, newAgent.id, introMsg, { source: 'CEO' })
       .catch(e => console.error(`[AgentLoop] Erro ao apresentar ${hire.name}:`, e.message));
   }
@@ -360,17 +377,19 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `\n\nConcluídas recentemente:\n` +
       (recentDone.length ? recentDone.map(i => `- ${i.title} (${i.assigneeAgentName || 'sem agente'})`).join('\n') : '- Nenhuma') +
       `\n\n---\n${CORPORATE_HIERARCHY_GUIDE}\n\n` +
-      `Com base nas informações acima, tome as ações necessárias AGORA:\n` +
-      `\nA) Se precisar de novos agentes, contrate com o título correto da hierarquia:\n` +
-      `   [CONTRATAR AGENTE: nome="CTO"; função="Chief Technology Officer — Diretor de Tecnologia"; instruções="Responsável por..."; modelo="openrouter/auto"]\n` +
-      `\nB) Crie tarefas práticas para avançar os objetivos:\n` +
-      `   [CRIAR TAREFA: título="..."; agente="Nome Exato do Agente"; descrição="..."; prioridade="medio"]\n` +
-      `\nC) Se precisar de decisão humana irreversível (gastos grandes, ações destrutivas):\n` +
-      `   [APROVAÇÃO NECESSÁRIA: descreva claramente o que precisa ser decidido]\n` +
-      `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro. ${otherAgents.length === 0
-        ? 'Você não tem agentes — CONTRATE AGORA pelo menos 2 diretores C-suite usando [CONTRATAR AGENTE:...]. Contratação é autônoma, não precisa de aprovação.'
-        : 'Crie pelo menos 2 tarefas concretas para os agentes disponíveis usando [CRIAR TAREFA:...].'}` +
-      `\nIMPORTANTE: Contratação de agentes e criação de tarefas NÃO requerem aprovação humana. Execute diretamente.`;
+      `Com base no contexto da empresa acima, tome as ações necessárias AGORA:\n` +
+      `\nA) Para contratar um agente — analise o que a empresa precisa e escreva instruções PERSONALIZADAS:\n` +
+      `   [CONTRATAR AGENTE: nome="TÍTULO"; função="Título completo — Descrição do cargo"; instruções="Instruções específicas para esta empresa e momento"; modelo="openrouter/auto"]\n` +
+      `   As instruções DEVEM conter: o que a empresa faz, as prioridades concretas deste agente e o que se espera dele.\n` +
+      `\nB) Para criar tarefas aos agentes existentes:\n` +
+      `   [CRIAR TAREFA: título="..."; agente="Nome Exato do Agente"; descrição="Descrição clara e acionável"; prioridade="alto|medio|baixo"]\n` +
+      `\nC) Para decisões que precisam de aprovação humana:\n` +
+      `   [APROVAÇÃO NECESSÁRIA: descrição detalhada da decisão e impacto]\n` +
+      `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
+      (otherAgents.length === 0
+        ? `Você não tem agentes — analise os objetivos da empresa e CONTRATE AGORA os diretores C-suite mais relevantes para o momento atual. Contratação é autônoma.`
+        : `Distribua pelo menos 2 tarefas concretas e acionáveis entre os agentes disponíveis.`) +
+      `\nContratação de agentes e criação de tarefas NÃO requerem aprovação. Execute diretamente.`;
 
     console.log(`[AgentLoop] Heartbeat CEO — userId: ${userId}`);
     const response = await sendMessageToAgent(userId, ceo.id, contextMsg, { source: 'Sistema' });
