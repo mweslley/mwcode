@@ -20,7 +20,9 @@ interface Agent {
   salary?: number;
   hireDate?: string;
   firedAt?: string;
+  fireReason?: string;
   lastUsedModel?: string;
+  paused?: boolean;
   createdAt: string;
 }
 
@@ -128,20 +130,35 @@ enterpriseAgentsRouter.put('/:id', (req, res) => {
   res.json(updated);
 });
 
-// Fire (delete) agent
+// Fire (delete) agent — aceita reason no body
 enterpriseAgentsRouter.delete('/:id', (req, res) => {
   const userId = (req as any).userId;
   const { id } = req.params;
-  
+  const reason = (req as any).body?.reason || '';
+
   const agent = getAgent(userId, id);
   if (agent) {
     agent.status = 'fired';
     agent.firedAt = new Date().toISOString();
+    if (reason) agent.fireReason = reason;
     const dir = getAgentsDir(userId);
     fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(agent, null, 2));
   }
 
   res.json({ success: true });
+});
+
+// Pause / resume agent
+enterpriseAgentsRouter.post('/:id/pause', (req, res) => {
+  const userId = (req as any).userId;
+  const { id } = req.params;
+  const agent = getAgent(userId, id);
+  if (!agent) return res.status(404).json({ error: 'Agente não encontrado' });
+
+  agent.paused = !agent.paused;
+  const dir = getAgentsDir(userId);
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(agent, null, 2));
+  res.json(agent);
 });
 
 // Reactivate agent

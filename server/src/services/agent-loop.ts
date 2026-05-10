@@ -91,12 +91,20 @@ interface Agent {
   id: string; name: string; role: string; status: string; model?: string;
 }
 
+interface LogEntry { ts: string; msg: string; ok?: boolean; }
+
 interface Issue {
   id: string; userId: string; title: string; description: string;
   status: string; priority: string;
   assigneeAgentId?: string; assigneeAgentName?: string;
   createdByAgentId?: string; createdByAgentName?: string;
   requiresApproval: boolean; approvalStatus?: string;
+  approvalType?: string;
+  hireData?: { name: string; role: string; instructions: string; model: string };
+  focusData?: { mission?: string; goals?: string[] };
+  workflowId?: string;
+  paused?: boolean;
+  logs?: LogEntry[];
   createdAt: string; updatedAt: string; completedAt?: string;
 }
 
@@ -168,12 +176,14 @@ interface ParsedCommands {
   tasks: Array<{ title: string; agentName: string; description: string; priority: string }>;
   approvals: Array<{ title: string; description: string }>;
   hires: Array<{ name: string; role: string; instructions: string; model: string }>;
+  focusRecs: Array<{ reason: string; mission?: string; goals?: string[] }>;
 }
 
 function parseCEOResponse(content: string): ParsedCommands {
   const tasks: ParsedCommands['tasks'] = [];
   const approvals: ParsedCommands['approvals'] = [];
   const hires: ParsedCommands['hires'] = [];
+  const focusRecs: ParsedCommands['focusRecs'] = [];
 
   // [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="..."]
   const taskRe = /\[CRIAR TAREFA:([^\]]+)\]/gi;
@@ -223,10 +233,32 @@ function parseCEOResponse(content: string): ParsedCommands {
     approvals.push({ title: 'CEO solicita aprovação', description: m[1]?.trim() || content.slice(0, 400) });
   }
 
-  return { tasks, approvals, hires };
+  // [RECOMENDAR FOCO: motivo="..."; nova_missão="..."; novos_objetivos="..."]
+  const focoRe = /\[RECOMENDAR FOCO:([^\]]+)\]/gi;
+  while ((m = focoRe.exec(content)) !== null) {
+    const p = m[1];
+    const reason =
+      p.match(/motivo=["']([^"']+)["']/i)?.[1] ||
+      p.match(/reason=["']([^"']+)["']/i)?.[1] || 'CEO recomenda revisão do foco';
+    const mission =
+      p.match(/miss[aã]o=["']([^"']+)["']/i)?.[1] ||
+      p.match(/mission=["']([^"']+)["']/i)?.[1];
+    const goalsRaw =
+      p.match(/objetivos=["']([^"']+)["']/i)?.[1] ||
+      p.match(/goals=["']([^"']+)["']/i)?.[1];
+    const goals = goalsRaw ? goalsRaw.split(';').map(g => g.trim()).filter(Boolean) : undefined;
+    focusRecs.push({ reason, mission, goals });
+  }
+
+  return { tasks, approvals, hires, focusRecs };
 }
 
 // ── Executar comandos criados pelo CEO ────────────────────────────────────────
+
+function addIssueLog(issue: Issue, msg: string, ok = true): void {
+  if (!issue.logs) issue.logs = [];
+  issue.logs.push({ ts: new Date().toISOString(), msg, ok });
+}
 
 function executeCommands(
   userId: string,
@@ -234,44 +266,77 @@ function executeCommands(
   commands: ParsedCommands,
   agents: Agent[]
 ): void {
-  if (!commands.tasks.length && !commands.approvals.length && !commands.hires.length) return;
+  const hasWork = commands.tasks.length || commands.approvals.length ||
+                  commands.hires.length || commands.focusRecs.length;
+  if (!hasWork) return;
 
-  // ── Contratar novos agentes ──────────────────────────────────────────────
   const company = loadCompany(userId);
-  const ceoModel = company?.ceoModel || ceo?.model || 'openrouter/auto';
-
-  for (const hire of commands.hires) {
-    // Evita duplicata de agente com mesmo nome
-    const exists = agents.find(a =>
-      a.name?.toLowerCase().trim() === hire.name.toLowerCase().trim()
-    );
-    if (exists) {
-      console.log(`[AgentLoop] Agente "${hire.name}" já existe, pulando contratação`);
-      continue;
-    }
-    const newAgent = hireAgent(userId, ceoModel, hire);
-    agents.push(newAgent); // disponível nas tarefas desta mesma execução
-    console.log(`[AgentLoop] CEO contratou: "${hire.name}" (${hire.role})`);
-
-    // Apresenta o novo agente com contexto completo
-    const introMsg =
-      `[CEO — Bem-vindo à equipe]\n\n` +
-      `Você foi contratado como ${hire.name} (${hire.role}).\n\n` +
-      (hire.instructions
-        ? `Suas instruções personalizadas:\n${hire.instructions}\n\n`
-        : '') +
-      `Apresente-se em uma frase e confirme que entendeu suas responsabilidades e está pronto para receber a primeira tarefa.`;
-    sendMessageToAgent(userId, newAgent.id, introMsg, { source: 'CEO' })
-      .catch(e => console.error(`[AgentLoop] Erro ao apresentar ${hire.name}:`, e.message));
-  }
-
   const issues = loadIssues(userId);
   const now = new Date().toISOString();
 
+  // ── Contratações → pedido de aprovação humana ────────────────────────────
+  for (const hire of commands.hires) {
+    // Rejeita placeholders
+    const nameLower = hire.name.toLowerCase().trim();
+    if (nameLower === 'título' || nameLower === 'nome do agente' || nameLower === 'nome' || !hire.name) {
+      console.log(`[AgentLoop] CEO tentou contratar com nome placeholder "${hire.name}" — ignorado`);
+      continue;
+    }
+
+    // Evita duplicata de agente ativo com mesmo nome
+    const existsActive = agents.find(a =>
+      a.name?.toLowerCase().trim() === nameLower && a.status === 'active'
+    );
+    if (existsActive) {
+      console.log(`[AgentLoop] Agente "${hire.name}" já existe, pulando contratação`);
+      continue;
+    }
+
+    // Evita pedido de aprovação duplicado pendente
+    const alreadyPending = issues.find(i =>
+      i.approvalType === 'contratar' &&
+      i.approvalStatus === 'pendente' &&
+      i.hireData?.name?.toLowerCase() === nameLower
+    );
+    if (alreadyPending) {
+      console.log(`[AgentLoop] Contratação de "${hire.name}" já aguarda aprovação`);
+      continue;
+    }
+
+    const issue: Issue = {
+      id: crypto.randomUUID(),
+      userId,
+      title: `🤝 Contratar: ${hire.name}`,
+      description:
+        `CEO solicita a contratação de **${hire.name}** — ${hire.role}.\n\n` +
+        (hire.instructions ? `**Instruções do cargo:**\n${hire.instructions}` : ''),
+      status: 'todo',
+      priority: 'alto',
+      createdByAgentId: ceo.id,
+      createdByAgentName: ceo.name,
+      requiresApproval: true,
+      approvalStatus: 'pendente',
+      approvalType: 'contratar',
+      hireData: hire,
+      logs: [{ ts: now, msg: `CEO solicitou contratação de ${hire.name} (${hire.role}).`, ok: true }],
+      createdAt: now,
+      updatedAt: now,
+    };
+    issues.push(issue);
+    console.log(`[AgentLoop] CEO solicitou aprovação para contratar: "${hire.name}"`);
+  }
+
+  // ── Tarefas ──────────────────────────────────────────────────────────────
   for (const task of commands.tasks) {
     const assignee = findAgentByName(agents, task.agentName);
 
-    // Evita duplicatas: não cria tarefa com mesmo título criada nos últimos 10 min
+    // Skip agente pausado
+    if (assignee && (assignee as any).paused) {
+      console.log(`[AgentLoop] Agente "${assignee.name}" está pausado — tarefa "${task.title}" não atribuída`);
+      continue;
+    }
+
+    // Evita duplicata recente (10 min)
     const recent = issues.find(i =>
       i.title.toLowerCase() === task.title.toLowerCase() &&
       Date.now() - new Date(i.createdAt).getTime() < 10 * 60 * 1000
@@ -290,11 +355,12 @@ function executeCommands(
       createdByAgentId: ceo.id,
       createdByAgentName: ceo.name,
       requiresApproval: false,
+      logs: [{ ts: now, msg: `Criada pelo CEO${assignee ? ` e atribuída a ${assignee.name}` : ''}.`, ok: true }],
       createdAt: now,
       updatedAt: now,
     };
     issues.push(issue);
-    console.log(`[AgentLoop] CEO criou tarefa: "${task.title}" → ${assignee?.name || task.agentName || 'sem agente'}`);
+    console.log(`[AgentLoop] CEO criou tarefa: "${task.title}" → ${assignee?.name || 'sem agente'}`);
 
     // Notifica agente responsável
     if (assignee) {
@@ -302,15 +368,32 @@ function executeCommands(
         `[CEO — Nova Tarefa Atribuída]\n\n` +
         `Tarefa: ${task.title}\n` +
         (task.description ? `Descrição: ${task.description}\n` : '') +
-        `\nExecute esta tarefa e reporte o resultado. ` +
-        `Quando concluir, me informe o que foi feito e qualquer obstáculo encontrado.`;
+        `\nExecute esta tarefa e reporte o resultado ao CEO quando concluir.`;
       sendMessageToAgent(userId, assignee.id, msg, { source: 'CEO' })
-        .catch(e => console.error(`[AgentLoop] Erro ao notificar ${assignee.name}:`, e.message));
+        .then(reply => {
+          // Adiciona log com resposta do agente
+          const freshIssues = loadIssues(userId);
+          const idx = freshIssues.findIndex(i => i.id === issue.id);
+          if (idx !== -1) {
+            addIssueLog(freshIssues[idx], `Resposta de ${assignee.name}: ${reply.slice(0, 300)}${reply.length > 300 ? '...' : ''}`);
+            freshIssues[idx].status = 'em_progresso';
+            freshIssues[idx].updatedAt = new Date().toISOString();
+            saveIssues(userId, freshIssues);
+          }
+        })
+        .catch(e => {
+          const freshIssues = loadIssues(userId);
+          const idx = freshIssues.findIndex(i => i.id === issue.id);
+          if (idx !== -1) {
+            addIssueLog(freshIssues[idx], `❌ Erro ao notificar ${assignee.name}: ${e.message}`, false);
+            saveIssues(userId, freshIssues);
+          }
+        });
     }
   }
 
+  // ── Aprovações humanas ────────────────────────────────────────────────────
   for (const approval of commands.approvals) {
-    // Evita duplicatas de aprovação recentes
     const recent = issues.find(i =>
       i.requiresApproval &&
       i.approvalStatus === 'pendente' &&
@@ -330,11 +413,47 @@ function executeCommands(
       createdByAgentName: ceo.name,
       requiresApproval: true,
       approvalStatus: 'pendente',
+      approvalType: 'geral',
+      logs: [{ ts: now, msg: `CEO solicitou aprovação humana.`, ok: true }],
       createdAt: now,
       updatedAt: now,
     };
     issues.push(issue);
-    console.log(`[AgentLoop] CEO solicitou aprovação humana: "${approval.title}"`);
+    console.log(`[AgentLoop] CEO solicitou aprovação: "${approval.title}"`);
+  }
+
+  // ── Recomendação de foco ───────────────────────────────────────────────────
+  for (const rec of commands.focusRecs) {
+    const alreadyPending = issues.find(i =>
+      i.approvalType === 'foco' &&
+      i.approvalStatus === 'pendente' &&
+      Date.now() - new Date(i.createdAt).getTime() < 60 * 60 * 1000
+    );
+    if (alreadyPending) continue;
+
+    const parts: string[] = [`**Motivo:** ${rec.reason}`];
+    if (rec.mission) parts.push(`**Nova missão sugerida:** ${rec.mission}`);
+    if (rec.goals?.length) parts.push(`**Novos objetivos sugeridos:**\n${rec.goals.map(g => `- ${g}`).join('\n')}`);
+
+    const issue: Issue = {
+      id: crypto.randomUUID(),
+      userId,
+      title: `💡 CEO sugere mudança de foco`,
+      description: parts.join('\n\n'),
+      status: 'todo',
+      priority: 'alto',
+      createdByAgentId: ceo.id,
+      createdByAgentName: ceo.name,
+      requiresApproval: true,
+      approvalStatus: 'pendente',
+      approvalType: 'foco',
+      focusData: { mission: rec.mission, goals: rec.goals },
+      logs: [{ ts: now, msg: `CEO recomendou revisão do foco empresarial.`, ok: true }],
+      createdAt: now,
+      updatedAt: now,
+    };
+    issues.push(issue);
+    console.log(`[AgentLoop] CEO recomendou mudança de foco`);
   }
 
   saveIssues(userId, issues);
@@ -392,13 +511,16 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       (recentDone.length ? recentDone.map(i => `- ${i.title} (${i.assigneeAgentName || 'sem agente'})`).join('\n') : '- Nenhuma') +
       `\n\n---\n${CORPORATE_HIERARCHY_GUIDE}\n\n` +
       `Com base no contexto da empresa acima, tome as ações necessárias AGORA:\n` +
-      `\nA) Para contratar um agente — use um título real do C-suite (COO, CTO, CMO, CFO, etc.) com instruções PERSONALIZADAS:\n` +
+      `\nA) Para solicitar contratação (requer aprovação do usuário):\n` +
       `   [CONTRATAR AGENTE: nome="COO"; função="Chief Operating Officer — Diretor de Operações"; instruções="Descreva as prioridades reais deste agente para esta empresa específica"; modelo="openrouter/auto"]\n` +
       `   NUNCA use nome="TÍTULO" ou nome="Nome do Agente" — sempre use o título real do cargo.\n` +
+      `   A contratação NÃO acontece automaticamente — ela aguarda aprovação do fundador.\n` +
       `\nB) Para criar tarefas aos agentes existentes:\n` +
       `   [CRIAR TAREFA: título="Descrição concreta da tarefa"; agente="Nome Exato do Agente"; descrição="Contexto e resultado esperado"; prioridade="alto|medio|baixo"]\n` +
       `\nC) Para decisões que precisam de aprovação humana:\n` +
       `   [APROVAÇÃO NECESSÁRIA: descrição detalhada da decisão e impacto]\n` +
+      `\nD) Se a empresa precisar mudar de foco estratégico:\n` +
+      `   [RECOMENDAR FOCO: motivo="motivo claro"; nova_missão="nova missão"; novos_objetivos="obj1; obj2; obj3"]\n` +
       `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
       (otherAgents.length === 0
         ? `Você não tem agentes ainda. CONTRATE AGORA os 2 ou 3 diretores C-suite mais urgentes para o contexto desta empresa. Use os títulos corretos (COO, CTO, CMO, etc.) com instruções personalizadas. Contratação é autônoma.`

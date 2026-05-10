@@ -26,7 +26,8 @@ export const api = {
   get: <T = any>(path: string) => request<T>(path),
   put: <T = any>(path: string, data: any) => 
     request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: <T = any>(path: string) => request<T>(path, { method: 'DELETE' }),
+  delete: <T = any>(path: string, data?: any) =>
+    request<T>(path, { method: 'DELETE', ...(data ? { body: JSON.stringify(data) } : {}) }),
 
   listCompanies: () => request<any[]>('/empresas'),
   createCompany: (data: any) => request('/empresas', { method: 'POST', body: JSON.stringify(data) }),

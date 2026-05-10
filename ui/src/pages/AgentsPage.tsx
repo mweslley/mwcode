@@ -18,6 +18,8 @@ interface Agent {
   goals?: string[];
   status: string;
   firedAt?: string;
+  fireReason?: string;
+  paused?: boolean;
   performance?: number;
   tasksCompleted?: number;
   hireDate?: string;
@@ -98,6 +100,8 @@ export function AgentsPage() {
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
   const [keyStatus, setKeyStatus] = useState<KeyStatus>('idle');
   const [keyInfo, setKeyInfo] = useState<string | null>(null);
+  const [fireModal, setFireModal] = useState<{ id: string; name: string } | null>(null);
+  const [fireReason, setFireReason] = useState('');
 
   async function load() {
     setLoading(true);
@@ -206,10 +210,25 @@ export function AgentsPage() {
     }
   }
 
-  async function fire(id: string, name: string) {
-    if (!confirm(`Demitir ${name}? Isso encerrará todas as atividades do agente.`)) return;
+  function openFireModal(id: string, name: string) {
+    setFireReason('');
+    setFireModal({ id, name });
+  }
+
+  async function confirmFire() {
+    if (!fireModal) return;
     try {
-      await api.delete(`/enterprise/agents/${id}`);
+      await api.delete(`/enterprise/agents/${fireModal.id}`, { reason: fireReason.trim() });
+      setFireModal(null);
+      await load();
+    } catch (e: any) {
+      alert('Erro: ' + e.message);
+    }
+  }
+
+  async function togglePause(id: string) {
+    try {
+      await api.post(`/enterprise/agents/${id}/pause`, {});
       await load();
     } catch (e: any) {
       alert('Erro: ' + e.message);
@@ -302,15 +321,18 @@ export function AgentsPage() {
         <div className="agents-grid">
           {filtered.map(agent => (
             <div key={agent.id} className="agent-card"
-              style={{ opacity: agent.status === 'fired' ? 0.6 : 1 }}>
+              style={{
+                opacity: agent.status === 'fired' ? 0.7 : 1,
+                border: agent.status === 'fired' ? '1px solid var(--danger)' : undefined,
+              }}>
               <div className="agent-header">
                 <div className="agent-avatar">{agentEmoji(agent.role)}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="agent-name">{agent.name}</div>
                   <div className="agent-role">{agent.title || agent.role}</div>
                 </div>
-                <span className={`badge ${agent.status === 'active' ? 'badge-green' : 'badge-red'}`}>
-                  {agent.status === 'active' ? 'Ativo' : 'Demitido'}
+                <span className={`badge ${agent.status === 'active' ? (agent.paused ? 'badge-yellow' : 'badge-green') : 'badge-red'}`}>
+                  {agent.status === 'active' ? (agent.paused ? '⏸ Pausado' : 'Ativo') : 'Demitido'}
                 </span>
               </div>
 
@@ -342,14 +364,33 @@ export function AgentsPage() {
                   🎯 {agent.goals.slice(0, 2).join(' · ')}{agent.goals.length > 2 ? ` +${agent.goals.length - 2}` : ''}
                 </div>
               )}
-              {agent.status === 'fired' && agent.firedAt && (() => {
-                const days = Math.max(0, 7 - Math.floor((Date.now() - new Date(agent.firedAt).getTime()) / 86400000));
-                return (
-                  <div style={{ fontSize: 11, color: days <= 1 ? 'var(--danger)' : 'var(--muted)', marginBottom: 8 }}>
-                    🗑 Excluído permanentemente em {days} dia{days !== 1 ? 's' : ''}
-                  </div>
-                );
-              })()}
+
+              {/* Motivo de demissão — destaque */}
+              {agent.status === 'fired' && (
+                <div style={{
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  marginBottom: 8,
+                }}>
+                  {agent.fireReason ? (
+                    <div style={{ fontSize: 11, color: '#f87171' }}>
+                      <strong>Motivo da demissão:</strong> {agent.fireReason}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Demitido sem motivo registrado.</div>
+                  )}
+                  {agent.firedAt && (() => {
+                    const days = Math.max(0, 7 - Math.floor((Date.now() - new Date(agent.firedAt).getTime()) / 86400000));
+                    return (
+                      <div style={{ fontSize: 11, color: days <= 1 ? '#f87171' : 'var(--muted)', marginTop: 4 }}>
+                        🗑 Removido permanentemente em {days} dia{days !== 1 ? 's' : ''}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Stats */}
               <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 11, color: 'var(--muted)' }}>
@@ -374,9 +415,17 @@ export function AgentsPage() {
                       💬 Conversar
                     </button>
                     <button
+                      className="ghost icon-btn"
+                      title={agent.paused ? 'Retomar agente' : 'Pausar agente'}
+                      onClick={() => togglePause(agent.id)}
+                      style={{ width: 34, height: 34, padding: 0, justifyContent: 'center', flexShrink: 0 }}
+                    >
+                      {agent.paused ? '▶️' : '⏸'}
+                    </button>
+                    <button
                       className="danger icon-btn"
                       title="Demitir agente"
-                      onClick={() => fire(agent.id, agent.name)}
+                      onClick={() => openFireModal(agent.id, agent.name)}
                       style={{ width: 34, height: 34, padding: 0, justifyContent: 'center', flexShrink: 0 }}
                     >
                       🗑
@@ -394,6 +443,34 @@ export function AgentsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal de demissão */}
+      {fireModal && (
+        <div className="modal-overlay" onClick={() => setFireModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 420 }}>
+            <h2 style={{ color: 'var(--danger)' }}>🗑 Demitir {fireModal.name}</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+              Esta ação marcará o agente como demitido. O histórico será mantido por 7 dias.
+            </p>
+            <div className="form-group">
+              <label>Motivo da demissão <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(recomendado)</span></label>
+              <textarea
+                value={fireReason}
+                onChange={e => setFireReason(e.target.value)}
+                placeholder="Ex: Desempenho insatisfatório, função encerrada, reestruturação..."
+                rows={3}
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setFireModal(null)}>Cancelar</button>
+              <button className="danger" onClick={confirmFire}>
+                Confirmar Demissão
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
