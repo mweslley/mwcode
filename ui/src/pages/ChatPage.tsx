@@ -272,14 +272,15 @@ export function ChatPage() {
         if (abortRef.current) return;
         const res = await api.post<{ content: string; model?: string }>(`/chat/${selectedAgents[0].id}`, { message: content, ...imagePayload });
         if (!abortRef.current) {
+          const replyContent = res.content || '_(Resposta vazia — o modelo pode não suportar visão. Tente um modelo com suporte a imagens.)_';
           setMessages(prev => [...prev, {
             role: 'agent',
-            content: res.content || 'Sem resposta',
+            content: replyContent,
             model: res.model,
             timestamp: new Date().toISOString(),
             agentId: selectedAgents[0].id,
             agentName: selectedAgents[0].name,
-            needsApproval: needsApproval(res.content || ''),
+            needsApproval: needsApproval(replyContent),
           }]);
         }
       } else {
@@ -299,7 +300,7 @@ export function ChatPage() {
               const filtered = prev.filter(m => !(m.role === 'system' && m.content.includes(agent.name)));
               return [...filtered, {
                 role: 'agent',
-                content: res.content || 'Sem resposta',
+                content: res.content || '_(Resposta vazia — modelo pode não suportar visão.)_',
                 model: res.model,
                 timestamp: new Date().toISOString(),
                 agentId: agent.id,
@@ -652,7 +653,7 @@ export function ChatPage() {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: msg.content ? 8 : 0 }}>
                         {msg.images.map((src, ii) => (
                           <img key={ii} src={src} alt="imagem anexada"
-                            style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 6, objectFit: 'contain', border: '1px solid var(--border)' }}
+                            style={{ maxHeight: 180, maxWidth: 280, borderRadius: 6, objectFit: 'contain', border: '1px solid var(--border)', display: 'block' }}
                           />
                         ))}
                       </div>

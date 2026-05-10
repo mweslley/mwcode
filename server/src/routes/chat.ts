@@ -114,9 +114,11 @@ chatRouter.get('/:agentId/mensagens', async (req: any, res: any) => {
 chatRouter.post('/:agentId', async (req: any, res: any) => {
   try {
     const { agentId } = req.params;
-    const text = req.body.message || req.body.mensagem;
-    if (!text) return res.status(400).json({ error: 'message é obrigatório' });
     const images = Array.isArray(req.body.images) ? req.body.images as string[] : undefined;
+    const rawText = req.body.message || req.body.mensagem;
+    // Permite enviar imagem sem texto — usa prompt padrão de análise
+    const text = rawText || (images?.length ? 'Analise e descreva esta imagem.' : '');
+    if (!text) return res.status(400).json({ error: 'message é obrigatório' });
 
     // Carrega agente do sistema de arquivos
     const agent = loadAgent(req.userId, agentId);

@@ -30,9 +30,10 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
       { role: 'user', content: lastUserContent },
     ];
 
-    // 'openrouter/auto' não é um model ID real do OpenRouter — usa modelo gratuito padrão
+    // 'openrouter/auto' não é um model ID real do OpenRouter — usa modelo gratuito padrão.
+    // Quando há imagens, o modelo precisa suportar visão — usamos um que suporta.
     const resolvedModel = config.model === 'openrouter/auto'
-      ? 'nvidia/nemotron-3-super-120b-a12b:free'
+      ? (images.length > 0 ? 'meta-llama/llama-4-scout:free' : 'nvidia/nemotron-3-super-120b-a12b:free')
       : config.model;
 
     const controller = new AbortController();
