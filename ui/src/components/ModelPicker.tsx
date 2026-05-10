@@ -224,7 +224,7 @@ export function ModelPicker({
             </small>
           </label>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, alignItems: 'stretch' }}>
           {MODELOS_DESTAQUE.map((m) => (
             <button
               key={m.id}
@@ -235,15 +235,15 @@ export function ModelPicker({
                 border: `1.5px solid ${value === m.id ? 'var(--primary)' : 'var(--border)'}`,
                 background: value === m.id ? 'rgba(146,48,249,0.08)' : 'transparent',
                 color: 'inherit', cursor: 'pointer', textAlign: 'left',
-                display: 'flex', flexDirection: 'column',
+                display: 'flex', flexDirection: 'column', height: '100%',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, gap: 4 }}>
-                <strong style={{ fontSize: 13 }}>{m.nome}</strong>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#00bc8a', background: 'rgba(0,188,138,0.12)', padding: '2px 6px', borderRadius: 6, whiteSpace: 'nowrap' }}>GRÁTIS</span>
+                <strong style={{ fontSize: 13, flex: 1, minWidth: 0, lineHeight: 1.3 }}>{m.nome}</strong>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#00bc8a', background: 'rgba(0,188,138,0.12)', padding: '2px 6px', borderRadius: 6, whiteSpace: 'nowrap', flexShrink: 0 }}>GRÁTIS</span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 6px', lineHeight: 1.4 }}>{m.descricao}</p>
-              <small style={{ fontSize: 10, color: 'var(--muted)' }}>📦 {m.contexto} · {m.melhorPara[0]}</small>
+              <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 6px', lineHeight: 1.4, flex: 1 }}>{m.descricao}</p>
+              <small style={{ fontSize: 10, color: 'var(--muted)', marginTop: 'auto' }}>📦 {m.contexto} · {m.melhorPara[0]}</small>
             </button>
           ))}
         </div>
