@@ -394,13 +394,16 @@ function executeCommands(
 
   // ── Aprovações humanas ────────────────────────────────────────────────────
   for (const approval of commands.approvals) {
-    const recent = issues.find(i =>
+    // Enquanto houver qualquer aprovação pendente com o mesmo título, não duplicar
+    const alreadyPendingApproval = issues.find(i =>
       i.requiresApproval &&
       i.approvalStatus === 'pendente' &&
-      i.title === approval.title &&
-      Date.now() - new Date(i.createdAt).getTime() < 30 * 60 * 1000
+      i.title === approval.title
     );
-    if (recent) continue;
+    if (alreadyPendingApproval) {
+      console.log(`[AgentLoop] Aprovação "${approval.title}" já aguarda resposta — não duplicar`);
+      continue;
+    }
 
     const issue: Issue = {
       id: crypto.randomUUID(),
@@ -424,12 +427,15 @@ function executeCommands(
 
   // ── Recomendação de foco ───────────────────────────────────────────────────
   for (const rec of commands.focusRecs) {
+    // Enquanto houver qualquer recomendação de foco pendente, não duplicar
     const alreadyPending = issues.find(i =>
       i.approvalType === 'foco' &&
-      i.approvalStatus === 'pendente' &&
-      Date.now() - new Date(i.createdAt).getTime() < 60 * 60 * 1000
+      i.approvalStatus === 'pendente'
     );
-    if (alreadyPending) continue;
+    if (alreadyPending) {
+      console.log(`[AgentLoop] Recomendação de foco já aguarda aprovação — não duplicar`);
+      continue;
+    }
 
     const parts: string[] = [`**Motivo:** ${rec.reason}`];
     if (rec.mission) parts.push(`**Nova missão sugerida:** ${rec.mission}`);
