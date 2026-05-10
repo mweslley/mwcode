@@ -8,14 +8,54 @@ import crypto from 'crypto';
 import { dataDir, dataPath } from '../lib/data-dir.js';
 import { sendMessageToAgent } from '../lib/agent-chat.js';
 
+// ── Hierarquia corporativa padrão ─────────────────────────────────────────────
+
+const CORPORATE_ROLES: Record<string, string> = {
+  'COO': 'Chief Operating Officer — Diretor de Operações. Responsável pela execução operacional: operações, logística, atendimento e produção.',
+  'CFO': 'Chief Financial Officer — Diretor Financeiro. Responsável por finanças, orçamento, contabilidade, controladoria e auditoria.',
+  'CTO': 'Chief Technology Officer — Diretor de Tecnologia. Responsável por engenharia de software, infraestrutura, DevOps, segurança e arquitetura.',
+  'CIO': 'Chief Information Officer — Diretor de TI. Responsável por sistemas internos, help desk, redes e governança de TI.',
+  'CMO': 'Chief Marketing Officer — Diretor de Marketing. Responsável por branding, performance, conteúdo, social media e growth.',
+  'CPO': 'Chief Product Officer — Diretor de Produto. Responsável por estratégia de produto, UX/UI, pesquisa e product design.',
+  'CHRO': 'Chief Human Resources Officer — Diretor de RH. Responsável por recrutamento, people ops, treinamento e cultura.',
+  'CCO': 'Chief Commercial Officer — Diretor Comercial. Responsável por vendas, customer success, parcerias e expansão.',
+  'CRO': 'Chief Revenue Officer — Diretor de Receita. Responsável por revenue operations, estratégia comercial e crescimento financeiro.',
+  'CISO': 'Chief Information Security Officer — Diretor de Segurança. Responsável por cibersegurança, SOC, compliance e gestão de incidentes.',
+  'CLO': 'Chief Legal Officer — Diretor Jurídico. Responsável por compliance legal, contratos e governança regulatória.',
+  'VP': 'Vice-Presidente — Responsável por divisões estratégicas abaixo do C-suite.',
+  'Director': 'Diretor — Responsável por departamentos específicos.',
+  'Manager': 'Gerente — Responsável pela gestão operacional de equipes.',
+  'Coordinator': 'Coordenador — Coordenação operacional e acompanhamento diário.',
+  'Specialist': 'Especialista — Responsável pela execução técnica especializada.',
+  'Analyst': 'Analista — Responsável por execução operacional e análise técnica.',
+};
+
+const CORPORATE_HIERARCHY_GUIDE = `
+Estrutura de nomes para agentes (usar sempre que contratar):
+- C-Suite direto ao CEO: COO, CFO, CTO, CIO, CMO, CPO, CHRO, CCO, CRO, CISO, CLO
+- Abaixo do C-Suite: VP, Director, Manager, Coordinator, Specialist, Analyst
+
+Ao contratar, use o título correto como nome e descreva a função completa.
+Exemplos:
+  nome="CTO"; função="Chief Technology Officer — Diretor de Tecnologia"; instruções="..."
+  nome="CMO"; função="Chief Marketing Officer — Diretor de Marketing"; instruções="..."
+  nome="COO"; função="Chief Operating Officer — Diretor de Operações"; instruções="..."
+`.trim();
+
 function hireAgent(userId: string, ceoModel: string, hire: { name: string; role: string; instructions: string; model: string }): any {
   const id = crypto.randomUUID();
+  const roleKey = Object.keys(CORPORATE_ROLES).find(k => k.toLowerCase() === hire.name.toLowerCase());
+  const roleDescription = roleKey ? CORPORATE_ROLES[roleKey] : hire.role;
   const agent = {
     id, userId,
     name: hire.name,
-    role: hire.role,
-    personality: hire.instructions ||
-      `Você é ${hire.name}, responsável por ${hire.role}. Responda sempre em português brasileiro.`,
+    role: hire.role || roleDescription,
+    personality:
+      `IMPORTANTE: Responda SEMPRE em português brasileiro. Nunca use inglês.\n\n` +
+      `Você é ${hire.name} — ${roleDescription}.\n` +
+      (hire.instructions ? `${hire.instructions}\n\n` : '') +
+      `Reporte sempre ao CEO o andamento e conclusão das suas tarefas. ` +
+      `Quando concluir uma tarefa, informe claramente o que foi feito e os próximos passos sugeridos.`,
     goals: [],
     skills: [],
     model: hire.model || ceoModel || 'openrouter/auto',
@@ -319,15 +359,16 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       (pending.length ? pending.map(i => `- [${i.assigneeAgentName || 'sem agente'}] ${i.title}`).join('\n') : '- Nenhuma') +
       `\n\nConcluídas recentemente:\n` +
       (recentDone.length ? recentDone.map(i => `- ${i.title} (${i.assigneeAgentName || 'sem agente'})`).join('\n') : '- Nenhuma') +
-      `\n\n---\nCom base nas informações acima, tome as ações necessárias AGORA:\n` +
-      `\nA) Se precisar de novos agentes, contrate-os com:\n` +
-      `   [CONTRATAR AGENTE: nome="Nome do Agente"; função="Cargo/Função"; instruções="Descrição de responsabilidades"; modelo="openrouter/auto"]\n` +
+      `\n\n---\n${CORPORATE_HIERARCHY_GUIDE}\n\n` +
+      `Com base nas informações acima, tome as ações necessárias AGORA:\n` +
+      `\nA) Se precisar de novos agentes, contrate com o título correto da hierarquia:\n` +
+      `   [CONTRATAR AGENTE: nome="CTO"; função="Chief Technology Officer — Diretor de Tecnologia"; instruções="Responsável por..."; modelo="openrouter/auto"]\n` +
       `\nB) Crie tarefas práticas para avançar os objetivos:\n` +
       `   [CRIAR TAREFA: título="..."; agente="Nome Exato do Agente"; descrição="..."; prioridade="medio"]\n` +
       `\nC) Se precisar de decisão humana irreversível (gastos grandes, ações destrutivas):\n` +
       `   [APROVAÇÃO NECESSÁRIA: descreva claramente o que precisa ser decidido]\n` +
-      `\nRegras: Seja direto e objetivo. ${otherAgents.length === 0
-        ? 'Você não tem agentes — CONTRATE AGORA pelo menos 2 agentes especializados usando [CONTRATAR AGENTE:...] diretamente, sem pedir aprovação. Contratação de agentes é autônoma.'
+      `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro. ${otherAgents.length === 0
+        ? 'Você não tem agentes — CONTRATE AGORA pelo menos 2 diretores C-suite usando [CONTRATAR AGENTE:...]. Contratação é autônoma, não precisa de aprovação.'
         : 'Crie pelo menos 2 tarefas concretas para os agentes disponíveis usando [CRIAR TAREFA:...].'}` +
       `\nIMPORTANTE: Contratação de agentes e criação de tarefas NÃO requerem aprovação humana. Execute diretamente.`;
 
@@ -375,11 +416,15 @@ function createDefaultCEO(userId: string, company: any): Agent {
     name: 'CEO',
     role: 'CEO',
     personality:
-      `Você é o CEO de ${company.name || 'nossa empresa'}. ` +
-      (company.mission ? `Missão: ${company.mission}. ` : '') +
-      (company.area ? `Área: ${company.area}. ` : '') +
-      `Tome decisões estratégicas, contrate agentes especializados e crie tarefas concretas para avançar os objetivos da empresa. ` +
-      `Responda sempre em português brasileiro.`,
+      `IMPORTANTE: Responda SEMPRE em português brasileiro. Nunca use inglês.\n\n` +
+      `Você é o CEO de ${company.name || 'nossa empresa'}.\n` +
+      (company.mission ? `Missão: ${company.mission}\n` : '') +
+      (company.area ? `Área: ${company.area}\n` : '') +
+      `\nSua responsabilidade: orquestrar a empresa contratando diretores C-suite (COO, CTO, CMO, CFO, etc.) ` +
+      `e delegando tarefas a eles. Você NÃO executa tarefas — você delega e acompanha.\n` +
+      `\nAo contratar, use sempre os títulos corretos da hierarquia corporativa (COO, CTO, CMO, CFO, CIO, CPO, etc.) ` +
+      `e descreva a função completa do cargo.\n` +
+      `\nQuando precisar de aprovação humana para ações irreversíveis, use [APROVAÇÃO NECESSÁRIA].`,
     goals: company.goals || [],
     skills: [],
     model: 'nvidia/nemotron-3-super-120b-a12b:free',
