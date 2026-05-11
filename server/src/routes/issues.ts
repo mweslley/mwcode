@@ -9,7 +9,7 @@ export const issuesRouter = Router();
 
 export type IssueStatus = 'backlog' | 'todo' | 'em_progresso' | 'em_revisao' | 'concluido' | 'cancelado';
 export type IssuePriority = 'critico' | 'alto' | 'medio' | 'baixo';
-export type ApprovalType = 'contratar' | 'foco' | 'geral';
+export type ApprovalType = 'contratar' | 'foco' | 'geral' | 'qa';
 
 export interface LogEntry {
   ts: string;
@@ -259,6 +259,14 @@ issuesRouter.post('/:id/approve', (req: any, res: any) => {
     }
   }
 
+  // Aprovar QA manualmente (Michel override) → notifica CEO para prosseguir
+  if (issue.approvalType === 'qa') {
+    issue.status = 'concluido';
+    issue.completedAt = new Date().toISOString();
+    addLog(issue, '✅ QA aprovado manualmente pelo usuário — CEO notificado para prosseguir.');
+    // Notificação ao CEO acontece via notifyCEOTaskComplete já chamado abaixo
+  }
+
   // Aprovar mudança de foco → atualizar workspace
   if (issue.approvalType === 'foco' && issue.focusData) {
     updateCompanyFocus(req.userId, issue.focusData);
@@ -269,6 +277,12 @@ issuesRouter.post('/:id/approve', (req: any, res: any) => {
 
   issues[idx] = issue;
   saveIssues(req.userId, issues);
+
+  // QA aprovado → notifica CEO para prosseguir com o deploy
+  if (issue.approvalType === 'qa' && issue.status === 'concluido') {
+    notifyCEOTaskComplete(req.userId, issue).catch(() => {});
+  }
+
   res.json(issue);
 });
 

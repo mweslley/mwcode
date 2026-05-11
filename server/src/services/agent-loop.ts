@@ -7,6 +7,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { dataDir, dataPath } from '../lib/data-dir.js';
 import { sendMessageToAgent } from '../lib/agent-chat.js';
+import { runQA, type QATaskType } from './qa-service.js';
 
 // ── Hierarquia corporativa padrão ─────────────────────────────────────────────
 
@@ -177,6 +178,7 @@ interface ParsedCommands {
   approvals: Array<{ title: string; description: string }>;
   hires: Array<{ name: string; role: string; instructions: string; model: string }>;
   focusRecs: Array<{ reason: string; mission?: string; goals?: string[] }>;
+  qaRequests: Array<{ url?: string; tipo: QATaskType; descricao: string }>;
 }
 
 function parseCEOResponse(content: string): ParsedCommands {
@@ -184,6 +186,7 @@ function parseCEOResponse(content: string): ParsedCommands {
   const approvals: ParsedCommands['approvals'] = [];
   const hires: ParsedCommands['hires'] = [];
   const focusRecs: ParsedCommands['focusRecs'] = [];
+  const qaRequests: ParsedCommands['qaRequests'] = [];
 
   // [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="..."]
   const taskRe = /\[CRIAR TAREFA:([^\]]+)\]/gi;
@@ -250,7 +253,22 @@ function parseCEOResponse(content: string): ParsedCommands {
     focusRecs.push({ reason, mission, goals });
   }
 
-  return { tasks, approvals, hires, focusRecs };
+  // [SOLICITAR QA: url="..."; tipo="lojamwo|mwcode|infra|blade|generic"; descricao="..."]
+  const qaRe = /\[SOLICITAR QA:([^\]]+)\]/gi;
+  while ((m = qaRe.exec(content)) !== null) {
+    const p = m[1];
+    const url = p.match(/url=["']([^"']+)["']/i)?.[1];
+    const tipoRaw = (
+      p.match(/tipo=["']([^"']+)["']/i)?.[1] ||
+      p.match(/type=["']([^"']+)["']/i)?.[1] || 'generic'
+    ).toLowerCase();
+    const validTipos: QATaskType[] = ['lojamwo', 'mwcode', 'infra', 'blade', 'generic'];
+    const tipo: QATaskType = validTipos.includes(tipoRaw as QATaskType) ? tipoRaw as QATaskType : 'generic';
+    const descricao = p.match(/descri[çc][aã]o=["']([^"']+)["']/i)?.[1] || p.match(/desc=["']([^"']+)["']/i)?.[1] || '';
+    qaRequests.push({ url, tipo, descricao });
+  }
+
+  return { tasks, approvals, hires, focusRecs, qaRequests };
 }
 
 // ── Executar comandos criados pelo CEO ────────────────────────────────────────
@@ -267,7 +285,8 @@ function executeCommands(
   agents: Agent[]
 ): void {
   const hasWork = commands.tasks.length || commands.approvals.length ||
-                  commands.hires.length || commands.focusRecs.length;
+                  commands.hires.length || commands.focusRecs.length ||
+                  commands.qaRequests.length;
   if (!hasWork) return;
 
   const company = loadCompany(userId);
@@ -462,6 +481,92 @@ function executeCommands(
     console.log(`[AgentLoop] CEO recomendou mudança de foco`);
   }
 
+  // ── Solicitações de QA ────────────────────────────────────────────────────
+  for (const qa of commands.qaRequests) {
+    // Evita QA duplicado recente para a mesma URL/tipo (10 min)
+    const recentQA = issues.find(i =>
+      i.approvalType === 'qa' &&
+      i.title.toLowerCase().includes(qa.tipo) &&
+      Date.now() - new Date(i.createdAt).getTime() < 10 * 60 * 1000
+    );
+    if (recentQA) {
+      console.log(`[AgentLoop] QA para "${qa.tipo}" já criado recentemente — pulando`);
+      continue;
+    }
+
+    const qaIssue: Issue = {
+      id: crypto.randomUUID(),
+      userId,
+      title: `🔍 QA: ${qa.tipo}${qa.url ? ` — ${qa.url}` : ''}`,
+      description: qa.descricao || `Validação de QA antes de deploy em produção (${qa.tipo})`,
+      status: 'em_progresso',
+      priority: 'alto',
+      createdByAgentId: ceo.id,
+      createdByAgentName: ceo.name,
+      requiresApproval: false,
+      logs: [{ ts: now, msg: `CEO solicitou QA para ${qa.tipo}. Executando testes...`, ok: true }],
+      createdAt: now,
+      updatedAt: now,
+    };
+    issues.push(qaIssue);
+    saveIssues(userId, issues);
+    console.log(`[AgentLoop] QA iniciado para "${qa.tipo}" (${qa.url || 'URL padrão'})`);
+
+    // Executa QA de forma assíncrona — atualiza a issue com resultado
+    runQA(qa.tipo, qa.descricao, qa.url)
+      .then(report => {
+        const freshIssues = loadIssues(userId);
+        const idx = freshIssues.findIndex(i => i.id === qaIssue.id);
+        if (idx === -1) return;
+
+        addIssueLog(freshIssues[idx], report.summary, report.passed);
+        addIssueLog(freshIssues[idx], report.details, report.passed);
+        freshIssues[idx].updatedAt = new Date().toISOString();
+
+        if (report.needsHumanReview) {
+          // Falha ou infra → vai para inbox
+          freshIssues[idx].requiresApproval = true;
+          freshIssues[idx].approvalStatus = 'pendente';
+          freshIssues[idx].approvalType = 'qa';
+          freshIssues[idx].status = 'em_revisao';
+          addIssueLog(freshIssues[idx], '⏳ Aguardando revisão humana antes de prosseguir.', true);
+        } else {
+          // Passou → conclui automaticamente e notifica CEO
+          freshIssues[idx].status = 'concluido';
+          freshIssues[idx].completedAt = new Date().toISOString();
+          addIssueLog(freshIssues[idx], '✅ QA aprovado automaticamente — pode prosseguir com deploy.', true);
+          // Notifica CEO para continuar
+          const notifyMsg =
+            `[Relatório QA — Aprovado]\n\n` +
+            `Tarefa: "${qaIssue.title}"\n` +
+            `Resultado: ${report.summary}\n\n` +
+            `QA passou. Prossiga com o deploy em produção ou crie a próxima tarefa necessária.`;
+          sendMessageToAgent(userId, ceo.id, notifyMsg, { source: 'QA' })
+            .then(reply => {
+              const afterNotify = loadIssues(userId);
+              const cmds = parseCEOResponse(reply);
+              executeCommands(userId, ceo, cmds, agents);
+            })
+            .catch(() => {});
+        }
+
+        saveIssues(userId, freshIssues);
+      })
+      .catch(e => {
+        const freshIssues = loadIssues(userId);
+        const idx = freshIssues.findIndex(i => i.id === qaIssue.id);
+        if (idx !== -1) {
+          addIssueLog(freshIssues[idx], `❌ Erro no QA: ${e.message}`, false);
+          freshIssues[idx].requiresApproval = true;
+          freshIssues[idx].approvalStatus = 'pendente';
+          freshIssues[idx].approvalType = 'qa';
+          freshIssues[idx].status = 'em_revisao';
+          freshIssues[idx].updatedAt = new Date().toISOString();
+          saveIssues(userId, freshIssues);
+        }
+      });
+  }
+
   saveIssues(userId, issues);
 }
 
@@ -527,6 +632,10 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `   [APROVAÇÃO NECESSÁRIA: descrição detalhada da decisão e impacto]\n` +
       `\nD) Se a empresa precisar mudar de foco estratégico:\n` +
       `   [RECOMENDAR FOCO: motivo="motivo claro"; nova_missão="nova missão"; novos_objetivos="obj1; obj2; obj3"]\n` +
+      `\nE) Antes de qualquer deploy em produção, solicite validação de QA:\n` +
+      `   [SOLICITAR QA: url="https://staging.lojamwo.com.br"; tipo="lojamwo"; descrição="Testar após deploy de feature X"]\n` +
+      `   tipos válidos: lojamwo (staging.lojamwo.com.br), mwcode, blade, infra (sem staging — vai para inbox), generic (URL livre)\n` +
+      `   O QA executa smoke tests e TestSprite automaticamente. Resultado vai para inbox se falhar.\n` +
       `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
       (otherAgents.length === 0
         ? `Você não tem agentes ainda. CONTRATE AGORA os 2 ou 3 diretores C-suite mais urgentes para o contexto desta empresa. Use os títulos corretos (COO, CTO, CMO, etc.) com instruções personalizadas. Contratação é autônoma.`
