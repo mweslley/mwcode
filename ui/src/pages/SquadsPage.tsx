@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
 interface Agent { id: string; name: string; role: string; status: string; }
@@ -49,6 +50,7 @@ function agentEmoji(role: string) {
 }
 
 export function SquadsPage() {
+  const navigate = useNavigate();
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,7 +181,10 @@ export function SquadsPage() {
                 padding: 0, overflow: 'hidden',
                 borderLeft: `3px solid ${info.color}`,
                 opacity: eq.status === 'paused' ? 0.75 : 1,
-              }}>
+                cursor: 'pointer',
+              }}
+                onClick={() => navigate(`/squads/${eq.id}`)}
+              >
                 <div style={{ padding: '14px 18px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -264,7 +269,7 @@ export function SquadsPage() {
                           fontSize: 11, padding: '5px 10px',
                           color: eq.status === 'active' ? 'var(--fg-2)' : '#10b981',
                         }}
-                        onClick={() => toggleStatus(eq)}
+                        onClick={e => { e.stopPropagation(); toggleStatus(eq); }}
                         title={eq.status === 'active' ? 'Pausar equipe' : 'Ativar equipe'}
                       >
                         {eq.status === 'active' ? '⏸ Pausar' : '▶ Ativar'}
@@ -272,19 +277,30 @@ export function SquadsPage() {
                       <button
                         className="ghost"
                         style={{ fontSize: 11, padding: '5px 10px' }}
-                        onClick={() => openEdit(eq)}
+                        onClick={e => { e.stopPropagation(); openEdit(eq); }}
+                        title="Editar equipe"
                       >
                         ✏️
                       </button>
                       <button
                         className="ghost"
                         style={{ fontSize: 11, padding: '5px 10px', color: 'var(--danger)' }}
-                        onClick={() => remove(eq.id, eq.name)}
+                        onClick={e => { e.stopPropagation(); remove(eq.id, eq.name); }}
+                        title="Excluir equipe"
                       >
                         🗑
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {/* Hint de clique */}
+                <div style={{
+                  padding: '0 18px 8px',
+                  fontSize: 11, color: 'var(--muted)',
+                  fontStyle: 'italic',
+                }}>
+                  Clique para abrir o workspace →
                 </div>
 
                 {/* Rodapé com meta */}

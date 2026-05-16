@@ -16,6 +16,7 @@ import { InboxPage } from './pages/InboxPage';
 import { UsagePage } from './pages/UsagePage';
 import { WorkspacePage } from './pages/WorkspacePage';
 import { SquadsPage } from './pages/SquadsPage';
+import { SquadWorkspacePage } from './pages/SquadWorkspacePage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
@@ -74,6 +75,7 @@ export function App() {
                   <Route path="/usage" element={<UsagePage />} />
                   <Route path="/workspace" element={<WorkspacePage />} />
                   <Route path="/squads" element={<SquadsPage />} />
+                  <Route path="/squads/:squadId" element={<SquadWorkspacePage />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
