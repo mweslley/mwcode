@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 
 interface Agent { id: string; name: string; role: string; status: string; }
+interface Squad { id: string; name: string; leaderId?: string; status: string; }
 
 function agentEmoji(role: string) {
   const r = (role || '').toLowerCase();
@@ -35,14 +36,16 @@ export function Sidebar() {
     : user?.email?.[0]?.toUpperCase() ?? '?';
 
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [leaderIds, setLeaderIds] = useState<Set<string>>(new Set());
   const [inboxCount, setInboxCount] = useState(0);
   const [usage, setUsage] = useState<{ todayCost: number; monthCost: number; monthLimit?: number } | null>(null);
 
   useEffect(() => {
     async function fetchSidebarData() {
       try {
-        const [agList, inboxRes, usageRes] = await Promise.all([
+        const [agList, squadList, inboxRes, usageRes] = await Promise.all([
           api.get<Agent[]>('/enterprise/agents').catch(() => []),
+          api.get<Squad[]>('/squads').catch(() => []),
           api.get<{ count: number }>('/issues/count/inbox').catch(() => ({ count: 0 })),
           api.get<any>('/usage').catch(() => null),
         ]);
@@ -55,6 +58,12 @@ export function Sidebar() {
           return true;
         });
         setAgents(deduped);
+        const leaders = new Set(
+          ((squadList || []) as Squad[])
+            .filter(s => s.status === 'active' && s.leaderId)
+            .map(s => s.leaderId!)
+        );
+        setLeaderIds(leaders);
         setInboxCount((inboxRes as any)?.count ?? 0);
         if (usageRes) {
           const limRes = await api.get<any>('/usage/limits').catch(() => ({}));
@@ -155,28 +164,51 @@ export function Sidebar() {
             Nenhum agente
           </NavLink>
         ) : (
-          agents.map(agent => (
-            <NavLink
-              key={agent.id}
-              to={`/chat/${agent.id}`}
-              className={linkStyle}
-              style={{ alignItems: 'flex-start' }}
-            >
-              <span className="link-icon" style={{ marginTop: 2 }}>{agentEmoji(agent.role)}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {agent.name}
+          agents.map(agent => {
+            const isLeader = leaderIds.has(agent.id);
+            return (
+              <NavLink
+                key={agent.id}
+                to={`/chat/${agent.id}`}
+                className={linkStyle}
+                style={{ alignItems: 'flex-start' }}
+              >
+                <span className="link-icon" style={{ marginTop: 2 }}>{agentEmoji(agent.role)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}>
+                    {agent.name}
+                    {isLeader && (
+                      <span
+                        title="Líder de equipe"
+                        style={{
+                          fontSize: 9, flexShrink: 0,
+                          background: 'rgba(245,158,11,0.18)',
+                          color: '#f59e0b',
+                          border: '1px solid rgba(245,158,11,0.35)',
+                          borderRadius: 4,
+                          padding: '1px 4px',
+                          fontWeight: 700,
+                          letterSpacing: '0.03em',
+                        }}
+                      >
+                        👑 LÍDER
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                    {agent.role}
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-                  {agent.role}
-                </div>
-              </div>
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: '#10b981', flexShrink: 0, marginTop: 4,
-              }} title="Ativo" />
-            </NavLink>
-          ))
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: '#10b981', flexShrink: 0, marginTop: 4,
+                }} title="Ativo" />
+              </NavLink>
+            );
+          })
         )}
 
         <NavLink to="/agents" className={linkStyle}>
