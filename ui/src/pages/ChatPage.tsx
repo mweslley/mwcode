@@ -13,6 +13,13 @@ interface Agent {
   status: string;
 }
 
+interface Squad {
+  id: string;
+  name: string;
+  leaderId?: string;
+  status: string;
+}
+
 interface Message {
   id?: string;
   role: 'user' | 'agent' | 'system';
@@ -84,6 +91,7 @@ export function ChatPage() {
   const [savingTask, setSavingTask] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [ceoPaused, setCeoPaused] = useState(false);
+  const [leaderSquadMap, setLeaderSquadMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -112,26 +120,31 @@ export function ChatPage() {
     }
   }
 
-  // Load agents
+  // Load agents + squads
   useEffect(() => {
-    api.get<Agent[]>('/enterprise/agents')
-      .then(list => {
-        // Dedup: mantém só o primeiro por nome+role (igual AgentsPage)
-        const seen = new Set<string>();
-        const active = (list || []).filter(a => a.status === 'active').filter(a => {
-          const key = `${a.name.trim().toLowerCase()}::${(a.role || '').trim().toLowerCase()}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        setAgents(active);
-        if (agentId) {
-          const a = active.find(ag => ag.id === agentId);
-          if (a) setSelectedAgents([a]);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingAgents(false));
+    Promise.all([
+      api.get<Agent[]>('/enterprise/agents'),
+      api.get<Squad[]>('/squads').catch(() => [] as Squad[]),
+    ]).then(([list, squads]) => {
+      const seen = new Set<string>();
+      const active = (list || []).filter(a => a.status === 'active').filter(a => {
+        const key = `${a.name.trim().toLowerCase()}::${(a.role || '').trim().toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setAgents(active);
+      if (agentId) {
+        const a = active.find(ag => ag.id === agentId);
+        if (a) setSelectedAgents([a]);
+      }
+      // Mapa agentId → nome da equipe (só líderes de equipes ativas)
+      const map: Record<string, string> = {};
+      (squads || []).filter(s => s.status === 'active' && s.leaderId).forEach(s => {
+        map[s.leaderId!] = s.name;
+      });
+      setLeaderSquadMap(map);
+    }).catch(() => {}).finally(() => setLoadingAgents(false));
   }, [agentId]);
 
   // Load history when agentId changes (URL-based)
@@ -416,7 +429,9 @@ export function ChatPage() {
 
               <div style={{ height: 8 }} />
 
-              {agents.map(agent => (
+              {agents.map(agent => {
+                const leaderOf = leaderSquadMap[agent.id];
+                return (
                 <div
                   key={agent.id}
                   className={`thread-item${agentId === agent.id ? ' active' : ''}`}
@@ -427,8 +442,22 @@ export function ChatPage() {
                     <div className="thread-agent-dot">{agentEmoji(agent.role)}</div>
                   </div>
                   <div className="thread-info">
-                    <div className="thread-title">{agent.name}</div>
-                    <div className="thread-preview">{agent.role}</div>
+                    <div className="thread-title" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {agent.name}
+                      {leaderOf && (
+                        <span style={{
+                          fontSize: 9, padding: '1px 5px', borderRadius: 4,
+                          background: 'rgba(245,158,11,0.18)',
+                          border: '1px solid rgba(245,158,11,0.35)',
+                          color: '#f59e0b', fontWeight: 700, flexShrink: 0,
+                        }}>
+                          👑
+                        </span>
+                      )}
+                    </div>
+                    <div className="thread-preview">
+                      {leaderOf ? `Líder · ${leaderOf}` : agent.role}
+                    </div>
                   </div>
                   <button
                     className="ghost"
@@ -449,7 +478,8 @@ export function ChatPage() {
                     {deletingThread === agent.id ? '…' : '🗑'}
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </>
           )}
         </div>
@@ -467,12 +497,27 @@ export function ChatPage() {
             </span>
           )}
 
-          {selectedAgents.map(agent => (
-            <span key={agent.id} className="agent-chip selected">
-              {agentEmoji(agent.role)} {agent.name}
-              <span className="agent-chip-remove" onClick={() => removeAgent(agent.id)} title="Remover">×</span>
-            </span>
-          ))}
+          {selectedAgents.map(agent => {
+            const leaderOf = leaderSquadMap[agent.id];
+            return (
+              <span key={agent.id} className="agent-chip selected" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                {agentEmoji(agent.role)} {agent.name}
+                {leaderOf && (
+                  <span style={{
+                    fontSize: 9, padding: '1px 5px', borderRadius: 4,
+                    background: 'rgba(245,158,11,0.22)',
+                    border: '1px solid rgba(245,158,11,0.4)',
+                    color: '#f59e0b', fontWeight: 700,
+                  }}
+                    title={`Líder da equipe ${leaderOf}`}
+                  >
+                    👑 {leaderOf}
+                  </span>
+                )}
+                <span className="agent-chip-remove" onClick={() => removeAgent(agent.id)} title="Remover">×</span>
+              </span>
+            );
+          })}
 
           {/* Model badge */}
           {currentModel && (
