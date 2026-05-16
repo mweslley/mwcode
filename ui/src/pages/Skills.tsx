@@ -11,6 +11,13 @@ interface Skill {
   createdAt: string;
 }
 
+const TOOLS_REQUIRING_API: Record<string, { name: string; route: string }> = {
+  'apify':                { name: 'Apify', route: '/settings/integrations' },
+  'elevenlabs-voiceover': { name: 'ElevenLabs', route: '/settings/integrations' },
+  'image-ai-generator':   { name: 'Stability AI', route: '/settings/integrations' },
+  'video-editor':         { name: 'Editor de Vídeo', route: '/settings/integrations' },
+};
+
 /**
  * Templates prontos pra criar skill com 1 clique.
  * Inspirados em casos de uso comuns.
@@ -239,17 +246,48 @@ export function Skills() {
                     <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 8 }}>
                       {s.description}
                     </p>
-                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                        {s.tools && s.tools.length > 0 && `🔧 ${s.tools.join(', ')}`}
-                      </span>
-                      <button
-                        className="ghost"
-                        onClick={() => definirPadrao(ehPadrao ? null : s.id)}
-                        style={{ padding: '4px 10px', fontSize: 12 }}
-                      >
-                        {ehPadrao ? 'Remover padrão' : '⭐ Definir padrão'}
-                      </button>
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Ferramentas e avisos de API */}
+                      {s.tools && s.tools.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {s.tools.map(tool => {
+                            const apiInfo = TOOLS_REQUIRING_API[tool];
+                            return (
+                              <span key={tool} style={{
+                                fontSize: 10, padding: '2px 7px', borderRadius: 10,
+                                background: apiInfo ? 'rgba(249,115,22,0.1)' : 'var(--bg-3)',
+                                border: `1px solid ${apiInfo ? 'rgba(249,115,22,0.3)' : 'var(--border)'}`,
+                                color: apiInfo ? '#f97316' : 'var(--muted)',
+                                fontWeight: 600,
+                              }}
+                                title={apiInfo ? `Requer chave de API: ${apiInfo.name} → Configurações → Integrações` : tool}
+                              >
+                                {apiInfo ? '🔑 ' : '🔧 '}{tool}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Aviso de API faltando */}
+                      {s.tools?.some(t => TOOLS_REQUIRING_API[t]) && (
+                        <div style={{
+                          fontSize: 11, color: '#f97316',
+                          background: 'rgba(249,115,22,0.08)',
+                          border: '1px solid rgba(249,115,22,0.2)',
+                          borderRadius: 6, padding: '5px 8px', lineHeight: 1.45,
+                        }}>
+                          🔑 Esta skill usa APIs externas. Configure as chaves em <strong>Configurações → Integrações</strong>.
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          className="ghost"
+                          onClick={() => definirPadrao(ehPadrao ? null : s.id)}
+                          style={{ padding: '4px 10px', fontSize: 12 }}
+                        >
+                          {ehPadrao ? 'Remover padrão' : '⭐ Definir padrão'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

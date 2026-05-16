@@ -114,6 +114,40 @@ const INTEGRATIONS: Integration[] = [
       { key: 'base_url', label: 'URL do servidor', type: 'url', placeholder: 'http://localhost:11434' },
     ],
   },
+  {
+    id: 'apify',
+    name: 'Apify',
+    category: 'Automação',
+    icon: '🕷️',
+    desc: 'Scraping e extração de dados da web em larga escala. Usado pela skill "Scraping com Apify" da equipe Grandense.',
+    connected: false,
+    configFields: [
+      { key: 'api_token', label: 'API Token', type: 'password', placeholder: 'apify_api_...' },
+    ],
+  },
+  {
+    id: 'elevenlabs',
+    name: 'ElevenLabs',
+    category: 'IA',
+    icon: '🎙️',
+    desc: 'Síntese de voz realista com IA. Usado pela skill "Narração ElevenLabs" da equipe Grandense.',
+    connected: false,
+    configFields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk_...' },
+      { key: 'voice_id', label: 'Voice ID (opcional)', type: 'text', placeholder: 'EXAVITQu4vr4xnSDxMaL' },
+    ],
+  },
+  {
+    id: 'stability',
+    name: 'Stability AI',
+    category: 'IA',
+    icon: '🎨',
+    desc: 'Geração de imagens com IA (Stable Diffusion). Usado pela skill "Geração de Imagem (IA)" da equipe Grandense.',
+    connected: false,
+    configFields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-...' },
+    ],
+  },
 ];
 
 const CATEGORIES = [...new Set(INTEGRATIONS.map(i => i.category))];

@@ -347,15 +347,37 @@ export function AgentsPage() {
                     {agent.model?.split('/').pop()?.split(':')[0] ?? agent.model}
                   </span>
                 )}
-                {agent.skills?.length > 0 && (
-                  <span className="badge badge-yellow">🎯 {agent.skills.length} skill{agent.skills.length > 1 ? 's' : ''}</span>
-                )}
               </div>
+
+              {/* Skills com nomes reais */}
+              {agent.skills?.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                  {agent.skills.slice(0, 4).map(skillId => {
+                    const skill = availableSkills.find(s => s.id === skillId);
+                    const label = skill?.name || skillId;
+                    return (
+                      <span key={skillId} style={{
+                        fontSize: 10, padding: '2px 7px', borderRadius: 12,
+                        background: 'rgba(245,158,11,0.12)',
+                        border: '1px solid rgba(245,158,11,0.25)',
+                        color: '#f59e0b', fontWeight: 600,
+                      }}>
+                        🎯 {label}
+                      </span>
+                    );
+                  })}
+                  {agent.skills.length > 4 && (
+                    <span style={{ fontSize: 10, color: 'var(--muted)', alignSelf: 'center' }}>
+                      +{agent.skills.length - 4}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {agent.personality && (
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.5,
-                  overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
-                  {agent.personality.slice(0, 140)}{agent.personality.length > 140 ? '…' : ''}
+                  overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any }}>
+                  {agent.personality.replace(/^IMPORTANTE:[^\n]+\n\n?/, '').slice(0, 200)}{agent.personality.length > 200 ? '…' : ''}
                 </div>
               )}
 
