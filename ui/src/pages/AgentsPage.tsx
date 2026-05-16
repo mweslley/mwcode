@@ -262,7 +262,7 @@ export function AgentsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="page-title">Agentes</h1>
-            <p className="page-subtitle">Sua equipe de IA — crie, configure e converse com seus agentes.</p>
+            <p className="page-subtitle">Sua equipe de IA — configure, converse e gerencie. O CEO contrata automaticamente conforme a demanda.</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -274,7 +274,7 @@ export function AgentsPage() {
             >
               {triggeringCEO ? '⏳ Acionando...' : '⚡ Acionar CEO'}
             </button>
-            <button onClick={openHire}>+ Contratar Agente</button>
+            <button onClick={openHire}>+ Contratar manualmente</button>
           </div>
         </div>
       </div>

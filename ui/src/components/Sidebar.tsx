@@ -121,6 +121,11 @@ export function Sidebar() {
           Tarefas
         </NavLink>
 
+        <NavLink to="/squads" className={linkStyle}>
+          <span className="link-icon">👥</span>
+          Squads
+        </NavLink>
+
         <NavLink to="/feed" className={linkStyle}>
           <span className="link-icon">📡</span>
           Atividade ao Vivo
@@ -164,13 +169,10 @@ export function Sidebar() {
           ))
         )}
 
-        <button
-          className="ghost"
-          onClick={() => navigate('/agents')}
-          style={{ fontSize: 11, padding: '5px 10px', margin: '4px 8px', textAlign: 'left', width: 'calc(100% - 16px)' }}
-        >
-          + Contratar agente
-        </button>
+        <NavLink to="/agents" className={linkStyle}>
+          <span className="link-icon">⚙️</span>
+          Gerenciar equipe
+        </NavLink>
 
         <span className="sidebar-section" style={{ marginTop: 4 }}>Empresa</span>
 

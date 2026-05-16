@@ -25,6 +25,7 @@ import { modelsRouter } from './routes/models.js';
 import { feedRouter } from './routes/feed.js';
 import { issuesRouter } from './routes/issues.js';
 import { usageRouter } from './routes/usage.js';
+import { squadsRouter } from './routes/squads.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,6 +86,7 @@ app.use('/api/models', authMiddleware, modelsRouter);
 app.use('/api/feed', authMiddleware, feedRouter);
 app.use('/api/issues', authMiddleware, issuesRouter);
 app.use('/api/usage', authMiddleware, usageRouter);
+app.use('/api/squads', authMiddleware, squadsRouter);
 
 // Servir UI compilada em produção
 const uiDist = path.resolve(__dirname, '../../ui/dist');

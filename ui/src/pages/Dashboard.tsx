@@ -216,7 +216,7 @@ export function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginBottom: 28 }}>
         {[
           { icon: '💬', label: 'Novo Chat', desc: 'Conversar com agente', to: '/chat' },
-          { icon: '🤖', label: 'Contratar Agente', desc: 'Adicionar à equipe', to: '/agents' },
+          { icon: '👥', label: 'Squads', desc: 'Gerenciar times de agentes', to: '/squads' },
           { icon: '⚡', label: 'Criar Workflow', desc: 'Automatizar tarefas', to: '/workflows' },
           { icon: '🎯', label: 'Skills', desc: 'Personalidades de IA', to: '/skills' },
         ].map(a => (

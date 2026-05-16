@@ -136,6 +136,25 @@ export function Skills() {
         </div>
       </div>
 
+      {/* Blade management banner */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 16px', marginBottom: 16,
+        background: 'linear-gradient(90deg, rgba(146,48,249,0.1), rgba(59,130,246,0.08))',
+        border: '1px solid rgba(146,48,249,0.25)', borderRadius: 10,
+      }}>
+        <span style={{ fontSize: 20, flexShrink: 0 }}>⚡</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)', marginBottom: 2 }}>
+            Gerenciado pelo Blade
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+            As habilidades criadas aqui são disponibilizadas automaticamente para todos os agentes.
+            Você pode pedir ao Blade para criar ou atualizar skills com um comando no chat.
+          </div>
+        </div>
+      </div>
+
       {/* CLI Info */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
