@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 
+interface LogEntry { ts: string; msg: string; ok?: boolean; }
+
 interface Issue {
   id: string;
   title: string;
   description: string;
   priority: string;
+  approvalType?: 'contratar' | 'foco' | 'geral' | 'qa';
   assigneeAgentName?: string;
   createdByAgentName?: string;
   approvalStatus: 'pendente' | 'aprovado' | 'rejeitado';
   approvalNote?: string;
+  hireData?: { name: string; role: string; instructions: string; model: string };
+  focusData?: { mission?: string; goals?: string[] };
+  logs?: LogEntry[];
   createdAt: string;
 }
 
@@ -17,13 +23,22 @@ const PRIORITY_COLORS: Record<string, string> = {
   critico: '#ef4444', alto: '#f97316', medio: '#f59e0b', baixo: '#6b7280',
 };
 
+const APPROVAL_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  contratar: { label: 'Contratar Agente', icon: '🤝', color: 'rgba(124,58,237,0.15)' },
+  foco:      { label: 'Mudança de Foco',  icon: '🎯', color: 'rgba(59,130,246,0.15)' },
+  qa:        { label: 'Aprovação QA',     icon: '✅', color: 'rgba(16,185,129,0.15)' },
+  geral:     { label: 'Solicitação',      icon: '🔔', color: 'rgba(245,158,11,0.15)' },
+};
+
 export function InboxPage() {
-  const [items, setItems] = useState<Issue[]>([]);
+  const [items, setItems]   = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
-  const [note, setNote] = useState<Record<string, string>>({});
+  const [note, setNote]     = useState<Record<string, string>>({});
   const [acting, setActing] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   async function load() {
+    setLoading(true);
     const list = await api.get<Issue[]>('/issues/inbox').catch(() => []);
     setItems(list || []);
     setLoading(false);
@@ -45,11 +60,22 @@ export function InboxPage() {
     setActing(null);
   }
 
+  function toggleExpand(id: string) {
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+
   return (
     <div className="page">
       <div className="page-header">
-        <h1 className="page-title">Caixa de Entrada</h1>
-        <p className="page-subtitle">Solicitações dos agentes que precisam da sua aprovação.</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h1 className="page-title">📥 Caixa de Entrada</h1>
+            <p className="page-subtitle">Solicitações do CEO e agentes que precisam da sua aprovação.</p>
+          </div>
+          <button className="ghost" onClick={load} style={{ fontSize: 12, padding: '6px 14px' }}>
+            ↻ Atualizar
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -59,70 +85,211 @@ export function InboxPage() {
           <div style={{ fontSize: 40, marginBottom: 12 }}>📥</div>
           <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>Caixa de entrada vazia</p>
           <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-            Nenhuma solicitação pendente dos seus agentes.
+            Nenhuma solicitação pendente. O CEO age de forma autônoma quando não há aprovações pendentes.
           </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {items.map(item => (
-            <div key={item.id} className="card" style={{
-              padding: '16px 18px',
-              borderLeft: `3px solid ${PRIORITY_COLORS[item.priority] || '#6b7280'}`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ fontSize: 24, flexShrink: 0 }}>🔔</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{item.title}</div>
-                  {item.description && (
-                    <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 8 }}>
-                      {item.description}
+          {items.map(item => {
+            const typeInfo = APPROVAL_TYPE_LABELS[item.approvalType || 'geral'] || APPROVAL_TYPE_LABELS.geral;
+            const isExpanded = expanded[item.id];
+
+            return (
+              <div key={item.id} className="card" style={{
+                padding: 0,
+                borderLeft: `3px solid ${PRIORITY_COLORS[item.priority] || '#6b7280'}`,
+                overflow: 'hidden',
+              }}>
+                {/* Cabeçalho */}
+                <div style={{ padding: '14px 18px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ fontSize: 22, flexShrink: 0, marginTop: 2 }}>{typeInfo.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+
+                      {/* Tipo + prioridade */}
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                          background: typeInfo.color, color: 'var(--fg-2)',
+                          textTransform: 'uppercase', letterSpacing: '0.05em',
+                        }}>
+                          {typeInfo.label}
+                        </span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                          background: `${PRIORITY_COLORS[item.priority] || '#6b7280'}22`,
+                          color: PRIORITY_COLORS[item.priority] || '#6b7280',
+                        }}>
+                          {item.priority?.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Título */}
+                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, lineHeight: 1.4 }}>
+                        {item.title}
+                      </div>
+
+                      {/* Descrição */}
+                      {item.description && (
+                        <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 8, lineHeight: 1.55 }}>
+                          {item.description}
+                        </div>
+                      )}
+
+                      {/* Meta */}
+                      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
+                        {item.createdByAgentName && (
+                          <span>👤 <strong style={{ color: 'var(--fg-2)' }}>{item.createdByAgentName}</strong></span>
+                        )}
+                        {item.assigneeAgentName && (
+                          <span>→ <strong style={{ color: 'var(--fg-2)' }}>{item.assigneeAgentName}</strong></span>
+                        )}
+                        <span>🕐 {new Date(item.createdAt).toLocaleString('pt-BR')}</span>
+                      </div>
                     </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)', marginBottom: 12, flexWrap: 'wrap' }}>
-                    {item.createdByAgentName && (
-                      <span>👤 Solicitado por <strong style={{ color: 'var(--fg-2)' }}>{item.createdByAgentName}</strong></span>
-                    )}
-                    {item.assigneeAgentName && (
-                      <span>→ Atribuído a <strong style={{ color: 'var(--fg-2)' }}>{item.assigneeAgentName}</strong></span>
-                    )}
-                    <span>🕐 {new Date(item.createdAt).toLocaleString('pt-BR')}</span>
-                  </div>
 
-                  <div style={{ marginBottom: 12 }}>
-                    <input
-                      placeholder="Nota (opcional)..."
-                      value={note[item.id] || ''}
-                      onChange={e => setNote(n => ({ ...n, [item.id]: e.target.value }))}
-                      style={{ fontSize: 12, padding: '6px 10px', width: '100%', maxWidth: 400 }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8 }}>
+                    {/* Botão detalhes */}
                     <button
-                      onClick={() => approve(item.id)}
-                      disabled={acting === item.id}
-                      style={{
-                        fontSize: 12, padding: '6px 16px',
-                        background: 'rgba(16,185,129,0.15)',
-                        border: '1px solid rgba(16,185,129,0.4)',
-                        color: '#10b981',
-                      }}
-                    >
-                      {acting === item.id ? '...' : '✓ Aprovar'}
-                    </button>
-                    <button
-                      onClick={() => reject(item.id)}
-                      disabled={acting === item.id}
+                      onClick={() => toggleExpand(item.id)}
                       className="ghost"
-                      style={{ fontSize: 12, padding: '6px 16px', color: 'var(--danger)' }}
+                      style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
                     >
-                      ✕ Rejeitar
+                      {isExpanded ? '▲ Ocultar' : '▼ Ver detalhes'}
                     </button>
                   </div>
                 </div>
+
+                {/* Detalhes expandidos */}
+                {isExpanded && (
+                  <div style={{
+                    borderTop: '1px solid var(--border)',
+                    background: 'var(--bg-2)',
+                    padding: '12px 18px',
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                  }}>
+
+                    {/* Dados de contratação */}
+                    {item.approvalType === 'contratar' && item.hireData && (
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                          Dados do Agente a Contratar
+                        </div>
+                        <div style={{
+                          background: 'var(--bg-3)', border: '1px solid var(--border)',
+                          borderRadius: 8, padding: '10px 12px',
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                        }}>
+                          <div style={{ fontSize: 13 }}>
+                            <strong>Nome:</strong> {item.hireData.name}
+                          </div>
+                          <div style={{ fontSize: 13 }}>
+                            <strong>Função:</strong> {item.hireData.role}
+                          </div>
+                          {item.hireData.instructions && (
+                            <div style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.55 }}>
+                              <strong>Instruções:</strong><br />{item.hireData.instructions}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                            Modelo: {item.hireData.model}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dados de foco */}
+                    {item.approvalType === 'foco' && item.focusData && (
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                          Nova Estratégia de Foco
+                        </div>
+                        <div style={{
+                          background: 'var(--bg-3)', border: '1px solid var(--border)',
+                          borderRadius: 8, padding: '10px 12px',
+                        }}>
+                          {item.focusData.mission && (
+                            <div style={{ fontSize: 13, marginBottom: 6 }}>
+                              <strong>Missão:</strong> {item.focusData.mission}
+                            </div>
+                          )}
+                          {item.focusData.goals && item.focusData.goals.length > 0 && (
+                            <div style={{ fontSize: 13 }}>
+                              <strong>Objetivos:</strong>
+                              <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                                {item.focusData.goals.map((g, i) => (
+                                  <li key={i} style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 2 }}>{g}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Log de ações */}
+                    {item.logs && item.logs.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                          Histórico
+                        </div>
+                        <div style={{
+                          background: 'var(--bg-3)', border: '1px solid var(--border)',
+                          borderRadius: 8, padding: '8px 12px',
+                          maxHeight: 160, overflowY: 'auto',
+                          display: 'flex', flexDirection: 'column', gap: 4,
+                        }}>
+                          {item.logs.map((log, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11 }}>
+                              <span style={{ color: 'var(--muted)', flexShrink: 0, fontFamily: 'monospace' }}>
+                                {new Date(log.ts).toLocaleTimeString('pt-BR')}
+                              </span>
+                              <span style={{ color: log.ok === false ? '#ef4444' : 'var(--fg-2)', lineHeight: 1.45 }}>
+                                {log.msg}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Ações */}
+                <div style={{
+                  padding: '10px 18px 14px',
+                  display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
+                  borderTop: isExpanded ? '1px solid var(--border)' : undefined,
+                }}>
+                  <input
+                    placeholder="Nota (opcional)..."
+                    value={note[item.id] || ''}
+                    onChange={e => setNote(n => ({ ...n, [item.id]: e.target.value }))}
+                    style={{ fontSize: 12, padding: '6px 10px', flex: 1, minWidth: 160, maxWidth: 340 }}
+                  />
+                  <button
+                    onClick={() => approve(item.id)}
+                    disabled={acting === item.id}
+                    style={{
+                      fontSize: 12, padding: '7px 18px', fontWeight: 700,
+                      background: 'rgba(16,185,129,0.15)',
+                      border: '1px solid rgba(16,185,129,0.4)',
+                      color: '#10b981', borderRadius: 8,
+                    }}
+                  >
+                    {acting === item.id ? '...' : '✓ Aprovar'}
+                  </button>
+                  <button
+                    onClick={() => reject(item.id)}
+                    disabled={acting === item.id}
+                    className="ghost"
+                    style={{ fontSize: 12, padding: '7px 18px', color: 'var(--danger)', borderRadius: 8 }}
+                  >
+                    ✕ Rejeitar
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
