@@ -10,6 +10,7 @@ export interface Squad {
   description: string;
   mission: string;
   agentIds: string[];
+  leaderId?: string;
   status: 'active' | 'paused' | 'completed';
   companyId: string;
   createdAt: string;
@@ -46,12 +47,14 @@ squadsRouter.post('/', (req, res) => {
   const companyId = (req as any).companyId || 'default';
   const { name, description, mission, agentIds, status } = req.body;
   if (!name) return res.status(400).json({ error: 'name é obrigatório' });
+  const { leaderId } = req.body;
   const squad: Squad = {
     id: crypto.randomUUID(),
     name,
     description: description || '',
     mission: mission || '',
     agentIds: agentIds || [],
+    leaderId: leaderId || '',
     status: status || 'active',
     companyId,
     createdAt: new Date().toISOString(),

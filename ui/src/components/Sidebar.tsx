@@ -6,13 +6,23 @@ interface Agent { id: string; name: string; role: string; status: string; }
 
 function agentEmoji(role: string) {
   const r = (role || '').toLowerCase();
-  if (r.includes('ceo') || r.includes('diretor')) return '👔';
-  if (r.includes('dev') || r.includes('código') || r.includes('eng') || r.includes('cto')) return '💻';
+  if (r.includes('ceo')) return '👔';
+  if (r.includes('coo')) return '🏭';
+  if (r.includes('cto')) return '⚙️';
+  if (r.includes('cmo')) return '📢';
+  if (r.includes('cfo')) return '💰';
+  if (r.includes('pesquisa') || r.includes('research') || r.includes('pauta')) return '🔍';
+  if (r.includes('roteiro') || r.includes('roteirista') || r.includes('script')) return '✍️';
+  if (r.includes('veredito') || r.includes('retenção') || r.includes('guardiã')) return '⚖️';
+  if (r.includes('qualidade') || r.includes('qc') || r.includes('qa') || r.includes('test')) return '🔬';
+  if (r.includes('direção') || r.includes('diretor') || r.includes('visual')) return '🎬';
+  if (r.includes('edição') || r.includes('editor') || r.includes('montagem')) return '🎞️';
+  if (r.includes('dev') || r.includes('código') || r.includes('eng')) return '💻';
   if (r.includes('market') || r.includes('copy')) return '📣';
   if (r.includes('support') || r.includes('suporte')) return '🎧';
   if (r.includes('design')) return '🎨';
   if (r.includes('data') || r.includes('dados')) return '📊';
-  if (r.includes('finance') || r.includes('financ')) return '💰';
+  if (r.includes('finance') || r.includes('financ')) return '💵';
   return '🤖';
 }
 
@@ -123,7 +133,7 @@ export function Sidebar() {
 
         <NavLink to="/squads" className={linkStyle}>
           <span className="link-icon">👥</span>
-          Squads
+          Equipes
         </NavLink>
 
         <NavLink to="/feed" className={linkStyle}>

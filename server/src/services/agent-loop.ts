@@ -132,6 +132,23 @@ function saveIssues(userId: string, issues: Issue[]): void {
   fs.writeFileSync(dataPath('issues', `${userId}.json`), JSON.stringify(issues, null, 2));
 }
 
+function loadSquads(companyId: string): any[] {
+  try {
+    const dir = dataDir('squads', companyId);
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+      .filter(f => f.endsWith('.json'))
+      .map(f => { try { return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8')); } catch { return null; } })
+      .filter(Boolean);
+  } catch { return []; }
+}
+
+function saveSquad(companyId: string, squad: any): void {
+  const dir = dataDir('squads', companyId);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${squad.id}.json`), JSON.stringify(squad, null, 2));
+}
+
 function loadCompany(userId: string): any {
   // Tenta o path direto primeiro, depois caminho alternativo
   for (const file of [
@@ -179,6 +196,7 @@ interface ParsedCommands {
   hires: Array<{ name: string; role: string; instructions: string; model: string }>;
   focusRecs: Array<{ reason: string; mission?: string; goals?: string[] }>;
   qaRequests: Array<{ url?: string; tipo: QATaskType; descricao: string }>;
+  equipes: Array<{ nome: string; descricao: string; missao: string; agentes: string; lider?: string }>;
 }
 
 function parseCEOResponse(content: string): ParsedCommands {
@@ -187,6 +205,7 @@ function parseCEOResponse(content: string): ParsedCommands {
   const hires: ParsedCommands['hires'] = [];
   const focusRecs: ParsedCommands['focusRecs'] = [];
   const qaRequests: ParsedCommands['qaRequests'] = [];
+  const equipes: ParsedCommands['equipes'] = [];
 
   // [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="..."]
   const taskRe = /\[CRIAR TAREFA:([^\]]+)\]/gi;
@@ -268,7 +287,29 @@ function parseCEOResponse(content: string): ParsedCommands {
     qaRequests.push({ url, tipo, descricao });
   }
 
-  return { tasks, approvals, hires, focusRecs, qaRequests };
+  // [CRIAR EQUIPE: nome="..."; descricao="..."; missao="..."; agentes="..."; lider="..."]
+  const equipeRe = /\[CRIAR EQUIPE:([^\]]+)\]/gi;
+  while ((m = equipeRe.exec(content)) !== null) {
+    const p = m[1];
+    const nome =
+      p.match(/nome=["']([^"']+)["']/i)?.[1] ||
+      p.match(/name=["']([^"']+)["']/i)?.[1];
+    const descricao =
+      p.match(/descri[çc][aã]o=["']([^"']+)["']/i)?.[1] ||
+      p.match(/desc=["']([^"']+)["']/i)?.[1] || '';
+    const missao =
+      p.match(/miss[aã]o=["']([^"']+)["']/i)?.[1] ||
+      p.match(/mission=["']([^"']+)["']/i)?.[1] || '';
+    const agentes =
+      p.match(/agentes=["']([^"']+)["']/i)?.[1] ||
+      p.match(/members=["']([^"']+)["']/i)?.[1] || '';
+    const lider =
+      p.match(/l[íi]der=["']([^"']+)["']/i)?.[1] ||
+      p.match(/leader=["']([^"']+)["']/i)?.[1];
+    if (nome) equipes.push({ nome, descricao, missao, agentes, lider });
+  }
+
+  return { tasks, approvals, hires, focusRecs, qaRequests, equipes };
 }
 
 // ── Executar comandos criados pelo CEO ────────────────────────────────────────
@@ -286,7 +327,7 @@ function executeCommands(
 ): void {
   const hasWork = commands.tasks.length || commands.approvals.length ||
                   commands.hires.length || commands.focusRecs.length ||
-                  commands.qaRequests.length;
+                  commands.qaRequests.length || commands.equipes.length;
   if (!hasWork) return;
 
   const company = loadCompany(userId);
@@ -567,6 +608,43 @@ function executeCommands(
       });
   }
 
+  // ── Criação de equipes ────────────────────────────────────────────────────
+  const companyId = company?.id || userId;
+  const existingSquads = loadSquads(companyId);
+
+  for (const eq of commands.equipes) {
+    const alreadyExists = existingSquads.find(s =>
+      s.name?.toLowerCase() === eq.nome.toLowerCase()
+    );
+    if (alreadyExists) {
+      console.log(`[AgentLoop] Equipe "${eq.nome}" já existe — pulando criação`);
+      continue;
+    }
+
+    // Resolve IDs dos agentes pelo nome
+    const agentNames = eq.agentes.split(/[;,]/).map(n => n.trim()).filter(Boolean);
+    const agentIds = agentNames
+      .map(n => findAgentByName(agents, n))
+      .filter(Boolean)
+      .map(a => a!.id);
+    const leaderAgent = eq.lider ? findAgentByName(agents, eq.lider) : null;
+
+    const squad = {
+      id: crypto.randomUUID(),
+      name: eq.nome,
+      description: eq.descricao,
+      mission: eq.missao,
+      agentIds,
+      leaderId: leaderAgent?.id || '',
+      status: 'active',
+      companyId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    saveSquad(companyId, squad);
+    console.log(`[AgentLoop] CEO criou equipe: "${eq.nome}" com ${agentIds.length} agente(s)`);
+  }
+
   saveIssues(userId, issues);
 }
 
@@ -594,10 +672,18 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       .slice(0, 5);
 
     const otherAgents = agents.filter(a => a.id !== ceo.id);
+    const companyId = company?.id || userId;
+    const squads = loadSquads(companyId);
+    const activeSquads = squads.filter(s => s.status === 'active');
+    const pausedSquads = squads.filter(s => s.status === 'paused');
 
     const hasMission = !!(company.mission?.trim());
     const hasGoals = !!(company.goals?.length);
     const hasContext = hasMission || hasGoals;
+
+    const pausedAgentIds = new Set(
+      pausedSquads.flatMap((s: any) => s.agentIds || [])
+    );
 
     const contextMsg =
       `[Sistema MWCode — Atualização Automática]\n\n` +
@@ -610,9 +696,21 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
         `1) Qual é a missão principal da empresa?\n` +
         `2) Quais são os 3 objetivos prioritários agora?\n` +
         `Só tome ações depois de receber essas informações.\n` : '') +
+      `\nEquipes cadastradas (${squads.length}):\n` +
+      (squads.length
+        ? squads.map((s: any) => {
+            const statusLabel = s.status === 'active' ? '✅ Ativa' : s.status === 'paused' ? '⏸ PAUSADA' : '✓ Concluída';
+            const leaderName = s.leaderId ? otherAgents.find(a => a.id === s.leaderId)?.name : null;
+            return `- [${statusLabel}] ${s.name}${leaderName ? ` (líder: ${leaderName})` : ''}: ${s.mission || s.description || ''}`;
+          }).join('\n')
+        : '- Nenhuma equipe cadastrada') +
+      (pausedSquads.length ? `\n⚠️ ATENÇÃO: ${pausedSquads.map((s: any) => s.name).join(', ')} está(ão) PAUSADA(S) — NÃO atribua tarefas a membros dessas equipes.\n` : '') +
       `\nAgentes disponíveis (${otherAgents.length}):\n` +
       (otherAgents.length
-        ? otherAgents.map(a => `- ${a.name}: ${a.role}`).join('\n')
+        ? otherAgents.map(a => {
+            const isInPausedSquad = pausedAgentIds.has(a.id);
+            return `- ${a.name}: ${a.role}${isInPausedSquad ? ' [PAUSADO — equipe pausada]' : ''}`;
+          }).join('\n')
         : '- Nenhum agente além de você ainda') +
       `\n\nTarefas em andamento (${inProgress.length}):\n` +
       (inProgress.length ? inProgress.map(i => `- [${i.assigneeAgentName || 'sem agente'}] ${i.title}`).join('\n') : '- Nenhuma') +
@@ -621,13 +719,23 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `\n\nConcluídas recentemente:\n` +
       (recentDone.length ? recentDone.map(i => `- ${i.title} (${i.assigneeAgentName || 'sem agente'})`).join('\n') : '- Nenhuma') +
       `\n\n---\n${CORPORATE_HIERARCHY_GUIDE}\n\n` +
-      `Com base no contexto da empresa acima, tome as ações necessárias AGORA:\n` +
+      `## Sistema de Equipes (mw-creator)\n` +
+      `O usuário pode pedir para criar equipes especializadas. O repositório github.com/mweslley/mw-creator\n` +
+      `contém squads prontos em squads/{codigo}/squad.yaml, com agentes em squads/{codigo}/agents/*.agent.md.\n` +
+      `Quando o usuário mencionar um squad do mw-creator, interprete os agentes listados e crie a equipe.\n` +
+      `Convenção de nomes dos agentes: "Cargo / NomeEquipe" (ex: "Pesquisa / Grandense", "Roteiro / Grandense").\n` +
+      `\nF) Para criar uma equipe de agentes:\n` +
+      `   [CRIAR EQUIPE: nome="Nome da Equipe"; descricao="Descrição"; missao="Missão principal"; agentes="Agente1, Agente2, Agente3"; lider="Nome do Líder"]\n` +
+      `   Os nomes dos agentes devem corresponder exatamente aos agentes já contratados.\n` +
+      `   Equipes pausadas não recebem tarefas — respeite esse bloqueio.\n` +
+      `\nCom base no contexto acima, tome as ações necessárias AGORA:\n` +
       `\nA) Para solicitar contratação (requer aprovação do usuário):\n` +
       `   [CONTRATAR AGENTE: nome="COO"; função="Chief Operating Officer — Diretor de Operações"; instruções="Descreva as prioridades reais deste agente para esta empresa específica"; modelo="openrouter/auto"]\n` +
       `   NUNCA use nome="TÍTULO" ou nome="Nome do Agente" — sempre use o título real do cargo.\n` +
       `   A contratação NÃO acontece automaticamente — ela aguarda aprovação do fundador.\n` +
       `\nB) Para criar tarefas aos agentes existentes:\n` +
       `   [CRIAR TAREFA: título="Descrição concreta da tarefa"; agente="Nome Exato do Agente"; descrição="Contexto e resultado esperado"; prioridade="alto|medio|baixo"]\n` +
+      `   NUNCA atribua tarefas a agentes de equipes PAUSADAS.\n` +
       `\nC) Para decisões que precisam de aprovação humana:\n` +
       `   [APROVAÇÃO NECESSÁRIA: descrição detalhada da decisão e impacto]\n` +
       `\nD) Se a empresa precisar mudar de foco estratégico:\n` +
@@ -639,7 +747,7 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
       (otherAgents.length === 0
         ? `Você não tem agentes ainda. CONTRATE AGORA os 2 ou 3 diretores C-suite mais urgentes para o contexto desta empresa. Use os títulos corretos (COO, CTO, CMO, etc.) com instruções personalizadas. Contratação é autônoma.`
-        : `Distribua pelo menos 2 tarefas concretas e acionáveis entre os agentes disponíveis.`) +
+        : `Distribua pelo menos 2 tarefas concretas e acionáveis entre os agentes disponíveis (exceto os de equipes pausadas).`) +
       `\nContratação de agentes e criação de tarefas NÃO requerem aprovação. Execute diretamente.`;
 
     console.log(`[AgentLoop] Heartbeat CEO — userId: ${userId}`);
