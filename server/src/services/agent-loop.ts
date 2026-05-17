@@ -63,6 +63,7 @@ function hireAgent(userId: string, ceoModel: string, hire: { name: string; role:
     name: hire.name,
     role: hire.role || roleDescription,
     personality:
+      `⚠️ IDIOMA OBRIGATÓRIO: Responda EXCLUSIVAMENTE em português brasileiro. NUNCA use inglês em nenhuma circunstância.\n` +
       `IMPORTANTE: Responda SEMPRE em português brasileiro. Nunca use inglês.\n\n` +
       `Você é ${hire.name} — ${roleDescription}\n\n` +
       (hire.instructions
@@ -851,7 +852,9 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `   - gemini: api_key\n` +
       `   IMPORTANTE: As credenciais NÃO passam pelo chat — a UI exibe campo seguro (mascarado) que vai direto à API.\n` +
       `   Use SOMENTE para credenciais de integrações REALMENTE necessárias e ainda não configuradas.\n` +
-      `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
+      `\n⚠️ IDIOMA OBRIGATÓRIO: Responda TODO o conteúdo EXCLUSIVAMENTE em português brasileiro.\n` +
+      `NUNCA use inglês — nem em títulos, nomes de campos, comentários ou exemplos.\n` +
+      `Se estiver usando um modelo que tende a responder em inglês, FORCE o português.\n` +
       (otherAgents.length === 0
         ? `Você não tem agentes ainda. CONTRATE AGORA os 2 ou 3 diretores C-suite mais urgentes para o contexto desta empresa. Use os títulos corretos (COO, CTO, CMO, etc.) com instruções personalizadas. Contratação é autônoma.`
         : `Distribua pelo menos 2 tarefas concretas e acionáveis entre os agentes disponíveis (exceto os de equipes pausadas).`) +
@@ -1027,6 +1030,7 @@ function createDefaultCEO(userId: string, company: any): Agent {
     name: 'CEO',
     role: 'CEO',
     personality:
+      `⚠️ IDIOMA OBRIGATÓRIO: Responda EXCLUSIVAMENTE em português brasileiro. NUNCA use inglês em nenhuma circunstância.\n` +
       `IMPORTANTE: Responda SEMPRE em português brasileiro. Nunca use inglês.\n\n` +
       `Você é o CEO de ${company.name || 'nossa empresa'}.\n` +
       (company.mission ? `Missão: ${company.mission}\n` : '') +

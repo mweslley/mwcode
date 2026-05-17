@@ -212,7 +212,7 @@ export function Sidebar() {
         )}
 
         <NavLink to="/agents" className={linkStyle}>
-          <span className="link-icon">⚙️</span>
+          <span className="link-icon">🤖</span>
           Meus Agentes
         </NavLink>
 

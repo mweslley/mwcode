@@ -32,7 +32,9 @@ function truncate(text: string, max = 120): string {
 
 export function CompanyFeed() {
   const navigate = useNavigate();
+  const MAX_MESSAGES = 300;
   const [messages, setMessages] = useState<FeedMessage[]>([]);
+  const [trimmedCount, setTrimmedCount] = useState(0);
   const [agents, setAgents] = useState<FeedAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(true);
@@ -56,7 +58,7 @@ export function CompanyFeed() {
   const loadFeed = useCallback(async (initial = false) => {
     try {
       const since = initial ? '' : `?since=${encodeURIComponent(latestTimestamp.current)}&limit=50`;
-      const url = initial ? '/feed?limit=200' : `/feed${since}`;
+      const url = initial ? '/feed?limit=100' : `/feed${since}`;
       const data = await api.get<FeedMessage[]>(url);
       if (!data?.length) {
         if (initial) setLoading(false);
@@ -72,7 +74,15 @@ export function CompanyFeed() {
         const newMsgs = data.reverse();
         if (!newMsgs.length) return;
         latestTimestamp.current = data[data.length - 1]?.timestamp || latestTimestamp.current;
-        setMessages(prev => [...prev, ...newMsgs]);
+        setMessages(prev => {
+          const combined = [...prev, ...newMsgs];
+          if (combined.length > MAX_MESSAGES) {
+            const trimmed = combined.length - MAX_MESSAGES;
+            setTrimmedCount(c => c + trimmed);
+            return combined.slice(combined.length - MAX_MESSAGES);
+          }
+          return combined;
+        });
         if (!isAtBottom.current) setNewCount(n => n + newMsgs.length);
       }
     } catch {
@@ -149,13 +159,23 @@ export function CompanyFeed() {
               </p>
             )}
           </div>
-          <button
-            className={live ? '' : 'ghost'}
-            style={{ fontSize: 11, padding: '4px 10px' }}
-            onClick={() => setLive(l => !l)}
-          >
-            {live ? '⏸ Pausar' : '▶ Retomar'}
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className="ghost"
+              style={{ fontSize: 11, padding: '4px 10px', color: 'var(--muted)' }}
+              onClick={() => { setMessages([]); setTrimmedCount(0); setNewCount(0); loadFeed(true); }}
+              title="Limpar feed e recarregar"
+            >
+              🗑 Limpar
+            </button>
+            <button
+              className={live ? '' : 'ghost'}
+              style={{ fontSize: 11, padding: '4px 10px' }}
+              onClick={() => setLive(l => !l)}
+            >
+              {live ? '⏸ Pausar' : '▶ Retomar'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -211,6 +231,12 @@ export function CompanyFeed() {
           </div>
         ) : (
           <div style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>
+            {/* Indicador de mensagens antigas ocultadas */}
+            {trimmedCount > 0 && (
+              <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--muted)', background: 'var(--bg-2)', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>
+                {trimmedCount} mensagem{trimmedCount > 1 ? 's antigas foram ocultadas' : ' antiga foi ocultada'} — exibindo as {MAX_MESSAGES} mais recentes
+              </div>
+            )}
             {/* Column header */}
             <div style={{
               display: 'grid',
