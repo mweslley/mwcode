@@ -2,6 +2,7 @@ import { loadRun, saveRun, type Run, type StepResult } from '../routes/runs.js';
 import { sendMessageToAgent } from '../lib/agent-chat.js';
 import { fetchGitHubFile } from '../lib/github-fetcher.js';
 import { parseFrontmatter, parsePipelineYaml } from '../lib/yaml-parser.js';
+import { saveAgentOutput } from '../routes/outputs.js';
 
 interface PipelineStepDef {
   id: number;
@@ -84,7 +85,7 @@ async function executeStep(
     source: `Pipeline/${run.pipelineCode}/Step${stepDef.id}`,
   });
 
-  return {
+  const result: StepResult = {
     stepId: stepDef.id,
     stepName: stepDef.name,
     agentId,
@@ -94,6 +95,22 @@ async function executeStep(
     startedAt,
     completedAt: new Date().toISOString(),
   };
+
+  // Salvar output na aba de entregas automaticamente
+  try {
+    saveAgentOutput(userId, {
+      agentId,
+      agentName: stepMeta.agent || agentId,
+      squadId: run.squadId,
+      issueId: run.id,
+      issueTitle: `[${run.squadName}] ${run.userRequest || 'Pipeline run'}`,
+      type: 'markdown',
+      title: `${stepDef.name} — ${run.squadName}`,
+      content: output,
+    });
+  } catch {}
+
+  return result;
 }
 
 export async function startPipelineRun(
