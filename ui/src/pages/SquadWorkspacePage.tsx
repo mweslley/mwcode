@@ -120,6 +120,44 @@ export function SquadWorkspacePage() {
   const [saving, setSaving] = useState(false);
   const [editMsg, setEditMsg] = useState<string | null>(null);
 
+  // Nova run modal
+  const [showRunModal, setShowRunModal] = useState(false);
+  const [runRequest, setRunRequest] = useState('');
+  const [creatingRun, setCreatingRun] = useState(false);
+  const [runMsg, setRunMsg] = useState<string | null>(null);
+
+  async function createRun() {
+    if (!runRequest.trim() || !squad) return;
+    setCreatingRun(true);
+    setRunMsg(null);
+    try {
+      const leader = squad.leaderId ? squadAgents.find(a => a.id === squad.leaderId) : null;
+      const pipeline = squadAgents.map(a => a.name).join(' → ');
+      const description =
+        `[Solicitação via Equipe ${squad.name}]\n\n` +
+        `Pedido: ${runRequest.trim()}\n\n` +
+        `Equipe: ${squad.name}\n` +
+        `Missão: ${squad.mission || squad.description || ''}\n` +
+        (pipeline ? `Pipeline sugerido: ${pipeline}\n` : '') +
+        `\nOrquestre o pipeline completo criando subtarefas sequenciais para cada membro da equipe.`;
+      await api.post('/issues', {
+        title: `[Equipe ${squad.name}] ${runRequest.trim().slice(0, 80)}`,
+        description,
+        status: 'todo',
+        priority: 'medio',
+        assigneeAgentId: leader?.id || undefined,
+        assigneeAgentName: leader?.name || undefined,
+      });
+      setRunMsg('✅ Tarefa criada! O CEO vai orquestrar o pipeline da equipe no próximo ciclo (até 15min).');
+      setRunRequest('');
+      setTimeout(() => { setShowRunModal(false); setRunMsg(null); load(); }, 3000);
+    } catch {
+      setRunMsg('❌ Erro ao criar tarefa. Tente novamente.');
+    } finally {
+      setCreatingRun(false);
+    }
+  }
+
   async function load() {
     setLoading(true);
     try {
@@ -271,7 +309,7 @@ export function SquadWorkspacePage() {
 
           <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
             {leader && (
-              <button onClick={() => navigate(`/chat/${leader.id}`)} style={{ fontSize: 12, padding: '8px 16px', fontWeight: 700 }}>
+              <button onClick={() => setShowRunModal(true)} style={{ fontSize: 12, padding: '8px 16px', fontWeight: 700 }}>
                 💬 Nova run
               </button>
             )}
@@ -320,10 +358,10 @@ export function SquadWorkspacePage() {
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)', marginBottom: 3 }}>💡 Como iniciar um trabalho</div>
             <div style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.6 }}>
-              Clique em <strong>"Nova run"</strong> para abrir o chat com {leader.name} (líder). Descreva o que precisa — o líder coordena e distribui para a equipe.
+              Clique em <strong>"Nova run"</strong>, descreva o que precisa e o CEO orquestra o pipeline completo da equipe automaticamente.
             </div>
           </div>
-          <button onClick={() => navigate(`/chat/${leader.id}`)} style={{ fontSize: 13, padding: '9px 20px', fontWeight: 700, flexShrink: 0 }}>
+          <button onClick={() => setShowRunModal(true)} style={{ fontSize: 13, padding: '9px 20px', fontWeight: 700, flexShrink: 0 }}>
             💬 Nova run
           </button>
         </div>
@@ -395,10 +433,10 @@ export function SquadWorkspacePage() {
                 {allIssues.length === 0 ? 'Nenhuma tarefa ainda' : 'Nenhuma tarefa com esse filtro'}
               </p>
               <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto' }}>
-                {allIssues.length === 0 ? `Inicie uma run com ${leader?.name ?? 'o líder'}.` : 'Tente outro filtro.'}
+                {allIssues.length === 0 ? 'Inicie uma run para o CEO orquestrar o pipeline da equipe.' : 'Tente outro filtro.'}
               </p>
               {leader && allIssues.length === 0 && (
-                <button style={{ marginTop: 16 }} onClick={() => navigate(`/chat/${leader.id}`)}>💬 Iniciar primeira run</button>
+                <button style={{ marginTop: 16 }} onClick={() => setShowRunModal(true)}>💬 Iniciar primeira run</button>
               )}
             </div>
           ) : (
@@ -673,6 +711,66 @@ export function SquadWorkspacePage() {
               <button className="ghost" onClick={() => setShowEdit(false)}>Cancelar</button>
               <button onClick={saveEdit} disabled={saving || !editForm.name}>
                 {saving ? 'Salvando...' : '💾 Salvar alterações'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nova Run */}
+      {showRunModal && squad && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowRunModal(false); setRunMsg(null); setRunRequest(''); } }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, padding: 28, borderRadius: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 17 }}>💬 Nova run — {squad.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  O CEO orquestra o pipeline completo da equipe automaticamente.
+                </div>
+              </div>
+              <button className="ghost" onClick={() => { setShowRunModal(false); setRunMsg(null); setRunRequest(''); }} style={{ fontSize: 18, padding: '2px 8px', lineHeight: 1 }}>×</button>
+            </div>
+
+            {squadAgents.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+                {squadAgents.map((a, i) => (
+                  <span key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--fg-2)' }}>
+                      {agentEmoji(a.role)} {a.name.split(' / ')[0]}
+                    </span>
+                    {i < squadAgents.length - 1 && <span style={{ fontSize: 10, color: 'var(--muted)' }}>→</span>}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label style={{ fontWeight: 600, fontSize: 13 }}>O que você precisa?</label>
+              <textarea
+                value={runRequest}
+                onChange={e => setRunRequest(e.target.value)}
+                placeholder={`Ex: Crie um vídeo de 1 minuto sobre casos paranormais verificáveis no Brasil`}
+                rows={4}
+                style={{ width: '100%', marginTop: 6, resize: 'vertical', fontSize: 13 }}
+                autoFocus
+              />
+            </div>
+
+            {runMsg && (
+              <div style={{ marginBottom: 12, fontSize: 13, color: runMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>{runMsg}</div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="ghost" onClick={() => { setShowRunModal(false); setRunMsg(null); setRunRequest(''); }} style={{ fontSize: 13 }}>
+                Cancelar
+              </button>
+              <button
+                onClick={createRun}
+                disabled={!runRequest.trim() || creatingRun}
+                style={{ fontSize: 13, padding: '8px 20px', fontWeight: 700 }}
+              >
+                {creatingRun ? 'Criando...' : '🚀 Iniciar pipeline'}
               </button>
             </div>
           </div>

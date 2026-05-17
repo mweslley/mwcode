@@ -821,7 +821,12 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
         ? squads.map((s: any) => {
             const statusLabel = s.status === 'active' ? '✅ Ativa' : s.status === 'paused' ? '⏸ PAUSADA' : '✓ Concluída';
             const leaderName = s.leaderId ? otherAgents.find(a => a.id === s.leaderId)?.name : null;
-            return `- [${statusLabel}] ${s.name}${leaderName ? ` (líder: ${leaderName})` : ''}: ${s.mission || s.description || ''}`;
+            const memberNames = (s.agentIds || [])
+              .map((id: string) => otherAgents.find(a => a.id === id)?.name)
+              .filter(Boolean).join(' → ');
+            return `- [${statusLabel}] ${s.name}${leaderName ? ` (líder: ${leaderName})` : ''}` +
+              (memberNames ? ` | Pipeline: ${memberNames}` : '') +
+              `: ${s.mission || s.description || ''}`;
           }).join('\n')
         : '- Nenhuma equipe cadastrada') +
       (pausedSquads.length ? `\n⚠️ ATENÇÃO: ${pausedSquads.map((s: any) => s.name).join(', ')} está(ão) PAUSADA(S) — NÃO atribua tarefas a membros dessas equipes.\n` : '') +
@@ -846,6 +851,20 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
             (k.document || '').slice(0, 600) + (k.document?.length > 600 ? '...' : '')
           ).join('\n\n')
         : '') +
+      `\n\n## Orquestração de Pipeline de Equipes\n` +
+      `Quando uma tarefa contiver "[Equipe: NomeDaEquipe]" na descrição OU for atribuída ao líder de uma equipe:\n` +
+      `1. NUNCA assuma que o líder sozinho entregará tudo — cada membro faz SUA parte do pipeline\n` +
+      `2. Quebre em subtarefas sequenciais: crie uma tarefa para CADA membro relevante, na ordem do pipeline\n` +
+      `3. Atribua a primeira subtarefa ao primeiro agente do pipeline (ex: Pesquisa)\n` +
+      `4. Quando a primeira for concluída, crie/atribua a próxima ao próximo agente (ex: Roteiro com o research como insumo)\n` +
+      `5. Exemplos de pipelines comuns:\n` +
+      `   - Vídeo/Conteúdo: Pesquisa → Roteiro → Revisão/Veredito → Direção → Edição\n` +
+      `   - Artigo/Post: Pesquisa → Redação → Revisão → Publicação\n` +
+      `   - Campanha: Estratégia → Criação → Revisão → Execução\n` +
+      `Quando a tarefa tiver "[Solicitação via Equipe X]" no título:\n` +
+      `- É pedido direto do fundador para aquela equipe\n` +
+      `- Inicie imediatamente o pipeline completo criando subtarefas sequenciais\n` +
+      `- A descrição já contém o pipeline sugerido — use-o\n` +
       `\n\n---\n${CORPORATE_HIERARCHY_GUIDE}\n\n` +
       `## Sistema de Equipes (mw-creator)\n` +
       `O usuário pode pedir para criar equipes especializadas. O repositório github.com/mweslley/mw-creator\n` +
