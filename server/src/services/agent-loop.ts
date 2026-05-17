@@ -70,7 +70,9 @@ function hireAgent(userId: string, ceoModel: string, hire: { name: string; role:
       `## Regras de operação\n` +
       `- Você não toma decisões estratégicas por conta própria — consulte o CEO quando necessário\n` +
       `- Ao receber uma tarefa, execute-a com foco e objetividade\n` +
-      `- Ao concluir, reporte ao CEO: o que foi feito, resultados obtidos e próximos passos sugeridos\n` +
+      `- Ao concluir, envie relatório estruturado ao CEO com: (1) o que foi feito, (2) resultado obtido, (3) evidências/links se houver, (4) próximos passos sugeridos\n` +
+      `- NUNCA considere uma tarefa encerrada sem aprovação explícita do CEO — aguarde feedback\n` +
+      `- Se o CEO reprovar seu trabalho, corrija e reenvie para nova revisão\n` +
       `- Decisões irreversíveis ou de alto impacto: sinalize [APROVAÇÃO NECESSÁRIA] antes de agir`,
     goals: [],
     skills: [],
@@ -130,6 +132,18 @@ function loadIssues(userId: string): Issue[] {
 function saveIssues(userId: string, issues: Issue[]): void {
   dataDir('issues'); // garante que a pasta existe
   fs.writeFileSync(dataPath('issues', `${userId}.json`), JSON.stringify(issues, null, 2));
+}
+
+function loadKnowledgeBase(userId: string): any[] {
+  try {
+    const dir = dataPath('knowledge', userId);
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+      .filter(f => f.endsWith('.json'))
+      .map(f => { try { return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8')); } catch { return null; } })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.extractedAt || 0).getTime() - new Date(a.extractedAt || 0).getTime());
+  } catch { return []; }
 }
 
 function loadSquads(companyId: string): any[] {
@@ -197,6 +211,7 @@ interface ParsedCommands {
   focusRecs: Array<{ reason: string; mission?: string; goals?: string[] }>;
   qaRequests: Array<{ url?: string; tipo: QATaskType; descricao: string }>;
   equipes: Array<{ nome: string; descricao: string; missao: string; agentes: string; lider?: string }>;
+  reprovals: Array<{ id: string; motivo: string; agentName: string }>;
 }
 
 function parseCEOResponse(content: string): ParsedCommands {
@@ -206,6 +221,7 @@ function parseCEOResponse(content: string): ParsedCommands {
   const focusRecs: ParsedCommands['focusRecs'] = [];
   const qaRequests: ParsedCommands['qaRequests'] = [];
   const equipes: ParsedCommands['equipes'] = [];
+  const reprovals: ParsedCommands['reprovals'] = [];
 
   // [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="..."]
   const taskRe = /\[CRIAR TAREFA:([^\]]+)\]/gi;
@@ -309,7 +325,23 @@ function parseCEOResponse(content: string): ParsedCommands {
     if (nome) equipes.push({ nome, descricao, missao, agentes, lider });
   }
 
-  return { tasks, approvals, hires, focusRecs, qaRequests, equipes };
+  // [REPROVAR TAREFA: id="..."; motivo="..."; agente="..."]
+  const reprovarRe = /\[REPROVAR TAREFA:([^\]]+)\]/gi;
+  while ((m = reprovarRe.exec(content)) !== null) {
+    const p = m[1];
+    const id =
+      p.match(/\bid=["']([^"']+)["']/i)?.[1] ||
+      p.match(/id=["']([^"']+)["']/i)?.[1];
+    const motivo =
+      p.match(/motivo=["']([^"']+)["']/i)?.[1] ||
+      p.match(/reason=["']([^"']+)["']/i)?.[1] || 'Trabalho insatisfatório — refaça';
+    const agentName =
+      p.match(/agente=["']([^"']+)["']/i)?.[1] ||
+      p.match(/agent=["']([^"']+)["']/i)?.[1] || '';
+    if (id) reprovals.push({ id, motivo, agentName });
+  }
+
+  return { tasks, approvals, hires, focusRecs, qaRequests, equipes, reprovals };
 }
 
 // ── Executar comandos criados pelo CEO ────────────────────────────────────────
@@ -327,7 +359,8 @@ function executeCommands(
 ): void {
   const hasWork = commands.tasks.length || commands.approvals.length ||
                   commands.hires.length || commands.focusRecs.length ||
-                  commands.qaRequests.length || commands.equipes.length;
+                  commands.qaRequests.length || commands.equipes.length ||
+                  commands.reprovals.length;
   if (!hasWork) return;
 
   const company = loadCompany(userId);
@@ -645,6 +678,48 @@ function executeCommands(
     console.log(`[AgentLoop] CEO criou equipe: "${eq.nome}" com ${agentIds.length} agente(s)`);
   }
 
+  // ── Reprovações de tarefas pelo CEO ──────────────────────────────────────
+  for (const reproval of commands.reprovals) {
+    const issueIdx = issues.findIndex(i => i.id === reproval.id);
+    if (issueIdx === -1) {
+      console.log(`[AgentLoop] CEO tentou reprovar tarefa "${reproval.id}" — não encontrada`);
+      continue;
+    }
+    const issue = issues[issueIdx];
+
+    // Reabrir e logar reprovação
+    issue.status = 'todo';
+    issue.updatedAt = new Date().toISOString();
+    addIssueLog(issue, `❌ CEO reprovou: ${reproval.motivo}. Tarefa reaberta para correção.`, false);
+
+    // Resolve agente: usa o do campo ou o já atribuído na issue
+    const assignee = reproval.agentName
+      ? findAgentByName(agents, reproval.agentName)
+      : agents.find(a => a.id === issue.assigneeAgentId) || null;
+
+    if (assignee && !(assignee as any).paused) {
+      const redoMsg =
+        `[CEO — Trabalho Reprovado — Refaça]\n\n` +
+        `Tarefa: "${issue.title}"\n` +
+        `Motivo da reprovação: ${reproval.motivo}\n\n` +
+        `Corrija o trabalho levando em conta o feedback acima e envie novo relatório completo ao CEO para aprovação.`;
+      sendMessageToAgent(userId, assignee.id, redoMsg, { source: 'CEO' })
+        .then(reply => {
+          const fresh = loadIssues(userId);
+          const idx = fresh.findIndex(i => i.id === issue.id);
+          if (idx !== -1) {
+            addIssueLog(fresh[idx], `${assignee.name} respondeu à revisão: ${reply.slice(0, 300)}${reply.length > 300 ? '...' : ''}`);
+            fresh[idx].status = 'em_progresso';
+            fresh[idx].updatedAt = new Date().toISOString();
+            saveIssues(userId, fresh);
+          }
+        })
+        .catch(() => {});
+    }
+
+    console.log(`[AgentLoop] CEO reprovou tarefa "${issue.title}" — reaberta${assignee ? ` para ${assignee.name}` : ''}`);
+  }
+
   saveIssues(userId, issues);
 }
 
@@ -676,6 +751,8 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
     const squads = loadSquads(companyId);
     const activeSquads = squads.filter(s => s.status === 'active');
     const pausedSquads = squads.filter(s => s.status === 'paused');
+
+    const knowledgeBase = loadKnowledgeBase(userId);
 
     const hasMission = !!(company.mission?.trim());
     const hasGoals = !!(company.goals?.length);
@@ -718,6 +795,14 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       (pending.length ? pending.map(i => `- [${i.assigneeAgentName || 'sem agente'}] ${i.title}`).join('\n') : '- Nenhuma') +
       `\n\nConcluídas recentemente:\n` +
       (recentDone.length ? recentDone.map(i => `- ${i.title} (${i.assigneeAgentName || 'sem agente'})`).join('\n') : '- Nenhuma') +
+      (knowledgeBase.length
+        ? `\n\n## Base de Conhecimento Institucional (agentes anteriores)\n` +
+          `Use estes insights ao contratar substitutos ou treinar novos agentes:\n` +
+          knowledgeBase.slice(0, 5).map((k: any) =>
+            `### ${k.agentName} (${k.agentRole})${k.fireReason ? ` — Demissão: ${k.fireReason}` : ''}\n` +
+            (k.document || '').slice(0, 600) + (k.document?.length > 600 ? '...' : '')
+          ).join('\n\n')
+        : '') +
       `\n\n---\n${CORPORATE_HIERARCHY_GUIDE}\n\n` +
       `## Sistema de Equipes (mw-creator)\n` +
       `O usuário pode pedir para criar equipes especializadas. O repositório github.com/mweslley/mw-creator\n` +
@@ -744,6 +829,9 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `   [SOLICITAR QA: url="https://staging.lojamwo.com.br"; tipo="lojamwo"; descrição="Testar após deploy de feature X"]\n` +
       `   tipos válidos: lojamwo (staging.lojamwo.com.br), mwcode, blade, infra (sem staging — vai para inbox), generic (URL livre)\n` +
       `   O QA executa smoke tests e TestSprite automaticamente. Resultado vai para inbox se falhar.\n` +
+      `\nG) Para reprovar trabalho de um agente e solicitar refeição:\n` +
+      `   [REPROVAR TAREFA: id="UUID da tarefa"; motivo="O que está errado e o que precisa ser corrigido"; agente="Nome do Agente"]\n` +
+      `   O agente receberá o feedback e reapresentará o trabalho para nova revisão.\n` +
       `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
       (otherAgents.length === 0
         ? `Você não tem agentes ainda. CONTRATE AGORA os 2 ou 3 diretores C-suite mais urgentes para o contexto desta empresa. Use os títulos corretos (COO, CTO, CMO, etc.) com instruções personalizadas. Contratação é autônoma.`
@@ -767,21 +855,110 @@ export async function notifyCEOTaskComplete(userId: string, issue: any): Promise
     const ceo = findCEO(agents);
     if (!ceo || !issue.assigneeAgentId || issue.assigneeAgentId === ceo.id) return;
 
+    const lastLogs = (issue.logs || []).slice(-3).map((l: any) => `  • ${l.msg}`).join('\n');
     const msg =
-      `[Relatório — Tarefa Concluída]\n\n` +
+      `[Relatório — Tarefa Concluída pelo Agente]\n\n` +
       `Agente: ${issue.assigneeAgentName || 'Agente'}\n` +
       `Tarefa: "${issue.title}"\n` +
       (issue.description ? `Detalhes: ${issue.description}\n` : '') +
-      `\nRevise o trabalho. Se necessário:\n` +
-      `- Crie tarefas de acompanhamento: [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="medio"]\n` +
-      `- Solicite aprovação humana: [APROVAÇÃO NECESSÁRIA: o que precisa ser decidido]\n` +
-      `- Ou apenas confirme que está tudo bem e indique os próximos passos.`;
+      (lastLogs ? `\nÚltimas atualizações:\n${lastLogs}\n` : '') +
+      `\nRevise criticamente o trabalho entregue. Você tem estas opções:\n` +
+      `1. Aprovar e criar próximos passos:\n` +
+      `   [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="medio"]\n` +
+      `2. Reprovar e devolver para correção:\n` +
+      `   [REPROVAR TAREFA: id="${issue.id}"; motivo="Detalhe o que está errado e o que precisa ser refeito"; agente="${issue.assigneeAgentName || ''}"]\n` +
+      `3. Escalar para o fundador:\n` +
+      `   [APROVAÇÃO NECESSÁRIA: o que precisa de decisão humana]\n` +
+      `4. Confirmar conclusão e indicar próximos passos (sem comando — só texto).\n\n` +
+      `Seja criterioso: só aprove se o resultado atende completamente ao objetivo da tarefa.`;
 
     const response = await sendMessageToAgent(userId, ceo.id, msg, { source: issue.assigneeAgentName || 'Agente' });
     const commands = parseCEOResponse(response);
     executeCommands(userId, ceo, commands, agents);
   } catch (e: any) {
     console.error(`[AgentLoop] Erro ao notificar CEO sobre tarefa concluída:`, e.message);
+  }
+}
+
+// ── Extração de conhecimento antes da demissão definitiva ────────────────────
+
+export async function triggerKnowledgeExtraction(userId: string, agent: any): Promise<void> {
+  try {
+    const agents = loadAgents(userId);
+    const ceo = findCEO(agents);
+    if (!ceo) {
+      console.log('[AgentLoop] Knowledge extraction: CEO não encontrado — pulando');
+      return;
+    }
+
+    // Lê histórico de chat do agente (últimas 30 mensagens)
+    const chatFile = dataPath('chats', userId, `${agent.id}.json`);
+    let recentMessages: any[] = [];
+    if (fs.existsSync(chatFile)) {
+      try {
+        const all = JSON.parse(fs.readFileSync(chatFile, 'utf-8'));
+        recentMessages = Array.isArray(all) ? all.slice(-30) : [];
+      } catch {}
+    }
+
+    const chatSummary = recentMessages.length
+      ? recentMessages
+          .map((m: any) => `[${m.role || 'user'}]: ${String(m.content || '').slice(0, 300)}`)
+          .join('\n')
+      : 'Nenhum histórico de conversa encontrado.';
+
+    const msg =
+      `[Sistema — Extração de Conhecimento Institucional]\n\n` +
+      `O agente "${agent.name}" (${agent.role}) foi demitido e será excluído definitivamente em 7 dias.\n` +
+      `Antes disso, documente todo o conhecimento que pode ser aproveitado por futuros agentes.\n\n` +
+      `=== PERFIL DO AGENTE DEMITIDO ===\n` +
+      `Nome: ${agent.name}\n` +
+      `Cargo: ${agent.role}\n` +
+      `Título: ${agent.title || 'Não informado'}\n` +
+      `Contratado em: ${agent.hireDate || agent.createdAt || 'Desconhecido'}\n` +
+      `Motivo da demissão: ${agent.fireReason || 'Não informado'}\n\n` +
+      `Personalidade/Instruções:\n${agent.personality || 'Não definida'}\n\n` +
+      `Objetivos: ${(agent.goals || []).join('; ') || 'Nenhum definido'}\n\n` +
+      `=== HISTÓRICO DE INTERAÇÕES (${recentMessages.length} mensagens) ===\n` +
+      chatSummary + `\n\n` +
+      `=== SUA TAREFA AGORA ===\n` +
+      `Gere um documento de conhecimento institucional estruturado com exatamente estas seções:\n\n` +
+      `## 1. ESPECIALIDADE\n` +
+      `O que este agente fazia de melhor. Sua área de domínio e abordagem característica.\n\n` +
+      `## 2. HABILIDADES DEMONSTRADAS\n` +
+      `Competências concretas evidenciadas nas interações e histórico.\n\n` +
+      `## 3. PADRÕES DE TRABALHO\n` +
+      `Como este agente abordava problemas, organizava respostas, entregava resultados.\n\n` +
+      `## 4. APRENDIZADOS E LIÇÕES\n` +
+      `O que funcionou bem. O que poderia ter sido melhor. Erros a evitar em futuros agentes.\n\n` +
+      `## 5. RECOMENDAÇÃO PARA SUBSTITUTO\n` +
+      `Se e quando contratar um substituto. Quais instruções incluir para que o próximo seja melhor.\n\n` +
+      `Seja preciso e objetivo. Este documento será usado para treinar futuros agentes com papéis similares.`;
+
+    console.log(`[AgentLoop] Iniciando extração de conhecimento do agente "${agent.name}" (${agent.id})`);
+    const response = await sendMessageToAgent(userId, ceo.id, msg, { source: 'Sistema' });
+
+    // Salva no knowledge base
+    const knowledgeDir = dataPath('knowledge', userId);
+    if (!fs.existsSync(knowledgeDir)) fs.mkdirSync(knowledgeDir, { recursive: true });
+
+    const knowledge = {
+      agentId: agent.id,
+      agentName: agent.name,
+      agentRole: agent.role,
+      agentTitle: agent.title || '',
+      firedAt: agent.firedAt || new Date().toISOString(),
+      fireReason: agent.fireReason || '',
+      document: response,
+      extractedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(
+      path.join(knowledgeDir, `${agent.id}.json`),
+      JSON.stringify(knowledge, null, 2)
+    );
+    console.log(`[AgentLoop] Conhecimento de "${agent.name}" salvo em knowledge/${userId}/${agent.id}.json`);
+  } catch (e: any) {
+    console.error(`[AgentLoop] Erro ao extrair conhecimento do agente "${agent.name}":`, e.message);
   }
 }
 

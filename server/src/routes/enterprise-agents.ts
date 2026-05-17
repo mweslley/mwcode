@@ -2,6 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { dataDir } from '../lib/data-dir.js';
+import { triggerKnowledgeExtraction } from '../services/agent-loop.js';
 
 const FIRED_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
 
@@ -143,6 +144,11 @@ enterpriseAgentsRouter.delete('/:id', (req, res) => {
     if (reason) agent.fireReason = reason;
     const dir = getAgentsDir(userId);
     fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(agent, null, 2));
+
+    // Extrai conhecimento do agente de forma assíncrona (não bloqueia a resposta)
+    triggerKnowledgeExtraction(userId, agent).catch((e: Error) =>
+      console.error('[Fire] Erro na extração de conhecimento:', e.message)
+    );
   }
 
   res.json({ success: true });
