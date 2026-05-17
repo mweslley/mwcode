@@ -1,7 +1,8 @@
 /** Parseia frontmatter "---\nchave: valor\n---\nbody" */
 export function parseFrontmatter(raw: string): { meta: Record<string, any>; body: string } {
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
-  if (!match) return { meta: {}, body: raw };
+  const clean = raw.replace(/^﻿/, ''); // remove BOM se presente
+  const match = clean.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) return { meta: {}, body: clean };
   return { meta: parseSimpleYaml(match[1]), body: match[2].trim() };
 }
 
