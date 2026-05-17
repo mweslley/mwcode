@@ -87,7 +87,7 @@ const BLANK_FORM = {
 };
 
 function formatTs(iso: string) {
-  try { return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }); }
+  try { return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }); }
   catch { return iso; }
 }
 
@@ -407,7 +407,7 @@ export function TarefasPage() {
                         </span>
                       )}
                       <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
-                        {new Date(issue.updatedAt || issue.createdAt).toLocaleDateString('pt-BR')}
+                        {new Date(issue.updatedAt || issue.createdAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                       </span>
                     </div>
                   </div>

@@ -97,7 +97,7 @@ function agentEmoji(role: string) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 }
 
 export function SquadWorkspacePage() {
@@ -522,8 +522,8 @@ export function SquadWorkspacePage() {
                         )}
                         <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
                           {member && <span style={{ cursor: 'pointer', color: 'var(--primary)' }} onClick={() => navigate(`/chat/${member.id}`)}>{agentEmoji(member.role)} {member.name}</span>}
-                          <span>🕐 {new Date(issue.createdAt).toLocaleDateString('pt-BR')}</span>
-                          {issue.completedAt && <span style={{ color: '#10b981' }}>✅ {new Date(issue.completedAt).toLocaleDateString('pt-BR')}</span>}
+                          <span>🕐 {new Date(issue.createdAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
+                          {issue.completedAt && <span style={{ color: '#10b981' }}>✅ {new Date(issue.completedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>}
                         </div>
                       </div>
                       {member && (
@@ -731,7 +731,7 @@ export function SquadWorkspacePage() {
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{run.userRequest?.slice(0, 70) || 'Run sem descrição'}</div>
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-                          {new Date(run.createdAt).toLocaleString('pt-BR')} · {completedSteps} steps concluídos
+                          {new Date(run.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })} · {completedSteps} steps concluídos
                         </div>
                       </div>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10, color: si.color, background: si.bg, whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 10 }}>
@@ -786,7 +786,7 @@ export function SquadWorkspacePage() {
                     <div style={{ padding: '8px 14px', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14 }}>✅</span>
                       <span style={{ fontWeight: 600, fontSize: 13 }}>Step {s.stepId}: {s.stepName}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{s.agentName} · {new Date(s.completedAt).toLocaleTimeString('pt-BR')}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{s.agentName} · {new Date(s.completedAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
                     </div>
                     {s.output && (
                       <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto', background: 'var(--bg-2)', fontFamily: 'var(--font-mono, monospace)' }}>
@@ -833,7 +833,7 @@ export function SquadWorkspacePage() {
 
             {selectedRun.status === 'completed' && (
               <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', fontSize: 13, fontWeight: 600 }}>
-                ✅ Pipeline concluído em {new Date(selectedRun.completedAt).toLocaleString('pt-BR')}
+                ✅ Pipeline concluído em {new Date(selectedRun.completedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })}
               </div>
             )}
           </div>

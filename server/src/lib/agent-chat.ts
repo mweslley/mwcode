@@ -97,10 +97,36 @@ export async function sendMessageToAgent(
 
   const userKeys = getUserKeys(userId) as UserKeys;
   const adapterName = (agent.provider || agent.adapter || 'openrouter') as AdapterName;
-  const modelName = agent.model || 'openrouter/auto';
-  const adapter = getAdapter(adapterName, modelName, userKeys);
+  const primaryModel = agent.model || 'openrouter/auto';
 
-  const result = await adapter.call(text, { system: systemPrompt, history: contextMessages });
+  // Modelos de fallback — acionados se o principal der 429 ou 404
+  const FREE_FALLBACKS = [
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'deepseek/deepseek-v4-flash:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
+    'google/gemma-4-31b-it:free',
+  ].filter(m => m !== primaryModel);
+
+  const modelsToTry = [primaryModel, ...FREE_FALLBACKS];
+
+  let result: any;
+  let modelName = primaryModel;
+  for (const model of modelsToTry) {
+    try {
+      const adapter = getAdapter(adapterName, model, userKeys);
+      result = await adapter.call(text, { system: systemPrompt, history: contextMessages });
+      modelName = model;
+      break;
+    } catch (e: any) {
+      const msg = e?.message || '';
+      const isRateOrNotFound = msg.includes('429') || msg.includes('404') || msg.includes('rate-limit') || msg.includes('No endpoints');
+      if (isRateOrNotFound && model !== modelsToTry[modelsToTry.length - 1]) {
+        console.warn(`[agent-chat] Modelo ${model} indisponível (${msg.slice(0, 80)}), tentando fallback...`);
+        continue;
+      }
+      throw e;
+    }
+  }
 
   // ── Persist actual model used (resolves openrouter/auto → real model) ────
   const actualModel = result.model || modelName;
