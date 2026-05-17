@@ -213,7 +213,7 @@ export function Sidebar() {
 
         <NavLink to="/agents" className={linkStyle}>
           <span className="link-icon">⚙️</span>
-          Gerenciar equipe
+          Meus Agentes
         </NavLink>
 
         <span className="sidebar-section" style={{ marginTop: 4 }}>Empresa</span>
