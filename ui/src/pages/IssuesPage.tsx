@@ -48,9 +48,37 @@ const FILTER_TABS = [
   { key: 'em_progresso', label: 'Em progresso' },
   { key: 'em_revisao', label: 'Em revisão' },
   { key: 'concluido', label: 'Concluídas' },
+  { key: 'reprovadas', label: '↩ Ajustes' },
   { key: 'backlog', label: 'Pendente' },
   { key: 'aprovacao', label: '⏳ Aprovações' },
 ];
+
+function extractReprovalReason(logs?: LogEntry[]): string | null {
+  if (!logs) return null;
+  const entry = [...logs].reverse().find(l => l.msg.startsWith('❌ CEO reprovou:'));
+  if (!entry) return null;
+  return entry.msg
+    .replace('❌ CEO reprovou:', '')
+    .replace('Tarefa reaberta para correção.', '')
+    .trim();
+}
+
+function getWorkerOutput(logs?: LogEntry[]): string | null {
+  if (!logs) return null;
+  // Última mensagem de agente (não é log do sistema)
+  const entry = [...logs].reverse().find(l =>
+    !l.msg.startsWith('❌') && !l.msg.startsWith('✅') &&
+    !l.msg.startsWith('Criada') && !l.msg.startsWith('Status') &&
+    !l.msg.startsWith('CEO') && l.msg.length > 20
+  );
+  return entry?.msg || null;
+}
+
+function getCEOApprovalNote(logs?: LogEntry[]): string | null {
+  if (!logs) return null;
+  const entry = [...logs].reverse().find(l => l.msg.includes('CEO revisou e aprovou'));
+  return entry ? entry.msg : null;
+}
 
 const BLANK_FORM = {
   title: '', description: '', status: 'todo' as TarefaStatus,
@@ -151,9 +179,12 @@ export function TarefasPage() {
   }
 
   const pendingApprovals = issues.filter(i => i.requiresApproval && i.approvalStatus === 'pendente');
+  const reproved = issues.filter(i => i.status === 'todo' && extractReprovalReason(i.logs) !== null);
 
   const displayed = filter === 'aprovacao'
     ? pendingApprovals
+    : filter === 'reprovadas'
+    ? reproved
     : filter ? issues.filter(i => i.status === filter) : issues;
 
   return (
@@ -185,6 +216,23 @@ export function TarefasPage() {
         </div>
       )}
 
+      {/* Banner de ajustes pedidos pelo CEO */}
+      {reproved.length > 0 && filter !== 'reprovadas' && (
+        <div style={{
+          background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.25)',
+          borderRadius: 8, padding: '10px 14px', marginBottom: 12,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 16 }}>↩</span>
+          <span style={{ fontSize: 13, flex: 1 }}>
+            <strong>{reproved.length}</strong> {reproved.length === 1 ? 'tarefa foi reprovada pelo CEO' : 'tarefas foram reprovadas pelo CEO'} e {reproved.length === 1 ? 'aguarda' : 'aguardam'} correção
+          </span>
+          <button style={{ fontSize: 12, padding: '4px 12px', background: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }} onClick={() => setFilter('reprovadas')}>
+            Ver ajustes →
+          </button>
+        </div>
+      )}
+
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
         {FILTER_TABS.map(t => (
@@ -192,12 +240,16 @@ export function TarefasPage() {
             key={t.key}
             onClick={() => setFilter(t.key)}
             className={filter === t.key ? '' : 'ghost'}
-            style={{ fontSize: 12, padding: '5px 12px' }}
+            style={{
+              fontSize: 12, padding: '5px 12px',
+              ...(t.key === 'reprovadas' && reproved.length > 0 && filter !== 'reprovadas'
+                ? { borderColor: 'rgba(239,68,68,0.4)', color: '#ef4444' } : {}),
+            }}
           >
             {t.label}
             <span style={{ marginLeft: 6, opacity: 0.6 }}>
-              {t.key === 'aprovacao'
-                ? pendingApprovals.length
+              {t.key === 'aprovacao' ? pendingApprovals.length
+                : t.key === 'reprovadas' ? reproved.length
                 : t.key === '' ? issues.length
                 : issues.filter(i => i.status === t.key).length}
             </span>
@@ -292,24 +344,33 @@ export function TarefasPage() {
             }
 
             // Card normal de tarefa
+            const reprovalReason = extractReprovalReason(issue.logs);
+            const isReproved = reprovalReason !== null && issue.status === 'todo';
+            const ceoApprovalNote = issue.status === 'concluido' ? getCEOApprovalNote(issue.logs) : null;
+            const workerOutput = issue.status === 'concluido' ? getWorkerOutput(issue.logs) : null;
+
             return (
               <div key={issue.id} className="card" style={{
                 padding: '10px 16px',
                 opacity: issue.paused ? 0.65 : 1,
-                borderColor: issue.paused ? 'rgba(245,158,11,0.35)' : undefined,
+                borderColor: isReproved ? 'rgba(239,68,68,0.35)'
+                  : issue.status === 'concluido' ? 'rgba(16,185,129,0.25)'
+                  : issue.status === 'em_revisao' ? 'rgba(59,130,246,0.25)'
+                  : issue.paused ? 'rgba(245,158,11,0.35)' : undefined,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   {/* Status dot */}
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: STATUS_COLORS[issue.status] }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: isReproved ? '#ef4444' : STATUS_COLORS[issue.status] }} />
 
                   {/* Título + meta — clicável para ver log */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{ fontWeight: 600, fontSize: 13, marginBottom: 2, cursor: 'pointer' }}
                       onClick={() => setLogIssue(issue)}
-                      title="Clique para ver o log da tarefa"
+                      title="Clique para ver o log completo"
                     >
                       {issue.paused && <span style={{ fontSize: 10, color: '#f59e0b', marginRight: 6 }}>⏸</span>}
+                      {isReproved && <span style={{ fontSize: 10, color: '#ef4444', marginRight: 6 }}>↩</span>}
                       {issue.title}
                       {issue.logs && issue.logs.length > 0 && (
                         <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace' }}>
@@ -335,8 +396,18 @@ export function TarefasPage() {
                           ⏳ Aguardando aprovação
                         </span>
                       )}
+                      {issue.status === 'em_revisao' && (
+                        <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
+                          CEO revisando...
+                        </span>
+                      )}
+                      {ceoApprovalNote && (
+                        <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>
+                          ✅ CEO aprovou
+                        </span>
+                      )}
                       <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
-                        {new Date(issue.createdAt).toLocaleDateString('pt-BR')}
+                        {new Date(issue.updatedAt || issue.createdAt).toLocaleDateString('pt-BR')}
                       </span>
                     </div>
                   </div>
@@ -370,7 +441,35 @@ export function TarefasPage() {
                   <button className="ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => openEdit(issue)}>✏️</button>
                   <button className="ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--danger)' }} onClick={() => remove(issue.id)}>🗑</button>
                 </div>
-                {issue.description && (
+
+                {/* Motivo de reprovação — visível diretamente no card */}
+                {isReproved && reprovalReason && (
+                  <div style={{
+                    marginTop: 8, marginLeft: 22,
+                    padding: '7px 10px', borderRadius: 6,
+                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                    fontSize: 12,
+                  }}>
+                    <span style={{ color: '#ef4444', fontWeight: 600, marginRight: 6 }}>↩ CEO pediu ajuste:</span>
+                    <span style={{ color: 'var(--muted)' }}>{reprovalReason.slice(0, 250)}{reprovalReason.length > 250 ? '...' : ''}</span>
+                  </div>
+                )}
+
+                {/* Entrega do worker em tarefas concluídas */}
+                {issue.status === 'concluido' && workerOutput && (
+                  <div style={{
+                    marginTop: 8, marginLeft: 22,
+                    padding: '7px 10px', borderRadius: 6,
+                    background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)',
+                    fontSize: 12, color: 'var(--muted)',
+                  }}>
+                    <span style={{ color: '#10b981', fontWeight: 600, marginRight: 6 }}>Entrega:</span>
+                    {workerOutput.slice(0, 250)}{workerOutput.length > 250 ? '...' : ''}
+                  </div>
+                )}
+
+                {/* Descrição — só para tarefas sem destaque especial */}
+                {!isReproved && issue.status !== 'concluido' && issue.description && (
                   <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)', paddingLeft: 22 }}>
                     {issue.description.slice(0, 200)}{issue.description.length > 200 ? '...' : ''}
                   </div>
