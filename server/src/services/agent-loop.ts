@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import { dataDir, dataPath } from '../lib/data-dir.js';
 import { sendMessageToAgent } from '../lib/agent-chat.js';
 import { runQA, type QATaskType } from './qa-service.js';
+import { saveAgentOutput } from '../routes/outputs.js';
 
 // ── Hierarquia corporativa padrão ─────────────────────────────────────────────
 
@@ -893,6 +894,26 @@ export async function notifyCEOTaskComplete(userId: string, issue: any): Promise
       addIssueLog(afterCommands[afterIdx], '✅ CEO revisou e aprovou — tarefa concluída automaticamente.', true);
       saveIssues(userId, afterCommands);
       console.log(`[AgentLoop] Tarefa "${issue.title}" concluída automaticamente após aprovação do CEO`);
+
+      // Salva o trabalho entregue como output permanente
+      const workerLog = (issue.logs || []).slice().reverse().find((l: any) =>
+        !l.msg.startsWith('❌') && !l.msg.startsWith('✅') &&
+        !l.msg.startsWith('Criada') && !l.msg.startsWith('Status') &&
+        !l.msg.startsWith('CEO') && l.msg.length > 30
+      );
+      if (workerLog && issue.assigneeAgentId) {
+        try {
+          saveAgentOutput(userId, {
+            issueId: issue.id,
+            issueTitle: issue.title,
+            agentId: issue.assigneeAgentId,
+            agentName: issue.assigneeAgentName || '',
+            type: 'text',
+            title: issue.title,
+            content: workerLog.msg,
+          });
+        } catch {}
+      }
     }
   } catch (e: any) {
     console.error(`[AgentLoop] Erro na revisão automática do CEO:`, e.message);

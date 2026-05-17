@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
 
 interface Integration {
   id: string;
@@ -157,30 +158,51 @@ export function IntegrationsPage() {
   const [configuring, setConfiguring] = useState<Integration | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [connected, setConnected] = useState<Set<string>>(
-    new Set(INTEGRATIONS.filter(i => i.connected).map(i => i.id))
-  );
+  const [msg, setMsg] = useState<string | null>(null);
+  const [connected, setConnected] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadConnected(); }, []);
+
+  async function loadConnected() {
+    setLoading(true);
+    try {
+      const data = await api.get<Record<string, Record<string, string>>>('/user/integrations');
+      setConnected(new Set(Object.keys(data || {})));
+    } catch {}
+    setLoading(false);
+  }
 
   const filtered = INTEGRATIONS.filter(i => filter === 'all' || i.category === filter);
 
   function openConfig(integration: Integration) {
     setConfiguring(integration);
     setValues({});
+    setMsg(null);
   }
 
   async function save() {
     if (!configuring) return;
     setSaving(true);
-    // Simula salvar (sem backend real ainda)
-    await new Promise(r => setTimeout(r, 800));
-    setConnected(prev => new Set([...prev, configuring.id]));
-    setSaving(false);
-    setConfiguring(null);
+    setMsg(null);
+    try {
+      await api.put(`/user/integrations/${configuring.id}`, values);
+      setConnected(prev => new Set([...prev, configuring.id]));
+      setMsg('✅ Salvo com sucesso!');
+      setTimeout(() => { setMsg(null); setConfiguring(null); }, 1200);
+    } catch (e: any) {
+      setMsg('❌ Erro ao salvar: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function disconnect(id: string) {
-    if (!confirm('Desconectar esta integração?')) return;
-    setConnected(prev => { const s = new Set(prev); s.delete(id); return s; });
+  async function disconnect(id: string) {
+    if (!confirm('Desconectar esta integração? As chaves serão removidas.')) return;
+    try {
+      await api.delete(`/user/integrations/${id}`);
+      setConnected(prev => { const s = new Set(prev); s.delete(id); return s; });
+    } catch {}
   }
 
   return (
@@ -296,10 +318,16 @@ export function IntegrationsPage() {
               </div>
             ))}
 
+            {msg && (
+              <div style={{ marginBottom: 12, fontSize: 13, color: msg.startsWith('✅') ? '#10b981' : '#ef4444' }}>
+                {msg}
+              </div>
+            )}
+
             <div className="modal-actions">
               <button className="ghost" onClick={() => setConfiguring(null)}>Cancelar</button>
               <button onClick={save} disabled={saving}>
-                {saving ? 'Conectando...' : '✅ Salvar & Conectar'}
+                {saving ? 'Salvando...' : '✅ Salvar & Conectar'}
               </button>
             </div>
           </div>
