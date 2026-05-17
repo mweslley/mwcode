@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { dataDir } from './data-dir.js';
 import { getAdapter, type UserKeys } from '@mwcode/adapters';
 import { getUserKeys } from '../routes/user-keys.js';
+import { getUserIntegrations } from '../routes/user-integrations.js';
 import type { AdapterName } from '@mwcode/shared';
 import { recordUsage, checkLimits } from './usage-tracker.js';
 
@@ -53,9 +54,26 @@ export async function sendMessageToAgent(
     content: m.content,
   }));
 
-  const systemPrompt =
+  const basePrompt =
     agent.personality || agent.instructions ||
     `Você é ${agent.name}, um agente de IA com a função de ${agent.role}. Responda sempre em português brasileiro.`;
+
+  // Injetar credenciais de integrações configuradas no contexto do agente
+  const integrations = getUserIntegrations(userId);
+  const integEntries = Object.entries(integrations).filter(([, fields]) =>
+    Object.values(fields).some(v => v && typeof v === 'string')
+  );
+  const systemPrompt = integEntries.length > 0
+    ? basePrompt + '\n\n## Credenciais de integrações disponíveis\n' +
+      'Use essas chaves quando precisar executar tarefas com as APIs correspondentes:\n' +
+      integEntries.map(([id, fields]) => {
+        const fieldStr = Object.entries(fields)
+          .filter(([, v]) => v && typeof v === 'string')
+          .map(([k, v]) => `  ${k}: ${v}`)
+          .join('\n');
+        return `${id}:\n${fieldStr}`;
+      }).join('\n')
+    : basePrompt;
 
   const userKeys = getUserKeys(userId) as UserKeys;
   const adapterName = (agent.provider || agent.adapter || 'openrouter') as AdapterName;

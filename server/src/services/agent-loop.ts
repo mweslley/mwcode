@@ -727,6 +727,45 @@ function executeCommands(
   saveIssues(userId, issues);
 }
 
+// ── Monitoramento de modelos :free ────────────────────────────────────────────
+
+const _modelPricingCache: { data: any[]; ts: number } = { data: [], ts: 0 };
+const PRICING_CACHE_TTL = 6 * 60 * 60 * 1000; // 6h
+
+async function checkFreeModelPricing(agents: any[]): Promise<string> {
+  const freeModels = [...new Set(
+    agents.map(a => a.model).filter((m): m is string => typeof m === 'string' && m.endsWith(':free'))
+  )];
+  if (!freeModels.length) return '';
+
+  const now = Date.now();
+  if (now - _modelPricingCache.ts > PRICING_CACHE_TTL) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/models');
+      const json = await res.json() as { data: any[] };
+      _modelPricingCache.data = json.data || [];
+      _modelPricingCache.ts = now;
+    } catch { return ''; }
+  }
+
+  const warnings: string[] = [];
+  for (const modelId of freeModels) {
+    const modelInfo = _modelPricingCache.data.find((m: any) => m.id === modelId);
+    if (modelInfo) {
+      const completionCost = parseFloat(modelInfo.pricing?.completion || '0');
+      const promptCost = parseFloat(modelInfo.pricing?.prompt || '0');
+      if (completionCost > 0 || promptCost > 0) {
+        warnings.push(
+          `⚠️ MODELO NÃO GRATUITO: "${modelId}" passou a cobrar ` +
+          `($${promptCost}/M prompt, $${completionCost}/M completion). ` +
+          `Substitua por outro modelo :free ou notifique o fundador com [APROVAÇÃO NECESSÁRIA].`
+        );
+      }
+    }
+  }
+  return warnings.join('\n');
+}
+
 // ── Heartbeat do CEO ──────────────────────────────────────────────────────────
 
 export async function runCEOHeartbeat(userId: string): Promise<void> {
@@ -860,8 +899,13 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
         : `Distribua pelo menos 2 tarefas concretas e acionáveis entre os agentes disponíveis (exceto os de equipes pausadas).`) +
       `\nContratação de agentes e criação de tarefas NÃO requerem aprovação. Execute diretamente.`;
 
+    const freeModelWarning = await checkFreeModelPricing(agents);
+    const finalContextMsg = freeModelWarning
+      ? contextMsg + `\n\n## ⚠️ Alertas de Modelos\n${freeModelWarning}`
+      : contextMsg;
+
     console.log(`[AgentLoop] Heartbeat CEO — userId: ${userId}`);
-    const response = await sendMessageToAgent(userId, ceo.id, contextMsg, { source: 'Sistema' });
+    const response = await sendMessageToAgent(userId, ceo.id, finalContextMsg, { source: 'Sistema' });
     const commands = parseCEOResponse(response);
     executeCommands(userId, ceo, commands, agents);
   } catch (e: any) {
@@ -1042,7 +1086,7 @@ function createDefaultCEO(userId: string, company: any): Agent {
       `\nQuando precisar de aprovação humana para ações irreversíveis, use [APROVAÇÃO NECESSÁRIA].`,
     goals: company.goals || [],
     skills: [],
-    model: 'nvidia/nemotron-3-super-120b-a12b:free',
+    model: 'google/gemini-flash-1.5:free',
     provider: 'openrouter',
     status: 'active',
     hireDate: new Date().toISOString(),
