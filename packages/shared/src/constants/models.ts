@@ -58,6 +58,16 @@ export const MODELOS_OPENROUTER: ModeloIA[] = [
     destaque: true,
   },
 
+  {
+    id: 'google/gemini-flash-1.5:free',
+    nome: 'Gemini Flash 1.5',
+    descricao: 'Gemini rápido do Google. Excelente em português, raciocínio e instruções longas.',
+    contexto: '1M',
+    melhorPara: ['português', 'CEO', 'instruções longas'],
+    gratis: true,
+    destaque: true,
+  },
+
   // === GRÁTIS — OUTROS ===
   {
     id: 'deepseek/deepseek-r1:free',
