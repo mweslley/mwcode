@@ -2,6 +2,45 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
+const AGENT_APIS = [
+  {
+    id: 'apify', name: 'Apify', icon: '🕷️', desc: 'Scraping web — usado pelos agentes de pesquisa',
+    fields: [{ key: 'api_token', label: 'API Token', placeholder: 'apify_api_...' }],
+  },
+  {
+    id: 'elevenlabs', name: 'ElevenLabs', icon: '🎙️', desc: 'Síntese de voz com IA',
+    fields: [
+      { key: 'api_key',  label: 'API Key',              placeholder: 'sk_...' },
+      { key: 'voice_id', label: 'Voice ID (opcional)',   placeholder: 'EXAVITQu4vr4xnSDxMaL' },
+    ],
+  },
+  {
+    id: 'stability', name: 'Stability AI', icon: '🎨', desc: 'Geração de imagens com IA',
+    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'sk-...' }],
+  },
+  {
+    id: 'discord', name: 'Discord', icon: '🎮', desc: 'Bot e webhooks para agentes',
+    fields: [
+      { key: 'bot_token',   label: 'Bot Token',              placeholder: 'MTxxxxxx...' },
+      { key: 'webhook_url', label: 'Webhook URL (opcional)',  placeholder: 'https://discord.com/api/webhooks/...' },
+    ],
+  },
+  {
+    id: 'github', name: 'GitHub', icon: '🐙', desc: 'Acesso a repositórios e issues',
+    fields: [
+      { key: 'token', label: 'Personal Access Token', placeholder: 'ghp_...' },
+      { key: 'repo',  label: 'Repositório padrão',    placeholder: 'usuario/repo' },
+    ],
+  },
+  {
+    id: 'pterodactyl', name: 'Pterodactyl', icon: '🦕', desc: 'Gerenciamento de servidores de jogos',
+    fields: [
+      { key: 'panel_url', label: 'URL do Painel', placeholder: 'https://painel.exemplo.com' },
+      { key: 'api_key',   label: 'API Key',       placeholder: 'ptla_xxxxxxxx' },
+    ],
+  },
+];
+
 interface MaskedKeys {
   openrouter?: string;
   openai?: string;
@@ -50,6 +89,14 @@ export function Settings() {
   const [keysMsg, setKeysMsg] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState(false);
 
+  // Integrações de serviços externos
+  const [showIntegrations, setShowIntegrations] = useState(false);
+  const [connectedInteg, setConnectedInteg] = useState<Record<string, Record<string, string>>>({});
+  const [configuringInteg, setConfiguringInteg] = useState<string | null>(null);
+  const [integForm, setIntegForm] = useState<Record<string, string>>({});
+  const [savingInteg, setSavingInteg] = useState(false);
+  const [integMsg, setIntegMsg] = useState<string | null>(null);
+
   // Workspace modal
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [resetMode, setResetMode] = useState<ResetMode>(null);
@@ -62,7 +109,45 @@ export function Settings() {
     api.get('/health').catch(() => null).then(setHealth);
     api.get('/system/update-check').catch(() => null).then(setUpdateInfo);
     loadKeys();
+    loadIntegrations();
   }, []);
+
+  async function loadIntegrations() {
+    try {
+      const data = await api.get<Record<string, Record<string, string>>>('/user/integrations');
+      setConnectedInteg(data || {});
+    } catch {}
+  }
+
+  function openConfigInteg(id: string) {
+    setConfiguringInteg(id);
+    setIntegForm({});
+    setIntegMsg(null);
+  }
+
+  async function saveInteg() {
+    if (!configuringInteg) return;
+    setSavingInteg(true);
+    setIntegMsg(null);
+    try {
+      await api.put(`/user/integrations/${configuringInteg}`, integForm);
+      await loadIntegrations();
+      setIntegMsg('✅ Salvo!');
+      setTimeout(() => { setIntegMsg(null); setConfiguringInteg(null); }, 1200);
+    } catch (e: any) {
+      setIntegMsg('❌ ' + e.message);
+    } finally {
+      setSavingInteg(false);
+    }
+  }
+
+  async function disconnectInteg(id: string) {
+    if (!confirm('Remover esta integração?')) return;
+    try {
+      await api.delete(`/user/integrations/${id}`);
+      setConnectedInteg(prev => { const next = { ...prev }; delete next[id]; return next; });
+    } catch {}
+  }
 
   async function loadKeys() {
     try {
@@ -384,6 +469,123 @@ export function Settings() {
             <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(146,48,249,0.07)', borderRadius: 8, fontSize: 12, color: 'var(--muted)' }}>
               <strong style={{ color: 'var(--fg-2)' }}>Como funciona:</strong> se você definir uma chave aqui, ela é usada em vez da chave do servidor.
               Deixe em branco para usar a chave do servidor. Para remover sua chave (e voltar a usar a do servidor), clique em 🗑.
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Integrações de APIs externas */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>🔌 Integrações</h3>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0' }}>
+              APIs usadas pelos agentes para pesquisa, voz, imagens e automações.
+            </p>
+          </div>
+          <button className="ghost" style={{ fontSize: 12 }} onClick={() => setShowIntegrations(!showIntegrations)}>
+            {showIntegrations ? '▲ Fechar' : '▼ Gerenciar'}
+          </button>
+        </div>
+
+        {/* Badges de status */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: showIntegrations ? 16 : 0 }}>
+          {AGENT_APIS.map(integ => {
+            const isConn = !!connectedInteg[integ.id] && Object.keys(connectedInteg[integ.id]).length > 0;
+            return (
+              <span key={integ.id} className={`badge ${isConn ? 'badge-green' : 'badge-gray'}`}
+                title={isConn ? 'Conectada' : 'Não configurada'}
+                style={{ cursor: 'pointer' }}
+                onClick={() => { setShowIntegrations(true); openConfigInteg(integ.id); }}>
+                {integ.icon} {integ.name} {isConn ? '✓' : '—'}
+              </span>
+            );
+          })}
+        </div>
+
+        {showIntegrations && (
+          <>
+            <div className="divider" style={{ margin: '0 0 16px' }} />
+
+            {/* Lista de integrações */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {AGENT_APIS.map(integ => {
+                const isConn = !!connectedInteg[integ.id] && Object.keys(connectedInteg[integ.id]).length > 0;
+                const isEditing = configuringInteg === integ.id;
+
+                return (
+                  <div key={integ.id} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    {/* Cabeçalho da integração */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-3)' }}>
+                      <span style={{ fontSize: 18 }}>{integ.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{integ.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{integ.desc}</div>
+                      </div>
+                      {isConn && (
+                        <span className="badge badge-green" style={{ fontSize: 10 }}>✓ Conectada</span>
+                      )}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="ghost" style={{ fontSize: 11, padding: '4px 10px' }}
+                          onClick={() => isEditing ? setConfiguringInteg(null) : openConfigInteg(integ.id)}>
+                          {isEditing ? '▲ Fechar' : isConn ? '⚙️ Editar' : '🔌 Conectar'}
+                        </button>
+                        {isConn && (
+                          <button className="ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--danger)' }}
+                            onClick={() => disconnectInteg(integ.id)}>
+                            🗑
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Formulário de configuração */}
+                    {isEditing && (
+                      <div style={{ padding: '14px 16px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {integ.fields.map(field => (
+                            <div key={field.key} className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: 12 }}>{field.label}</label>
+                              <input
+                                type={field.key.includes('url') || field.key.includes('repo') || field.key.includes('voice_id') ? 'text' : 'password'}
+                                value={integForm[field.key] ?? ''}
+                                onChange={e => setIntegForm(f => ({ ...f, [field.key]: e.target.value }))}
+                                placeholder={
+                                  connectedInteg[integ.id]?.[field.key]
+                                    ? `atual: ••••${connectedInteg[integ.id][field.key].slice(-4)}`
+                                    : field.placeholder
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        {integMsg && configuringInteg === integ.id && (
+                          <div style={{ marginTop: 10, fontSize: 12, color: integMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>
+                            {integMsg}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                          <button className="ghost" style={{ fontSize: 12 }} onClick={() => setConfiguringInteg(null)}>
+                            Cancelar
+                          </button>
+                          <button style={{ fontSize: 12 }} disabled={savingInteg || Object.values(integForm).every(v => !v)}
+                            onClick={saveInteg}>
+                            {savingInteg ? 'Salvando...' : '💾 Salvar'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Mais integrações disponíveis na página de integrações.</span>
+              <button className="ghost" style={{ fontSize: 11, padding: '3px 10px' }}
+                onClick={() => navigate('/integrations')}>
+                Ver todas →
+              </button>
             </div>
           </>
         )}
