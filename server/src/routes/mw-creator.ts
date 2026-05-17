@@ -129,8 +129,8 @@ mwCreatorRouter.post('/import/:code', async (req: any, res: any) => {
       const agent = {
         id: agentId,
         userId,
-        name: row.name,           // nome do CSV (ex: "Pedro Pesquisa")
-        role: row.title,          // cargo do CSV (ex: "Especialista em Desenterrar Mistérios")
+        name: `${row.name} / ${meta.name || code} - ${row.title}`,
+        role: row.title,
         personality,
         goals: [],
         skills: agentMeta.skills || [],
