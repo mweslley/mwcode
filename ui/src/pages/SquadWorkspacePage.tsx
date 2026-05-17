@@ -809,27 +809,85 @@ export function SquadWorkspacePage() {
             </div>
 
             {/* Checkpoint — decisão do usuário */}
-            {selectedRun.status === 'checkpoint' && selectedRun.checkpoint && (
-              <div style={{ padding: '16px 18px', borderRadius: 10, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)', marginBottom: 20 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b', marginBottom: 6 }}>⏸ Checkpoint — sua decisão é necessária</div>
-                <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 12 }}>{selectedRun.checkpoint.description}</div>
-                {selectedRun.steps?.slice(-1)[0]?.output && (
-                  <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--bg-3)', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto', fontFamily: 'var(--font-mono, monospace)' }}>
-                    {selectedRun.steps.slice(-1)[0].output.slice(0, 1000)}
+            {selectedRun.status === 'checkpoint' && selectedRun.checkpoint && (() => {
+              const lastOutput = selectedRun.steps?.slice(-1)[0]?.output || '';
+              // Extrair opções clicáveis do output (tema: "...", **Título**, ## Heading, 1. item)
+              const options: { label: string; detail: string }[] = [];
+              const temaMatches = [...lastOutput.matchAll(/tema:\s*["']?(.+?)["']?\s*\n\s*(?:gancho|hook|descri):\s*["']?(.+?)["']?(?:\n|$)/gi)];
+              if (temaMatches.length > 0) {
+                temaMatches.forEach(m => options.push({ label: m[1].trim(), detail: m[2]?.trim() || '' }));
+              } else {
+                // fallback: bullets com negrito ou numerados
+                const bulletMatches = [...lastOutput.matchAll(/^(?:\d+\.|[-*])\s+\*{0,2}(.{10,80})\*{0,2}/gm)];
+                bulletMatches.slice(0, 8).forEach(m => options.push({ label: m[1].trim(), detail: '' }));
+              }
+              return (
+                <div style={{ borderRadius: 10, border: '2px solid rgba(245,158,11,0.4)', overflow: 'hidden', marginBottom: 20 }}>
+                  {/* Header */}
+                  <div style={{ padding: '12px 18px', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>⏸</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b' }}>Checkpoint — sua decisão é necessária</div>
+                      <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>{selectedRun.checkpoint.description}</div>
+                    </div>
                   </div>
-                )}
-                <textarea
-                  value={checkpointDecision}
-                  onChange={e => setCheckpointDecision(e.target.value)}
-                  placeholder="Digite sua decisão... (ex: Tema escolhido: O Relógio Parado de São João del-Rei)"
-                  rows={3}
-                  style={{ width: '100%', fontSize: 13, marginBottom: 10, resize: 'vertical' }}
-                />
-                <button onClick={submitCheckpoint} disabled={!checkpointDecision.trim() || submittingCheckpoint} style={{ fontWeight: 700 }}>
-                  {submittingCheckpoint ? 'Enviando...' : '✅ Confirmar e continuar pipeline'}
-                </button>
-              </div>
-            )}
+
+                  {/* Output do step anterior — legível */}
+                  {lastOutput && (
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                        📋 Resultado do step anterior
+                      </div>
+                      {/* Opções como cards clicáveis */}
+                      {options.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {options.map((opt, i) => (
+                            <button key={i} onClick={() => setCheckpointDecision(opt.label)}
+                              style={{
+                                textAlign: 'left', padding: '10px 14px', borderRadius: 8,
+                                border: checkpointDecision === opt.label
+                                  ? '2px solid #f59e0b' : '1px solid var(--border)',
+                                background: checkpointDecision === opt.label
+                                  ? 'rgba(245,158,11,0.1)' : 'var(--bg-3)',
+                                cursor: 'pointer', transition: 'all 0.15s',
+                              }}>
+                              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--fg)' }}>
+                                {i + 1}. {opt.label}
+                              </div>
+                              {opt.detail && (
+                                <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4 }}>{opt.detail}</div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 13, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: 260, overflowY: 'auto' }}>
+                          {lastOutput}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Input de decisão */}
+                  <div style={{ padding: '14px 18px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                      ✏️ Sua escolha
+                    </div>
+                    <textarea
+                      value={checkpointDecision}
+                      onChange={e => setCheckpointDecision(e.target.value)}
+                      placeholder="Clique em uma opção acima ou escreva sua decisão..."
+                      rows={2}
+                      style={{ width: '100%', fontSize: 13, marginBottom: 10, resize: 'vertical' }}
+                    />
+                    <button onClick={submitCheckpoint} disabled={!checkpointDecision.trim() || submittingCheckpoint}
+                      style={{ fontWeight: 700, background: '#f59e0b', color: '#000', border: 'none', width: '100%', padding: '10px 0' }}>
+                      {submittingCheckpoint ? 'Enviando...' : '▶ Confirmar e continuar pipeline'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {selectedRun.status === 'completed' && (
               <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', fontSize: 13, fontWeight: 600 }}>
