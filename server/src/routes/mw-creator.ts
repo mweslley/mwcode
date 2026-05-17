@@ -129,7 +129,9 @@ mwCreatorRouter.post('/import/:code', async (req: any, res: any) => {
       const agent = {
         id: agentId,
         userId,
-        name: `${row.name} / ${meta.name || code} - ${row.title}`,
+        name: row.sigla
+          ? `${row.sigla} · ${row.name} / ${meta.name || code} - ${row.title}`
+          : `${row.name} / ${meta.name || code} - ${row.title}`,
         role: row.title,
         personality,
         goals: [],
