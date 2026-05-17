@@ -4,6 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { dataPath, dataDir, DATA_DIR } from '../lib/data-dir.js';
 import { notifyCEOTaskComplete } from '../services/agent-loop.js';
+import { listUserRuns, type Run } from './runs.js';
 
 export const issuesRouter = Router();
 
@@ -129,10 +130,36 @@ function addLog(issue: Issue, msg: string, ok = true): void {
 
 // ── Rotas ─────────────────────────────────────────────────────────────────────
 
+function runStatusToIssueStatus(runStatus: Run['status']): IssueStatus {
+  if (runStatus === 'completed') return 'concluido';
+  if (runStatus === 'failed') return 'cancelado';
+  if (runStatus === 'checkpoint') return 'em_revisao';
+  if (runStatus === 'running') return 'em_progresso';
+  return 'todo';
+}
+
+function runsAsIssues(userId: string): Issue[] {
+  return listUserRuns(userId).map(run => ({
+    id: `run:${run.id}`,
+    userId: run.userId,
+    title: `[${run.squadName}] ${run.userRequest || 'Pipeline run'}`,
+    description: run.userRequest || '',
+    status: runStatusToIssueStatus(run.status),
+    priority: 'medio' as IssuePriority,
+    requiresApproval: run.status === 'checkpoint',
+    approvalStatus: run.status === 'checkpoint' ? 'pendente' : undefined,
+    runId: run.id,
+    squadId: run.squadId,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    completedAt: run.completedAt,
+  } as Issue & { runId: string; squadId: string }));
+}
+
 // GET /api/issues
 issuesRouter.get('/', (req: any, res: any) => {
   const { status, assignee, approval } = req.query;
-  let issues = loadIssues(req.userId);
+  let issues = [...loadIssues(req.userId), ...runsAsIssues(req.userId)];
   if (status) issues = issues.filter(i => i.status === status);
   if (assignee) issues = issues.filter(i => i.assigneeAgentId === assignee);
   if (approval === 'pendente') issues = issues.filter(i => i.requiresApproval && i.approvalStatus === 'pendente');

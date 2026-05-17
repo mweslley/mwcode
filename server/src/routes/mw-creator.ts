@@ -136,7 +136,7 @@ mwCreatorRouter.post('/import/:code', async (req: any, res: any) => {
         personality,
         goals: [],
         skills: agentMeta.skills || [],
-        model: 'google/gemini-flash-1.5:free',
+        model: 'google/gemma-4-31b-it:free',
         provider: 'openrouter',
         status: 'active',
         hireDate: new Date().toISOString(),
