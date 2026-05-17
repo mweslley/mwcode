@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { dataDir } from './data-dir.js';
 import { getAdapter, type UserKeys } from '@mwcode/adapters';
 import { getUserKeys } from '../routes/user-keys.js';
-import { getUserIntegrations } from '../routes/user-integrations.js';
+import { getUserIntegrations, TOOL_TO_INTEGRATION } from '../routes/user-integrations.js';
 import type { AdapterName } from '@mwcode/shared';
 import { recordUsage, checkLimits } from './usage-tracker.js';
 
@@ -58,22 +58,42 @@ export async function sendMessageToAgent(
     agent.personality || agent.instructions ||
     `Você é ${agent.name}, um agente de IA com a função de ${agent.role}. Responda sempre em português brasileiro.`;
 
-  // Injetar credenciais de integrações configuradas no contexto do agente
-  const integrations = getUserIntegrations(userId);
-  const integEntries = Object.entries(integrations).filter(([, fields]) =>
-    Object.values(fields).some(v => v && typeof v === 'string')
-  );
-  const systemPrompt = integEntries.length > 0
-    ? basePrompt + '\n\n## Credenciais de integrações disponíveis\n' +
-      'Use essas chaves quando precisar executar tarefas com as APIs correspondentes:\n' +
-      integEntries.map(([id, fields]) => {
-        const fieldStr = Object.entries(fields)
-          .filter(([, v]) => v && typeof v === 'string')
-          .map(([k, v]) => `  ${k}: ${v}`)
-          .join('\n');
-        return `${id}:\n${fieldStr}`;
-      }).join('\n')
-    : basePrompt;
+  // Injetar apenas as credenciais das integrações que as skills do agente realmente precisam
+  let systemPrompt = basePrompt;
+  const agentSkillNames: string[] = agent.skills || [];
+  if (agentSkillNames.length > 0) {
+    const integrations = getUserIntegrations(userId);
+    const skillsDir = path.join(dataDir('skills'), userId);
+    const allSkills: any[] = fs.existsSync(skillsDir)
+      ? fs.readdirSync(skillsDir)
+          .filter(f => f.endsWith('.json'))
+          .map(f => { try { return JSON.parse(fs.readFileSync(path.join(skillsDir, f), 'utf-8')); } catch { return null; } })
+          .filter(Boolean)
+      : [];
+    const nameSet = new Set(agentSkillNames.map(s => s.toLowerCase()));
+    const agentSkills = allSkills.filter(s => nameSet.has((s.name || '').toLowerCase()));
+    const neededIntegIds = new Set<string>();
+    for (const skill of agentSkills) {
+      for (const tool of (skill.tools || [])) {
+        const integId = TOOL_TO_INTEGRATION[tool as string];
+        if (integId) neededIntegIds.add(integId);
+      }
+    }
+    const relevantEntries = Object.entries(integrations).filter(([id, fields]) =>
+      neededIntegIds.has(id) && Object.values(fields).some(v => v && typeof v === 'string')
+    );
+    if (relevantEntries.length > 0) {
+      systemPrompt = basePrompt + '\n\n## Credenciais de integrações disponíveis\n' +
+        'Use essas chaves quando precisar executar tarefas com as APIs correspondentes:\n' +
+        relevantEntries.map(([id, fields]) => {
+          const fieldStr = Object.entries(fields)
+            .filter(([, v]) => v && typeof v === 'string')
+            .map(([k, v]) => `  ${k}: ${v}`)
+            .join('\n');
+          return `${id}:\n${fieldStr}`;
+        }).join('\n');
+    }
+  }
 
   const userKeys = getUserKeys(userId) as UserKeys;
   const adapterName = (agent.provider || agent.adapter || 'openrouter') as AdapterName;
