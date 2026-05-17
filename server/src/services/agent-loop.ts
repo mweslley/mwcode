@@ -455,24 +455,26 @@ function executeCommands(
     issues.push(issue);
     console.log(`[AgentLoop] CEO criou tarefa: "${task.title}" → ${assignee?.name || 'sem agente'}`);
 
-    // Notifica agente responsável
+    // Notifica agente responsável e encadeia revisão automática do CEO
     if (assignee) {
       const msg =
         `[CEO — Nova Tarefa Atribuída]\n\n` +
         `Tarefa: ${task.title}\n` +
         (task.description ? `Descrição: ${task.description}\n` : '') +
-        `\nExecute esta tarefa e reporte o resultado ao CEO quando concluir.`;
+        `\nExecute esta tarefa e envie um relatório completo ao CEO com: o que foi feito, resultado obtido e próximos passos sugeridos.`;
       sendMessageToAgent(userId, assignee.id, msg, { source: 'CEO' })
         .then(reply => {
-          // Adiciona log com resposta do agente
           const freshIssues = loadIssues(userId);
           const idx = freshIssues.findIndex(i => i.id === issue.id);
-          if (idx !== -1) {
-            addIssueLog(freshIssues[idx], `Resposta de ${assignee.name}: ${reply.slice(0, 300)}${reply.length > 300 ? '...' : ''}`);
-            freshIssues[idx].status = 'em_progresso';
-            freshIssues[idx].updatedAt = new Date().toISOString();
-            saveIssues(userId, freshIssues);
-          }
+          if (idx === -1) return;
+          addIssueLog(freshIssues[idx], `${assignee.name}: ${reply.slice(0, 300)}${reply.length > 300 ? '...' : ''}`);
+          freshIssues[idx].status = 'em_revisao';
+          freshIssues[idx].updatedAt = new Date().toISOString();
+          saveIssues(userId, freshIssues);
+          // CEO revisa automaticamente — sem intervenção humana
+          notifyCEOTaskComplete(userId, freshIssues[idx]).catch(e =>
+            console.error(`[AgentLoop] Erro na revisão automática do CEO para "${task.title}":`, e.message)
+          );
         })
         .catch(e => {
           const freshIssues = loadIssues(userId);
@@ -855,28 +857,45 @@ export async function notifyCEOTaskComplete(userId: string, issue: any): Promise
     const ceo = findCEO(agents);
     if (!ceo || !issue.assigneeAgentId || issue.assigneeAgentId === ceo.id) return;
 
-    const lastLogs = (issue.logs || []).slice(-3).map((l: any) => `  • ${l.msg}`).join('\n');
+    // Evita revisão dupla: se já concluída ou cancelada, não chamar novamente
+    const currentIssues = loadIssues(userId);
+    const current = currentIssues.find((i: any) => i.id === issue.id);
+    if (current && ['concluido', 'cancelado'].includes(current.status)) return;
+
+    const lastLogs = (issue.logs || []).slice(-4).map((l: any) => `  • ${l.msg}`).join('\n');
     const msg =
-      `[Relatório — Tarefa Concluída pelo Agente]\n\n` +
+      `[Revisão Automática — Trabalho do Agente]\n\n` +
       `Agente: ${issue.assigneeAgentName || 'Agente'}\n` +
       `Tarefa: "${issue.title}"\n` +
       (issue.description ? `Detalhes: ${issue.description}\n` : '') +
-      (lastLogs ? `\nÚltimas atualizações:\n${lastLogs}\n` : '') +
-      `\nRevise criticamente o trabalho entregue. Você tem estas opções:\n` +
-      `1. Aprovar e criar próximos passos:\n` +
-      `   [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="medio"]\n` +
+      (lastLogs ? `\nLog da execução:\n${lastLogs}\n` : '') +
+      `\nRevise criticamente o trabalho entregue. Escolha UMA das opções:\n` +
+      `1. Aprovar e criar próximos passos (use [CRIAR TAREFA:...] para encadear)\n` +
       `2. Reprovar e devolver para correção:\n` +
-      `   [REPROVAR TAREFA: id="${issue.id}"; motivo="Detalhe o que está errado e o que precisa ser refeito"; agente="${issue.assigneeAgentName || ''}"]\n` +
-      `3. Escalar para o fundador:\n` +
-      `   [APROVAÇÃO NECESSÁRIA: o que precisa de decisão humana]\n` +
-      `4. Confirmar conclusão e indicar próximos passos (sem comando — só texto).\n\n` +
-      `Seja criterioso: só aprove se o resultado atende completamente ao objetivo da tarefa.`;
+      `   [REPROVAR TAREFA: id="${issue.id}"; motivo="O que está errado e como corrigir"; agente="${issue.assigneeAgentName || ''}"]\n` +
+      `3. Escalar decisão crítica ao fundador (use apenas se realmente necessário):\n` +
+      `   [APROVAÇÃO NECESSÁRIA: descrição do que precisa de decisão humana]\n` +
+      `4. Confirmar conclusão sem próximos passos (responda só com texto — sem comandos).\n\n` +
+      `Seja criterioso. Só reprove se o resultado não atende ao objetivo. Só escale se for realmente bloqueante.`;
 
+    console.log(`[AgentLoop] CEO revisando tarefa "${issue.title}" automaticamente`);
     const response = await sendMessageToAgent(userId, ceo.id, msg, { source: issue.assigneeAgentName || 'Agente' });
     const commands = parseCEOResponse(response);
     executeCommands(userId, ceo, commands, agents);
+
+    // Auto-fechar: se CEO não reprovou esta tarefa, marca como concluída
+    const afterCommands = loadIssues(userId);
+    const afterIdx = afterCommands.findIndex((i: any) => i.id === issue.id);
+    if (afterIdx !== -1 && afterCommands[afterIdx].status === 'em_revisao') {
+      afterCommands[afterIdx].status = 'concluido';
+      afterCommands[afterIdx].completedAt = new Date().toISOString();
+      afterCommands[afterIdx].updatedAt = new Date().toISOString();
+      addIssueLog(afterCommands[afterIdx], '✅ CEO revisou e aprovou — tarefa concluída automaticamente.', true);
+      saveIssues(userId, afterCommands);
+      console.log(`[AgentLoop] Tarefa "${issue.title}" concluída automaticamente após aprovação do CEO`);
+    }
   } catch (e: any) {
-    console.error(`[AgentLoop] Erro ao notificar CEO sobre tarefa concluída:`, e.message);
+    console.error(`[AgentLoop] Erro na revisão automática do CEO:`, e.message);
   }
 }
 
