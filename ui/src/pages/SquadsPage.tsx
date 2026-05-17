@@ -60,6 +60,57 @@ export function SquadsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // mw-creator import
+  const [showImport, setShowImport] = useState(false);
+  const [importList, setImportList] = useState<{ code: string; name: string; description: string }[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSelected, setImportSelected] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importPreviewLoading, setImportPreviewLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  async function openImport() {
+    setShowImport(true);
+    setImportLoading(true);
+    setImportSelected(null);
+    setImportPreview(null);
+    setImportMsg(null);
+    try {
+      const list = await api.get<{ code: string; name: string; description: string }[]>('/mw-creator/squads');
+      setImportList(list || []);
+    } catch { setImportList([]); }
+    setImportLoading(false);
+  }
+
+  async function selectImport(code: string) {
+    setImportSelected(code);
+    setImportPreviewLoading(true);
+    try {
+      const preview = await api.get<any>(`/mw-creator/squads/${code}`);
+      setImportPreview(preview);
+    } catch { setImportPreview(null); }
+    setImportPreviewLoading(false);
+  }
+
+  async function doImport() {
+    if (!importSelected) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const result = await api.post<any>(`/mw-creator/import/${importSelected}`, {});
+      setImportMsg(`✅ Equipe "${result.squad.name}" importada! ${result.agentsCreated} agente(s) criado(s).`);
+      await load();
+      setTimeout(() => {
+        setShowImport(false);
+        navigate(`/squads/${result.squad.id}`);
+      }, 1800);
+    } catch (e: any) {
+      setImportMsg(`❌ Erro: ${e.message || 'Falha ao importar'}`);
+    }
+    setImporting(false);
+  }
+
   async function load() {
     const [sq, ag] = await Promise.all([
       api.get<Equipe[]>('/squads').catch(() => []),
@@ -142,7 +193,10 @@ export function SquadsPage() {
             <h1 className="page-title">👥 Equipes</h1>
             <p className="page-subtitle">Gerencie times especializados de agentes com liderança e missão definidas.</p>
           </div>
-          <button onClick={openCreate}>+ Criar Equipe</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="ghost" onClick={openImport} style={{ fontSize: 13 }}>📦 Importar do mw-creator</button>
+            <button onClick={openCreate}>+ Criar Equipe</button>
+          </div>
         </div>
       </div>
 
@@ -445,6 +499,92 @@ export function SquadsPage() {
               <button className="ghost" onClick={() => setShowModal(false)}>Cancelar</button>
               <button onClick={save} disabled={saving || !form.name}>
                 {saving ? 'Salvando...' : editing ? '💾 Salvar' : '👥 Criar Equipe'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Importar do mw-creator */}
+      {showImport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowImport(false); }}>
+          <div className="card" style={{ width: '100%', maxWidth: 600, padding: 28, borderRadius: 14, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 17 }}>📦 Importar do mw-creator</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  Squads pré-configurados com agentes, pipeline e skills do repositório mw-creator.
+                </div>
+              </div>
+              <button className="ghost" onClick={() => setShowImport(false)} style={{ fontSize: 18, padding: '2px 8px' }}>×</button>
+            </div>
+
+            {importLoading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>Carregando squads...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                {importList.map(sq => (
+                  <div
+                    key={sq.code}
+                    onClick={() => selectImport(sq.code)}
+                    style={{
+                      padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                      border: `2px solid ${importSelected === sq.code ? 'var(--primary)' : 'var(--border)'}`,
+                      background: importSelected === sq.code ? 'rgba(146,48,249,0.07)' : 'var(--bg-2)',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{sq.name} <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>({sq.code})</span></div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 3 }}>{sq.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {importSelected && (
+              <div style={{ marginBottom: 20 }}>
+                {importPreviewLoading ? (
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>Carregando preview...</div>
+                ) : importPreview ? (
+                  <div style={{ padding: '14px 16px', borderRadius: 10, background: 'var(--bg-3)', border: '1px solid var(--border)' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Preview: {importPreview.name}</div>
+                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12 }}>
+                      <div>
+                        <div style={{ color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>AGENTES ({importPreview.agents?.length})</div>
+                        {importPreview.agents?.map((a: any) => (
+                          <div key={a.id} style={{ color: 'var(--fg-2)', marginBottom: 3 }}>• {a.name}</div>
+                        ))}
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>PIPELINE ({importPreview.pipeline?.steps?.length} steps)</div>
+                        {importPreview.pipeline?.steps?.map((s: any) => (
+                          <div key={s.id} style={{ color: s.type === 'checkpoint' ? '#f59e0b' : 'var(--fg-2)', marginBottom: 3 }}>
+                            {s.id}. {s.name} {s.type === 'checkpoint' ? '⏸' : ''}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {importPreview.skills?.length > 0 && (
+                      <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {importPreview.skills.map((sk: string) => (
+                          <span key={sk} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(146,48,249,0.1)', color: 'var(--primary)', border: '1px solid rgba(146,48,249,0.25)' }}>{sk}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {importMsg && (
+              <div style={{ marginBottom: 14, fontSize: 13, color: importMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>{importMsg}</div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="ghost" onClick={() => setShowImport(false)}>Cancelar</button>
+              <button onClick={doImport} disabled={!importSelected || importing} style={{ fontWeight: 700 }}>
+                {importing ? 'Importando...' : '📦 Importar Squad'}
               </button>
             </div>
           </div>

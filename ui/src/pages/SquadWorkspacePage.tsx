@@ -104,7 +104,11 @@ export function SquadWorkspacePage() {
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [outputs, setOutputs] = useState<Output[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'tarefas' | 'entregas' | 'integracoes'>('tarefas');
+  const [tab, setTab] = useState<'tarefas' | 'entregas' | 'integracoes' | 'runs'>('tarefas');
+  const [runs, setRuns] = useState<any[]>([]);
+  const [selectedRun, setSelectedRun] = useState<any | null>(null);
+  const [checkpointDecision, setCheckpointDecision] = useState('');
+  const [submittingCheckpoint, setSubmittingCheckpoint] = useState(false);
   const [integReqs, setIntegReqs] = useState<IntegrationReq[]>([]);
   const [configuringInteg, setConfiguringInteg] = useState<IntegrationReq | null>(null);
   const [integForm, setIntegForm] = useState<Record<string, string>>({});
@@ -131,31 +135,65 @@ export function SquadWorkspacePage() {
     setCreatingRun(true);
     setRunMsg(null);
     try {
-      const leader = squad.leaderId ? squadAgents.find(a => a.id === squad.leaderId) : null;
-      const pipeline = squadAgents.map(a => a.name).join(' → ');
-      const description =
-        `[Solicitação via Equipe ${squad.name}]\n\n` +
-        `Pedido: ${runRequest.trim()}\n\n` +
-        `Equipe: ${squad.name}\n` +
-        `Missão: ${squad.mission || squad.description || ''}\n` +
-        (pipeline ? `Pipeline sugerido: ${pipeline}\n` : '') +
-        `\nOrquestre o pipeline completo criando subtarefas sequenciais para cada membro da equipe.`;
-      await api.post('/issues', {
-        title: `[Equipe ${squad.name}] ${runRequest.trim().slice(0, 80)}`,
-        description,
-        status: 'todo',
-        priority: 'medio',
-        assigneeAgentId: leader?.id || undefined,
-        assigneeAgentName: leader?.name || undefined,
-      });
-      setRunMsg('✅ Tarefa criada! O CEO vai orquestrar o pipeline da equipe no próximo ciclo (até 15min).');
-      setRunRequest('');
-      setTimeout(() => { setShowRunModal(false); setRunMsg(null); load(); }, 3000);
+      const hasPipeline = !!(squad as any).pipelineCode;
+
+      if (hasPipeline) {
+        // Squad mw-creator: usa engine de pipeline
+        const run = await api.post<any>('/runs', { squadId: squad.id, userRequest: runRequest.trim() });
+        setRuns(prev => [run, ...prev]);
+        setRunMsg('✅ Pipeline iniciado! Acompanhe o progresso na aba Runs.');
+        setRunRequest('');
+        setTimeout(() => { setShowRunModal(false); setRunMsg(null); setTab('runs'); }, 2000);
+      } else {
+        // Squad normal: cria issue para CEO orquestrar
+        const leader = squad.leaderId ? squadAgents.find(a => a.id === squad.leaderId) : null;
+        const pipeline = squadAgents.map(a => a.name).join(' → ');
+        const description =
+          `[Solicitação via Equipe ${squad.name}]\n\n` +
+          `Pedido: ${runRequest.trim()}\n\n` +
+          `Equipe: ${squad.name}\n` +
+          `Missão: ${squad.mission || squad.description || ''}\n` +
+          (pipeline ? `Pipeline sugerido: ${pipeline}\n` : '') +
+          `\nOrquestre o pipeline completo criando subtarefas sequenciais para cada membro da equipe.`;
+        await api.post('/issues', {
+          title: `[Equipe ${squad.name}] ${runRequest.trim().slice(0, 80)}`,
+          description,
+          status: 'todo',
+          priority: 'medio',
+          assigneeAgentId: leader?.id || undefined,
+          assigneeAgentName: leader?.name || undefined,
+        });
+        setRunMsg('✅ Tarefa criada! O CEO vai orquestrar o pipeline da equipe no próximo ciclo (até 15min).');
+        setRunRequest('');
+        setTimeout(() => { setShowRunModal(false); setRunMsg(null); load(); }, 3000);
+      }
     } catch {
-      setRunMsg('❌ Erro ao criar tarefa. Tente novamente.');
+      setRunMsg('❌ Erro ao criar run. Tente novamente.');
     } finally {
       setCreatingRun(false);
     }
+  }
+
+  async function submitCheckpoint() {
+    if (!selectedRun || !checkpointDecision.trim()) return;
+    setSubmittingCheckpoint(true);
+    try {
+      await api.post(`/runs/${selectedRun.id}/checkpoint`, { decision: checkpointDecision.trim() });
+      setCheckpointDecision('');
+      // Atualizar run
+      const updated = await api.get<any>(`/runs/${selectedRun.id}`);
+      setSelectedRun(updated);
+      setRuns(prev => prev.map(r => r.id === updated.id ? updated : r));
+    } catch { /* silencioso */ }
+    setSubmittingCheckpoint(false);
+  }
+
+  async function refreshRun(runId: string) {
+    try {
+      const updated = await api.get<any>(`/runs/${runId}`);
+      setSelectedRun(updated);
+      setRuns(prev => prev.map(r => r.id === updated.id ? updated : r));
+    } catch {}
   }
 
   async function load() {
@@ -168,6 +206,11 @@ export function SquadWorkspacePage() {
         api.get<Output[]>('/outputs').catch(() => []),
         api.get<IntegrationReq[]>('/user/integrations/requirements').catch(() => []),
       ]);
+      // Carregar runs se squad tem pipeline mw-creator
+      const sq2 = (squads || []).find((s: any) => s.id === squadId);
+      if (sq2?.pipelineCode) {
+        api.get<any[]>(`/runs?squadId=${squadId}`).then(r => setRuns(r || [])).catch(() => {});
+      }
       setIntegReqs(reqs || []);
       const sq = (squads || []).find(s => s.id === squadId);
       if (!sq) { navigate('/squads'); return; }
@@ -412,6 +455,14 @@ export function SquadWorkspacePage() {
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
           )}
         </button>
+        {(squad as any)?.pipelineCode && (
+          <button onClick={() => { setTab('runs'); api.get<any[]>(`/runs?squadId=${squadId}`).then(r => setRuns(r || [])).catch(() => {}); }} className={tab === 'runs' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            ▶ Runs ({runs.length})
+            {runs.some(r => r.status === 'checkpoint') && (
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} title="Aguardando sua decisão" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* --- ABA TAREFAS --- */}
@@ -640,6 +691,145 @@ export function SquadWorkspacePage() {
                 {savingInteg ? 'Salvando...' : '🔒 Salvar credenciais'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aba Runs */}
+      {tab === 'runs' && (
+        <div>
+          {runs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>▶</div>
+              <p style={{ fontWeight: 600 }}>Nenhuma run iniciada</p>
+              <p style={{ fontSize: 12, marginBottom: 16 }}>Clique em "Nova run" para executar o pipeline da equipe.</p>
+              <button onClick={() => setShowRunModal(true)}>💬 Iniciar primeira run</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {runs.map(run => {
+                const statusInfo: Record<string, { label: string; color: string; bg: string }> = {
+                  queued:     { label: 'Na fila',        color: '#6b7280', bg: 'rgba(107,114,128,0.1)' },
+                  running:    { label: 'Executando',     color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+                  checkpoint: { label: '⏸ Aguardando você', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+                  completed:  { label: '✅ Concluída',   color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+                  failed:     { label: '❌ Falhou',      color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+                };
+                const si = statusInfo[run.status] || statusInfo.queued;
+                const completedSteps = run.steps?.length || 0;
+                return (
+                  <div key={run.id} onClick={() => { setSelectedRun(run); setCheckpointDecision(''); }} style={{ padding: '14px 18px', borderRadius: 10, border: `1px solid ${run.status === 'checkpoint' ? '#f59e0b' : 'var(--border)'}`, background: 'var(--bg-2)', cursor: 'pointer', transition: 'all 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-3)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-2)'}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{run.userRequest?.slice(0, 70) || 'Run sem descrição'}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                          {new Date(run.createdAt).toLocaleString('pt-BR')} · {completedSteps} steps concluídos
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10, color: si.color, background: si.bg, whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 10 }}>
+                        {si.label}
+                      </span>
+                    </div>
+                    {run.status === 'checkpoint' && run.checkpoint && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
+                        ⏸ {run.checkpoint.description}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal Detalhe de Run */}
+      {selectedRun && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) setSelectedRun(null); }}>
+          <div className="card" style={{ width: '100%', maxWidth: 680, padding: 28, borderRadius: 14, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 17 }}>▶ Run — {selectedRun.squadName}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{selectedRun.userRequest}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="ghost" style={{ fontSize: 11 }} onClick={() => refreshRun(selectedRun.id)}>↻ Atualizar</button>
+                <button className="ghost" onClick={() => setSelectedRun(null)} style={{ fontSize: 18, padding: '2px 8px' }}>×</button>
+              </div>
+            </div>
+
+            {/* Timeline de steps */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+              {(() => {
+                const { steps: pipelineSteps, checkpoints } = (selectedRun.pipelineCode && squad?.pipelineYaml)
+                  ? { steps: [] as any[], checkpoints: [] as any[] }
+                  : { steps: [] as any[], checkpoints: [] as any[] };
+                const completedIds = new Set((selectedRun.steps || []).map((s: any) => s.stepId));
+                const checkpointIds = new Set(Object.keys(selectedRun.userInputs || {}).map(Number));
+                const allSteps: any[] = selectedRun.steps || [];
+                if (allSteps.length === 0) return (
+                  <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>
+                    {selectedRun.status === 'queued' ? 'Pipeline na fila...' : 'Pipeline iniciando...'}
+                  </div>
+                );
+                return allSteps.map((s: any) => (
+                  <div key={s.stepId} style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ padding: '8px 14px', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14 }}>✅</span>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>Step {s.stepId}: {s.stepName}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{s.agentName} · {new Date(s.completedAt).toLocaleTimeString('pt-BR')}</span>
+                    </div>
+                    {s.output && (
+                      <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto', background: 'var(--bg-2)', fontFamily: 'var(--font-mono, monospace)' }}>
+                        {s.output.slice(0, 1200)}{s.output.length > 1200 ? '\n...(truncado)' : ''}
+                      </div>
+                    )}
+                  </div>
+                ));
+              })()}
+              {selectedRun.status === 'running' && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, border: '1px dashed var(--border)', color: '#3b82f6', fontSize: 13, textAlign: 'center' }}>
+                  ⏳ Step {selectedRun.currentStepId} em execução...
+                </div>
+              )}
+              {selectedRun.status === 'failed' && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', fontSize: 13 }}>
+                  ❌ {selectedRun.error}
+                </div>
+              )}
+            </div>
+
+            {/* Checkpoint — decisão do usuário */}
+            {selectedRun.status === 'checkpoint' && selectedRun.checkpoint && (
+              <div style={{ padding: '16px 18px', borderRadius: 10, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)', marginBottom: 20 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b', marginBottom: 6 }}>⏸ Checkpoint — sua decisão é necessária</div>
+                <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 12 }}>{selectedRun.checkpoint.description}</div>
+                {selectedRun.steps?.slice(-1)[0]?.output && (
+                  <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--bg-3)', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto', fontFamily: 'var(--font-mono, monospace)' }}>
+                    {selectedRun.steps.slice(-1)[0].output.slice(0, 1000)}
+                  </div>
+                )}
+                <textarea
+                  value={checkpointDecision}
+                  onChange={e => setCheckpointDecision(e.target.value)}
+                  placeholder="Digite sua decisão... (ex: Tema escolhido: O Relógio Parado de São João del-Rei)"
+                  rows={3}
+                  style={{ width: '100%', fontSize: 13, marginBottom: 10, resize: 'vertical' }}
+                />
+                <button onClick={submitCheckpoint} disabled={!checkpointDecision.trim() || submittingCheckpoint} style={{ fontWeight: 700 }}>
+                  {submittingCheckpoint ? 'Enviando...' : '✅ Confirmar e continuar pipeline'}
+                </button>
+              </div>
+            )}
+
+            {selectedRun.status === 'completed' && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', fontSize: 13, fontWeight: 600 }}>
+                ✅ Pipeline concluído em {new Date(selectedRun.completedAt).toLocaleString('pt-BR')}
+              </div>
+            )}
           </div>
         </div>
       )}

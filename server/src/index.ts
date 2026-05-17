@@ -28,6 +28,8 @@ import { feedRouter } from './routes/feed.js';
 import { issuesRouter } from './routes/issues.js';
 import { usageRouter } from './routes/usage.js';
 import { squadsRouter } from './routes/squads.js';
+import { mwCreatorRouter } from './routes/mw-creator.js';
+import { runsRouter } from './routes/runs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,6 +93,8 @@ app.use('/api/feed', authMiddleware, feedRouter);
 app.use('/api/issues', authMiddleware, issuesRouter);
 app.use('/api/usage', authMiddleware, usageRouter);
 app.use('/api/squads', authMiddleware, squadsRouter);
+app.use('/api/mw-creator', authMiddleware, mwCreatorRouter);
+app.use('/api/runs', authMiddleware, runsRouter);
 
 // Servir UI compilada em produção
 const uiDist = path.resolve(__dirname, '../../ui/dist');
