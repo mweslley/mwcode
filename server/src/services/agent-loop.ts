@@ -835,6 +835,22 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `\nG) Para reprovar trabalho de um agente e solicitar refeição:\n` +
       `   [REPROVAR TAREFA: id="UUID da tarefa"; motivo="O que está errado e o que precisa ser corrigido"; agente="Nome do Agente"]\n` +
       `   O agente receberá o feedback e reapresentará o trabalho para nova revisão.\n` +
+      `\nH) Quando criar uma equipe ou agente que precisa de credenciais externas (Apify, ElevenLabs, Discord, etc.),\n` +
+      `   analise quais integrações são necessárias e solicite APENAS as que ainda não estão configuradas.\n` +
+      `   Inclua ao final da resposta um bloco por credencial:\n` +
+      `   [SOLICITAR_CREDENCIAL: integration="apify"; field="api_token"; label="Token do Apify"; hint="Obtenha em: apify.com/settings/integrations"]\n` +
+      `   Integrações disponíveis e seus campos:\n` +
+      `   - apify: api_token\n` +
+      `   - elevenlabs: api_key, voice_id (opcional)\n` +
+      `   - openrouter: api_key\n` +
+      `   - discord: bot_token, webhook_url\n` +
+      `   - github: token, repo\n` +
+      `   - pterodactyl: panel_url, api_key\n` +
+      `   - stability: api_key\n` +
+      `   - openai: api_key\n` +
+      `   - gemini: api_key\n` +
+      `   IMPORTANTE: As credenciais NÃO passam pelo chat — a UI exibe campo seguro (mascarado) que vai direto à API.\n` +
+      `   Use SOMENTE para credenciais de integrações REALMENTE necessárias e ainda não configuradas.\n` +
       `\nRegras: Seja direto e objetivo. Responda SEMPRE em português brasileiro.\n` +
       (otherAgents.length === 0
         ? `Você não tem agentes ainda. CONTRATE AGORA os 2 ou 3 diretores C-suite mais urgentes para o contexto desta empresa. Use os títulos corretos (COO, CTO, CMO, etc.) com instruções personalizadas. Contratação é autônoma.`

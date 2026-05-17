@@ -3,6 +3,89 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { MessageRenderer } from '../components/MessageRenderer';
 
+interface CredentialRequest {
+  integration: string;
+  field: string;
+  label: string;
+  hint?: string;
+}
+
+function parseCredentialRequests(content: string): CredentialRequest[] {
+  const re = /\[SOLICITAR_CREDENCIAL:([^\]]+)\]/gi;
+  const results: CredentialRequest[] = [];
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    const attrs: Record<string, string> = {};
+    const attrRe = /(\w+)="([^"]*)"/g;
+    let a;
+    while ((a = attrRe.exec(m[1])) !== null) attrs[a[1]] = a[2];
+    if (attrs.integration && attrs.field) results.push(attrs as unknown as CredentialRequest);
+  }
+  return results;
+}
+
+function stripCredentialTags(content: string): string {
+  return content.replace(/\[SOLICITAR_CREDENCIAL:[^\]]+\]/gi, '').trim();
+}
+
+function CredentialForm({ req, onSaved }: { req: CredentialRequest; onSaved: () => void }) {
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    if (!value.trim()) return;
+    setSaving(true);
+    setErr('');
+    try {
+      await api.put(`/user/integrations/${req.integration}`, { [req.field]: value.trim() });
+      setSaved(true);
+      setValue('');
+      onSaved();
+    } catch (e: any) {
+      setErr('Erro ao salvar: ' + (e.message || 'tente novamente'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (saved) {
+    return (
+      <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', fontSize: 12, color: '#10b981', marginTop: 6 }}>
+        ✅ {req.label} salvo com segurança
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: 'rgba(146,48,249,0.07)', border: '1px solid rgba(146,48,249,0.2)' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>
+        🔐 Credencial necessária: {req.label}
+      </div>
+      {req.hint && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>💡 {req.hint}</div>}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          type="password"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder={`Cole seu ${req.label}...`}
+          style={{ flex: 1, fontSize: 12, padding: '6px 10px', background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 6, color: 'var(--fg)', fontFamily: 'monospace' }}
+          onKeyDown={e => { if (e.key === 'Enter') save(); }}
+          autoComplete="off"
+        />
+        <button onClick={save} disabled={saving || !value.trim()} style={{ fontSize: 12, padding: '6px 14px', flexShrink: 0 }}>
+          {saving ? '...' : '🔒 Salvar'}
+        </button>
+      </div>
+      {err && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{err}</div>}
+      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+        Esta chave vai direto à API — não fica no histórico do chat.
+      </div>
+    </div>
+  );
+}
+
 interface Agent {
   id: string;
   name: string;
@@ -703,7 +786,19 @@ export function ChatPage() {
                         ))}
                       </div>
                     ) : null}
-                    {msg.content && <MessageRenderer content={msg.content} />}
+                    {msg.content && !isUser && (() => {
+                      const creds = parseCredentialRequests(msg.content);
+                      const cleanContent = creds.length ? stripCredentialTags(msg.content) : msg.content;
+                      return (
+                        <>
+                          {cleanContent && <MessageRenderer content={cleanContent} />}
+                          {creds.map((cr, ci) => (
+                            <CredentialForm key={`${cr.integration}-${cr.field}-${ci}`} req={cr} onSaved={() => {}} />
+                          ))}
+                        </>
+                      );
+                    })()}
+                    {msg.content && isUser && <MessageRenderer content={msg.content} />}
                   </div>
 
                   {/* Approval request buttons */}

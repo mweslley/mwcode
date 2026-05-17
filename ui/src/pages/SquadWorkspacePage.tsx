@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
+interface IntegrationReq {
+  integrationId: string;
+  integrationName: string;
+  fields: { key: string; label: string; type: string; placeholder: string }[];
+  tools: string[];
+  skills: string[];
+  configured: boolean;
+}
+
 interface Squad {
   id: string;
   name: string;
@@ -95,7 +104,12 @@ export function SquadWorkspacePage() {
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [outputs, setOutputs] = useState<Output[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'tarefas' | 'entregas'>('tarefas');
+  const [tab, setTab] = useState<'tarefas' | 'entregas' | 'integracoes'>('tarefas');
+  const [integReqs, setIntegReqs] = useState<IntegrationReq[]>([]);
+  const [configuringInteg, setConfiguringInteg] = useState<IntegrationReq | null>(null);
+  const [integForm, setIntegForm] = useState<Record<string, string>>({});
+  const [savingInteg, setSavingInteg] = useState(false);
+  const [integMsg, setIntegMsg] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [expandedOutput, setExpandedOutput] = useState<string | null>(null);
@@ -109,12 +123,14 @@ export function SquadWorkspacePage() {
   async function load() {
     setLoading(true);
     try {
-      const [squads, agList, issues, outs] = await Promise.all([
+      const [squads, agList, issues, outs, reqs] = await Promise.all([
         api.get<Squad[]>('/squads'),
         api.get<Agent[]>('/enterprise/agents').catch(() => []),
         api.get<Issue[]>('/issues').catch(() => []),
         api.get<Output[]>('/outputs').catch(() => []),
+        api.get<IntegrationReq[]>('/user/integrations/requirements').catch(() => []),
       ]);
+      setIntegReqs(reqs || []);
       const sq = (squads || []).find(s => s.id === squadId);
       if (!sq) { navigate('/squads'); return; }
       setSquad(sq);
@@ -180,6 +196,36 @@ export function SquadWorkspacePage() {
     if (!confirm('Remover esta entrega?')) return;
     await api.delete(`/outputs/${id}`).catch(() => {});
     setOutputs(prev => prev.filter(o => o.id !== id));
+  }
+
+  function openConfigInteg(integ: IntegrationReq) {
+    setConfiguringInteg(integ);
+    setIntegForm({});
+    setIntegMsg(null);
+  }
+
+  async function saveInteg() {
+    if (!configuringInteg) return;
+    setSavingInteg(true);
+    setIntegMsg(null);
+    try {
+      await api.put(`/user/integrations/${configuringInteg.integrationId}`, integForm);
+      setIntegReqs(prev => prev.map(r => r.integrationId === configuringInteg.integrationId ? { ...r, configured: true } : r));
+      setIntegMsg('✅ Salvo com sucesso!');
+      setTimeout(() => { setIntegMsg(null); setConfiguringInteg(null); }, 1200);
+    } catch (e: any) {
+      setIntegMsg('❌ Erro: ' + e.message);
+    } finally {
+      setSavingInteg(false);
+    }
+  }
+
+  async function disconnectInteg(integrationId: string) {
+    if (!confirm('Remover esta credencial?')) return;
+    try {
+      await api.delete(`/user/integrations/${integrationId}`);
+      setIntegReqs(prev => prev.map(r => r.integrationId === integrationId ? { ...r, configured: false } : r));
+    } catch {}
   }
 
   if (loading) {
@@ -299,14 +345,35 @@ export function SquadWorkspacePage() {
         ))}
       </div>
 
+      {/* Banner: integrações faltando */}
+      {integReqs.some(r => !r.configured) && (
+        <div style={{ padding: '10px 16px', marginBottom: 16, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+          <span>⚠️</span>
+          <span style={{ flex: 1 }}>
+            <strong style={{ color: '#ef4444' }}>Credenciais faltando:</strong>{' '}
+            {integReqs.filter(r => !r.configured).map(r => r.integrationName).join(', ')} —{' '}
+            as skills desta equipe podem não funcionar.
+          </span>
+          <button style={{ fontSize: 12, padding: '5px 12px', flexShrink: 0 }} onClick={() => setTab('integracoes')}>
+            🔌 Configurar →
+          </button>
+        </div>
+      )}
+
       {/* Abas */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        {(['tarefas', 'entregas'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={tab === t ? '' : 'ghost'}
-            style={{ fontSize: 13, padding: '7px 18px', textTransform: 'capitalize' }}>
-            {t === 'tarefas' ? `📋 Tarefas (${allIssues.length})` : `📦 Entregas (${outputs.length})`}
-          </button>
-        ))}
+        <button onClick={() => setTab('tarefas')} className={tab === 'tarefas' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px' }}>
+          📋 Tarefas ({allIssues.length})
+        </button>
+        <button onClick={() => setTab('entregas')} className={tab === 'entregas' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px' }}>
+          📦 Entregas ({outputs.length})
+        </button>
+        <button onClick={() => setTab('integracoes')} className={tab === 'integracoes' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          🔌 Integrações
+          {integReqs.some(r => !r.configured) && (
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+          )}
+        </button>
       </div>
 
       {/* --- ABA TAREFAS --- */}
@@ -444,6 +511,98 @@ export function SquadWorkspacePage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* --- ABA INTEGRAÇÕES --- */}
+      {tab === 'integracoes' && (
+        <div>
+          {integReqs.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>🔌</div>
+              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Nenhuma integração necessária</p>
+              <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto' }}>
+                As skills dos agentes desta equipe não requerem APIs externas ainda.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {integReqs.map(integ => (
+                <div key={integ.integrationId} className="card" style={{ padding: '14px 18px', borderLeft: `3px solid ${integ.configured ? '#10b981' : '#ef4444'}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{integ.integrationName}</span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                          background: integ.configured ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                          color: integ.configured ? '#10b981' : '#ef4444',
+                        }}>
+                          {integ.configured ? '✓ Configurada' : '✗ Faltando'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        Usada por: <strong>{integ.skills.join(', ')}</strong>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button className="ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => openConfigInteg(integ)}>
+                        ⚙️ {integ.configured ? 'Reconfigurar' : 'Configurar'}
+                      </button>
+                      {integ.configured && (
+                        <button className="ghost" style={{ fontSize: 12, padding: '6px 10px', color: 'var(--danger)' }} onClick={() => disconnectInteg(integ.integrationId)}>
+                          🗑
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+                <a href="/integrations" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                  Ver todas as integrações disponíveis →
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal Configurar Integração */}
+      {configuringInteg && (
+        <div className="modal-overlay" onClick={() => setConfiguringInteg(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 440 }}>
+            <h2 style={{ fontSize: 16, marginBottom: 6 }}>🔌 Configurar {configuringInteg.integrationName}</h2>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>
+              Necessária para: <strong>{configuringInteg.skills.join(', ')}</strong>
+            </p>
+
+            {configuringInteg.fields.map(field => (
+              <div key={field.key} className="form-group">
+                <label>{field.label}</label>
+                <input
+                  type={field.type === 'password' ? 'password' : 'text'}
+                  value={integForm[field.key] || ''}
+                  onChange={e => setIntegForm(f => ({ ...f, [field.key]: e.target.value }))}
+                  placeholder={field.placeholder}
+                  autoComplete="off"
+                />
+              </div>
+            ))}
+
+            {integMsg && (
+              <div style={{ marginBottom: 12, fontSize: 13, color: integMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>
+                {integMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="ghost" onClick={() => setConfiguringInteg(null)}>Cancelar</button>
+              <button onClick={saveInteg} disabled={savingInteg}>
+                {savingInteg ? 'Salvando...' : '🔒 Salvar credenciais'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
