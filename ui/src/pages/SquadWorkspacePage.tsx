@@ -21,6 +21,12 @@ interface Squad {
   status: 'active' | 'paused' | 'completed';
   createdAt: string;
   updatedAt: string;
+  // mw-creator fields
+  pipelineCode?: string;
+  pipelineYaml?: string;
+  pipelineName?: string;
+  agentIdMap?: Record<string, string>;
+  importedFrom?: string;
 }
 
 interface Agent {
@@ -135,7 +141,7 @@ export function SquadWorkspacePage() {
     setCreatingRun(true);
     setRunMsg(null);
     try {
-      const hasPipeline = !!(squad as any).pipelineCode;
+      const hasPipeline = !!squad.pipelineCode;
 
       if (hasPipeline) {
         // Squad mw-creator: usa engine de pipeline
@@ -455,7 +461,7 @@ export function SquadWorkspacePage() {
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
           )}
         </button>
-        {(squad as any)?.pipelineCode && (
+        {squad?.pipelineCode && (
           <button onClick={() => { setTab('runs'); api.get<any[]>(`/runs?squadId=${squadId}`).then(r => setRuns(r || [])).catch(() => {}); }} className={tab === 'runs' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px', display: 'flex', alignItems: 'center', gap: 6 }}>
             ▶ Runs ({runs.length})
             {runs.some(r => r.status === 'checkpoint') && (
