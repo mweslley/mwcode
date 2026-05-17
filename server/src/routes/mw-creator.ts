@@ -80,45 +80,57 @@ mwCreatorRouter.post('/import/:code', async (req: any, res: any) => {
 
     const meta = parseSimpleSquadYaml(squadYamlRaw);
     const agentRows = parseCsv(csvRaw);
-    const { steps, checkpoints } = parsePipelineYaml(pipelineRaw);
+    const { steps, checkpoints, name: pipelineName } = parsePipelineYaml(pipelineRaw);
 
-    // 2. Carregar e criar cada agente
-    const agentIdMap: Record<string, string> = {};
+    // 2. Detectar e remover squad existente com mesmo pipelineCode
+    const squadsDir = dataDir('squads', companyId);
     const agentsDir = dataDir('agents', userId);
+
+    if (fs.existsSync(squadsDir)) {
+      const existingSquads = fs.readdirSync(squadsDir)
+        .filter(f => f.endsWith('.json'))
+        .map(f => {
+          try { return JSON.parse(fs.readFileSync(path.join(squadsDir, f), 'utf-8')); } catch { return null; }
+        })
+        .filter(Boolean)
+        .filter((s: any) => s.pipelineCode === code);
+
+      for (const oldSquad of existingSquads) {
+        // Remover agentes do squad antigo
+        if (fs.existsSync(agentsDir)) {
+          for (const agentId of (oldSquad.agentIds || [])) {
+            const agentFile = path.join(agentsDir, `${agentId}.json`);
+            if (fs.existsSync(agentFile)) fs.unlinkSync(agentFile);
+          }
+        }
+        // Remover squad
+        const squadFile = path.join(squadsDir, `${oldSquad.id}.json`);
+        if (fs.existsSync(squadFile)) fs.unlinkSync(squadFile);
+      }
+    }
+
+    // 3. Criar cada agente do zero (sempre fresh)
+    const agentIdMap: Record<string, string> = {};
     const createdAgents: any[] = [];
 
     for (const row of agentRows) {
       if (!row.id || !row.path) continue;
-      let personality = '';
+      let personality = `${row.name} — ${row.title}`;
       let agentMeta: Record<string, any> = {};
       try {
         const agentMdPath = row.path.replace('./', `${SQUADS_DIR}/${code}/`);
         const agentRaw = await fetchGitHubFile(agentMdPath);
-        const { meta: fm, body } = parseFrontmatter(agentRaw);
+        const { meta: fm } = parseFrontmatter(agentRaw);
         agentMeta = fm;
-        personality = agentRaw; // full .agent.md as personality
-      } catch { personality = `${row.name} — ${row.title}`; }
-
-      // Verificar se já existe agente com mesmo nome (evitar duplicata)
-      const existing = fs.existsSync(agentsDir)
-        ? fs.readdirSync(agentsDir)
-            .filter(f => f.endsWith('.json'))
-            .map(f => JSON.parse(fs.readFileSync(path.join(agentsDir, f), 'utf-8')))
-            .find((a: any) => a.name === (agentMeta.name || row.name))
-        : null;
-
-      if (existing) {
-        agentIdMap[row.id] = existing.id;
-        createdAgents.push(existing);
-        continue;
-      }
+        personality = agentRaw;
+      } catch { /* mantém fallback */ }
 
       const agentId = crypto.randomUUID();
       const agent = {
         id: agentId,
         userId,
-        name: agentMeta.name || row.name,
-        role: agentMeta.title || row.title,
+        name: row.name,           // nome do CSV (ex: "Pedro Pesquisa")
+        role: row.title,          // cargo do CSV (ex: "Especialista em Desenterrar Mistérios")
         personality,
         goals: [],
         skills: agentMeta.skills || [],
@@ -137,13 +149,10 @@ mwCreatorRouter.post('/import/:code', async (req: any, res: any) => {
       createdAgents.push(agent);
     }
 
-    // 3. Identificar líder (primeiro agente da lista ou com role "roteiro"?)
-    // Usar o primeiro da lista que não seja QC/Veredito como líder
-    const leaderRow = agentRows[0];
-    const leaderId = leaderRow ? agentIdMap[leaderRow.id] : undefined;
+    // 4. Líder = primeiro agente da lista
+    const leaderId = agentRows[0] ? agentIdMap[agentRows[0].id] : undefined;
 
-    // 4. Criar o squad
-    const { name: pipelineName } = parsePipelineYaml(pipelineRaw);
+    // 5. Criar squad
     const squadId = crypto.randomUUID();
     const squad = {
       id: squadId,
@@ -156,7 +165,6 @@ mwCreatorRouter.post('/import/:code', async (req: any, res: any) => {
       companyId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      // mw-creator fields
       pipelineCode: code,
       pipelineYaml: pipelineRaw,
       pipelineName,
@@ -164,12 +172,13 @@ mwCreatorRouter.post('/import/:code', async (req: any, res: any) => {
       importedFrom: 'mw-creator',
     };
 
-    const squadsDir = dataDir('squads', companyId);
+    if (!fs.existsSync(squadsDir)) fs.mkdirSync(squadsDir, { recursive: true });
     fs.writeFileSync(path.join(squadsDir, `${squadId}.json`), JSON.stringify(squad, null, 2));
 
     res.json({
       squad,
       agentsCreated: createdAgents.length,
+      replaced: true,
       pipeline: { steps, checkpoints },
     });
   } catch (e: any) {
