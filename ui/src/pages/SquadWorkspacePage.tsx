@@ -30,9 +30,22 @@ interface Issue {
   assigneeAgentId?: string;
   assigneeAgentName?: string;
   createdByAgentName?: string;
+  logs?: { ts: string; msg: string; ok?: boolean }[];
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+}
+
+interface Output {
+  id: string;
+  issueId?: string;
+  issueTitle?: string;
+  agentId?: string;
+  agentName?: string;
+  type: 'text' | 'url' | 'markdown' | 'code';
+  title: string;
+  content: string;
+  createdAt: string;
 }
 
 const STATUS_INFO = {
@@ -42,12 +55,12 @@ const STATUS_INFO = {
 };
 
 const ISSUE_STATUS: Record<string, { label: string; color: string }> = {
-  todo:        { label: 'A fazer',       color: '#6b7280' },
-  backlog:     { label: 'Backlog',       color: '#6b7280' },
-  em_progresso:{ label: 'Em andamento',  color: '#3b82f6' },
-  em_revisao:  { label: 'Em revisão',    color: '#f59e0b' },
-  concluido:   { label: 'Concluído',     color: '#10b981' },
-  cancelado:   { label: 'Cancelado',     color: '#ef4444' },
+  todo:         { label: 'A fazer',      color: '#6b7280' },
+  backlog:      { label: 'Backlog',      color: '#6b7280' },
+  em_progresso: { label: 'Em andamento', color: '#3b82f6' },
+  em_revisao:   { label: 'Em revisão',   color: '#f59e0b' },
+  concluido:    { label: 'Concluído',    color: '#10b981' },
+  cancelado:    { label: 'Cancelado',    color: '#ef4444' },
 };
 
 function agentEmoji(role: string) {
@@ -68,38 +81,51 @@ function agentEmoji(role: string) {
   return '🤖';
 }
 
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
 export function SquadWorkspacePage() {
   const { squadId } = useParams<{ squadId: string }>();
   const navigate = useNavigate();
 
   const [squad, setSquad] = useState<Squad | null>(null);
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [squadAgents, setSquadAgents] = useState<Agent[]>([]);
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
+  const [outputs, setOutputs] = useState<Output[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'tarefas' | 'entregas'>('tarefas');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [expandedOutput, setExpandedOutput] = useState<string | null>(null);
+
+  // Edit modal
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Squad>>({});
+  const [saving, setSaving] = useState(false);
+  const [editMsg, setEditMsg] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const [squads, agList, issues] = await Promise.all([
+      const [squads, agList, issues, outs] = await Promise.all([
         api.get<Squad[]>('/squads'),
         api.get<Agent[]>('/enterprise/agents').catch(() => []),
         api.get<Issue[]>('/issues').catch(() => []),
+        api.get<Output[]>('/outputs').catch(() => []),
       ]);
       const sq = (squads || []).find(s => s.id === squadId);
       if (!sq) { navigate('/squads'); return; }
       setSquad(sq);
 
       const agentMap = Object.fromEntries((agList || []).map((a: Agent) => [a.id, a]));
-      setAgents(sq.agentIds.map(id => agentMap[id]).filter(Boolean));
+      setAllAgents((agList || []).filter((a: Agent) => a.status === 'active'));
+      setSquadAgents(sq.agentIds.map((id: string) => agentMap[id]).filter(Boolean));
 
-      // Filtra tarefas atribuídas a membros desta equipe
       const memberIds = new Set(sq.agentIds);
-      const squadIssues = (issues || []).filter((i: Issue) =>
-        i.assigneeAgentId && memberIds.has(i.assigneeAgentId)
-      );
-      setAllIssues(squadIssues);
+      setAllIssues((issues || []).filter((i: Issue) => i.assigneeAgentId && memberIds.has(i.assigneeAgentId)));
+      setOutputs((outs || []).filter((o: Output) => o.agentId && memberIds.has(o.agentId)));
     } finally {
       setLoading(false);
     }
@@ -116,20 +142,56 @@ export function SquadWorkspacePage() {
     setTogglingStatus(false);
   }
 
+  function openEdit() {
+    if (!squad) return;
+    setEditForm({ name: squad.name, description: squad.description, mission: squad.mission, agentIds: [...squad.agentIds], leaderId: squad.leaderId || '' });
+    setEditMsg(null);
+    setShowEdit(true);
+  }
+
+  async function saveEdit() {
+    if (!squad) return;
+    setSaving(true);
+    setEditMsg(null);
+    try {
+      const updated = await api.put<Squad>(`/squads/${squad.id}`, editForm);
+      setSquad(updated);
+      const agentMap = Object.fromEntries(allAgents.map(a => [a.id, a]));
+      setSquadAgents((updated.agentIds || []).map((id: string) => agentMap[id]).filter(Boolean));
+      setEditMsg('✅ Equipe atualizada!');
+      setTimeout(() => { setShowEdit(false); setEditMsg(null); }, 1200);
+    } catch (e: any) {
+      setEditMsg('❌ Erro: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleMember(agentId: string) {
+    setEditForm(f => {
+      const ids = f.agentIds || [];
+      const next = ids.includes(agentId) ? ids.filter(id => id !== agentId) : [...ids, agentId];
+      const leaderId = f.leaderId && next.includes(f.leaderId) ? f.leaderId : '';
+      return { ...f, agentIds: next, leaderId };
+    });
+  }
+
+  async function deleteOutput(id: string) {
+    if (!confirm('Remover esta entrega?')) return;
+    await api.delete(`/outputs/${id}`).catch(() => {});
+    setOutputs(prev => prev.filter(o => o.id !== id));
+  }
+
   if (loading) {
     return <div className="page"><div style={{ color: 'var(--muted)', padding: 40, textAlign: 'center' }}>Carregando...</div></div>;
   }
-
   if (!squad) return null;
 
   const info = STATUS_INFO[squad.status];
-  const leader = squad.leaderId ? agents.find(a => a.id === squad.leaderId) : null;
-  const otherMembers = agents.filter(a => a.id !== squad.leaderId);
+  const leader = squad.leaderId ? squadAgents.find(a => a.id === squad.leaderId) : null;
+  const otherMembers = squadAgents.filter(a => a.id !== squad.leaderId);
 
-  const filtered = statusFilter === 'all'
-    ? allIssues
-    : allIssues.filter(i => i.status === statusFilter);
-
+  const filtered = statusFilter === 'all' ? allIssues : allIssues.filter(i => i.status === statusFilter);
   const done   = allIssues.filter(i => i.status === 'concluido').length;
   const active = allIssues.filter(i => i.status === 'em_progresso').length;
   const todo   = allIssues.filter(i => ['todo', 'backlog'].includes(i.status)).length;
@@ -149,52 +211,29 @@ export function SquadWorkspacePage() {
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{squad.name}</h1>
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                background: info.bg, color: info.color, textTransform: 'uppercase', letterSpacing: '0.05em',
-              }}>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: info.bg, color: info.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {info.label}
               </span>
             </div>
-            {squad.description && (
-              <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--fg-2)' }}>{squad.description}</p>
-            )}
+            {squad.description && <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--fg-2)' }}>{squad.description}</p>}
             {squad.mission && (
-              <div style={{
-                fontSize: 12, padding: '8px 12px', borderRadius: 8,
-                background: 'var(--bg-2)', borderLeft: '3px solid var(--primary)',
-                color: 'var(--fg-2)', lineHeight: 1.6,
-              }}>
+              <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-2)', borderLeft: '3px solid var(--primary)', color: 'var(--fg-2)', lineHeight: 1.6 }}>
                 <strong style={{ color: 'var(--primary)' }}>Missão:</strong> {squad.mission}
               </div>
             )}
           </div>
 
-          {/* Ações */}
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
             {leader && (
-              <button
-                onClick={() => navigate(`/chat/${leader.id}`)}
-                style={{ fontSize: 12, padding: '8px 16px', fontWeight: 700 }}
-                title={`Abrir chat com ${leader.name} (líder)`}
-              >
-                💬 Iniciar nova run
+              <button onClick={() => navigate(`/chat/${leader.id}`)} style={{ fontSize: 12, padding: '8px 16px', fontWeight: 700 }}>
+                💬 Nova run
               </button>
             )}
-            <button
-              className="ghost"
-              onClick={toggleStatus}
-              disabled={togglingStatus}
-              style={{ fontSize: 12, padding: '8px 14px' }}
-            >
-              {squad.status === 'active' ? '⏸ Pausar equipe' : '▶ Ativar equipe'}
+            <button className="ghost" onClick={openEdit} style={{ fontSize: 12, padding: '8px 14px' }}>
+              ✏️ Editar equipe
             </button>
-            <button
-              className="ghost"
-              onClick={() => navigate('/squads')}
-              style={{ fontSize: 12, padding: '8px 12px' }}
-            >
-              ✏️ Editar
+            <button className="ghost" onClick={toggleStatus} disabled={togglingStatus} style={{ fontSize: 12, padding: '8px 14px' }}>
+              {squad.status === 'active' ? '⏸ Pausar' : '▶ Ativar'}
             </button>
           </div>
         </div>
@@ -202,211 +241,282 @@ export function SquadWorkspacePage() {
         {/* Membros */}
         <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: 'var(--muted)', marginRight: 4 }}>Equipe:</span>
-
-          {/* Líder em destaque */}
           {leader && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 12px', borderRadius: 20,
-              background: 'rgba(245,158,11,0.12)',
-              border: '1px solid rgba(245,158,11,0.35)',
-              fontSize: 12,
-            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', fontSize: 12 }}>
               <span>👑</span>
               <span style={{ fontWeight: 700, color: '#f59e0b' }}>{leader.name}</span>
               <span style={{ fontSize: 10, color: 'var(--muted)' }}>— líder</span>
-              <button
-                className="ghost"
-                style={{ padding: '1px 6px', fontSize: 10, marginLeft: 2 }}
-                onClick={() => navigate(`/chat/${leader.id}`)}
-                title="Conversar com o líder"
-              >
-                💬
-              </button>
+              <button className="ghost" style={{ padding: '1px 6px', fontSize: 10, marginLeft: 2 }} onClick={() => navigate(`/chat/${leader.id}`)}>💬</button>
             </div>
           )}
-
-          {/* Outros membros */}
           {otherMembers.map(a => (
-            <div key={a.id} style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '4px 10px', borderRadius: 20,
-              background: 'var(--bg-2)', border: '1px solid var(--border)',
-              fontSize: 12, cursor: 'pointer',
-            }}
-              onClick={() => navigate(`/chat/${a.id}`)}
-              title={`Conversar com ${a.name}`}
-            >
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: 'var(--bg-2)', border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer' }}
+              onClick={() => navigate(`/chat/${a.id}`)}>
               <span>{agentEmoji(a.role)}</span>
               <span style={{ fontWeight: 600 }}>{a.name}</span>
             </div>
           ))}
-
-          {agents.length === 0 && (
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Nenhum membro atribuído</span>
-          )}
+          {squadAgents.length === 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Nenhum membro — <button className="ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={openEdit}>Adicionar →</button></span>}
         </div>
       </div>
 
-      {/* Como iniciar uma run */}
+      {/* Aviso equipe pausada */}
       {squad.status === 'paused' && (
-        <div style={{
-          padding: '12px 16px', marginBottom: 20,
-          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
-          borderRadius: 10, fontSize: 13, color: '#f59e0b',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
+        <div style={{ padding: '12px 16px', marginBottom: 20, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, fontSize: 13, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span>⏸</span>
-          <span>Equipe pausada — o CEO não atribui tarefas aos membros. <button className="ghost" style={{ fontSize: 12, color: '#f59e0b', padding: '2px 8px' }} onClick={toggleStatus}>Ativar agora →</button></span>
+          <span>Equipe pausada — CEO não atribui tarefas aos membros. <button className="ghost" style={{ fontSize: 12, color: '#f59e0b', padding: '2px 8px' }} onClick={toggleStatus}>Ativar →</button></span>
         </div>
       )}
 
+      {/* Instrução de run */}
       {leader && squad.status === 'active' && (
-        <div style={{
-          padding: '14px 18px', marginBottom: 20,
-          background: 'rgba(146,48,249,0.07)', border: '1px solid rgba(146,48,249,0.2)',
-          borderRadius: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
-        }}>
+        <div style={{ padding: '14px 18px', marginBottom: 20, background: 'rgba(146,48,249,0.07)', border: '1px solid rgba(146,48,249,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)', marginBottom: 3 }}>
-              💡 Como iniciar um trabalho com esta equipe
-            </div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)', marginBottom: 3 }}>💡 Como iniciar um trabalho</div>
             <div style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.6 }}>
-              Clique em <strong>"Iniciar nova run"</strong> para abrir o chat com {leader.name} (líder).
-              Descreva o que precisa — o líder coordena os outros membros e distribui as tarefas automaticamente.
+              Clique em <strong>"Nova run"</strong> para abrir o chat com {leader.name} (líder). Descreva o que precisa — o líder coordena e distribui para a equipe.
             </div>
           </div>
-          <button
-            onClick={() => navigate(`/chat/${leader.id}`)}
-            style={{ fontSize: 13, padding: '9px 20px', fontWeight: 700, flexShrink: 0 }}
-          >
-            💬 Iniciar nova run
+          <button onClick={() => navigate(`/chat/${leader.id}`)} style={{ fontSize: 13, padding: '9px 20px', fontWeight: 700, flexShrink: 0 }}>
+            💬 Nova run
           </button>
         </div>
       )}
 
-      {/* Estatísticas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
         {[
-          { label: 'Em andamento', value: active, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-          { label: 'A fazer',      value: todo,   color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-          { label: 'Concluídas',   value: done,   color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+          { label: 'Em andamento', value: active,          color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+          { label: 'A fazer',      value: todo,            color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+          { label: 'Concluídas',   value: done,            color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+          { label: 'Entregas',     value: outputs.length,  color: '#a78bfa', bg: 'rgba(167,139,250,0.1)' },
         ].map(stat => (
-          <div key={stat.label} className="card" style={{
-            padding: '14px 18px', textAlign: 'center',
-            background: stat.bg, border: `1px solid ${stat.color}33`,
-          }}>
+          <div key={stat.label} className="card" style={{ padding: '14px 18px', textAlign: 'center', background: stat.bg, border: `1px solid ${stat.color}33`, cursor: stat.label === 'Entregas' ? 'pointer' : undefined }}
+            onClick={stat.label === 'Entregas' ? () => setTab('entregas') : undefined}>
             <div style={{ fontSize: 28, fontWeight: 800, color: stat.color }}>{stat.value}</div>
             <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4 }}>{stat.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Tarefas da equipe */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>📋 Tarefas da equipe</h2>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {(['all', 'em_progresso', 'todo', 'concluido'] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              style={{
-                fontSize: 11, padding: '4px 12px',
-                background: statusFilter === s ? 'var(--primary)' : 'var(--bg-2)',
-                color: statusFilter === s ? '#fff' : 'var(--fg-2)',
-                borderColor: statusFilter === s ? 'var(--primary)' : 'var(--border)',
-              }}
-            >
-              {s === 'all' ? 'Todas' : ISSUE_STATUS[s]?.label ?? s}
-            </button>
-          ))}
-        </div>
+      {/* Abas */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+        {(['tarefas', 'entregas'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} className={tab === t ? '' : 'ghost'}
+            style={{ fontSize: 13, padding: '7px 18px', textTransform: 'capitalize' }}>
+            {t === 'tarefas' ? `📋 Tarefas (${allIssues.length})` : `📦 Entregas (${outputs.length})`}
+          </button>
+        ))}
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-          <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
-            {allIssues.length === 0 ? 'Nenhuma tarefa ainda' : 'Nenhuma tarefa com esse filtro'}
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto' }}>
-            {allIssues.length === 0
-              ? `Inicie uma nova run conversando com ${leader?.name ?? 'o líder'}. As tarefas criadas aparecerão aqui.`
-              : 'Tente outro filtro de status.'}
-          </p>
-          {leader && allIssues.length === 0 && (
-            <button style={{ marginTop: 16 }} onClick={() => navigate(`/chat/${leader.id}`)}>
-              💬 Iniciar primeira run
-            </button>
-          )}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(issue => {
-            const st = ISSUE_STATUS[issue.status] ?? { label: issue.status, color: '#6b7280' };
-            const member = agents.find(a => a.id === issue.assigneeAgentId);
-            return (
-              <div key={issue.id} className="card" style={{
-                padding: '12px 16px',
-                borderLeft: `3px solid ${st.color}`,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>{issue.title}</span>
-                      <span style={{
-                        fontSize: 10, padding: '1px 7px', borderRadius: 10,
-                        background: `${st.color}18`, color: st.color, fontWeight: 700,
-                      }}>
-                        {st.label}
-                      </span>
-                    </div>
-                    {issue.description && (
-                      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 6 }}>
-                        {issue.description.slice(0, 120)}{issue.description.length > 120 ? '…' : ''}
+      {/* --- ABA TAREFAS --- */}
+      {tab === 'tarefas' && (
+        <>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+            {(['all', 'em_progresso', 'em_revisao', 'todo', 'concluido'] as const).map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                style={{ fontSize: 11, padding: '4px 12px', background: statusFilter === s ? 'var(--primary)' : 'var(--bg-2)', color: statusFilter === s ? '#fff' : 'var(--fg-2)', borderColor: statusFilter === s ? 'var(--primary)' : 'var(--border)' }}>
+                {s === 'all' ? `Todas (${allIssues.length})` : `${ISSUE_STATUS[s]?.label ?? s} (${allIssues.filter(i => i.status === s).length})`}
+              </button>
+            ))}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
+                {allIssues.length === 0 ? 'Nenhuma tarefa ainda' : 'Nenhuma tarefa com esse filtro'}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto' }}>
+                {allIssues.length === 0 ? `Inicie uma run com ${leader?.name ?? 'o líder'}.` : 'Tente outro filtro.'}
+              </p>
+              {leader && allIssues.length === 0 && (
+                <button style={{ marginTop: 16 }} onClick={() => navigate(`/chat/${leader.id}`)}>💬 Iniciar primeira run</button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filtered.map(issue => {
+                const st = ISSUE_STATUS[issue.status] ?? { label: issue.status, color: '#6b7280' };
+                const member = squadAgents.find(a => a.id === issue.assigneeAgentId);
+                const reprovalLog = (issue.logs || []).slice().reverse().find(l => l.msg.startsWith('❌ CEO reprovou:'));
+                return (
+                  <div key={issue.id} className="card" style={{ padding: '12px 16px', borderLeft: `3px solid ${st.color}` }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>{issue.title}</span>
+                          <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, background: `${st.color}18`, color: st.color, fontWeight: 700 }}>{st.label}</span>
+                        </div>
+                        {reprovalLog && (
+                          <div style={{ fontSize: 11, marginBottom: 6, padding: '4px 8px', borderRadius: 6, background: 'rgba(239,68,68,0.08)', color: '#ef4444' }}>
+                            ↩ CEO pediu ajuste: {reprovalLog.msg.replace('❌ CEO reprovou:', '').replace('Tarefa reaberta para correção.', '').trim().slice(0, 150)}
+                          </div>
+                        )}
+                        {!reprovalLog && issue.description && (
+                          <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 6 }}>
+                            {issue.description.slice(0, 120)}{issue.description.length > 120 ? '…' : ''}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
+                          {member && <span style={{ cursor: 'pointer', color: 'var(--primary)' }} onClick={() => navigate(`/chat/${member.id}`)}>{agentEmoji(member.role)} {member.name}</span>}
+                          <span>🕐 {new Date(issue.createdAt).toLocaleDateString('pt-BR')}</span>
+                          {issue.completedAt && <span style={{ color: '#10b981' }}>✅ {new Date(issue.completedAt).toLocaleDateString('pt-BR')}</span>}
+                        </div>
                       </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
                       {member && (
-                        <span
-                          style={{ cursor: 'pointer', color: 'var(--primary)' }}
-                          onClick={() => navigate(`/chat/${member.id}`)}
-                          title="Abrir chat com este agente"
-                        >
-                          {agentEmoji(member.role)} {member.name}
-                        </span>
-                      )}
-                      <span>🕐 {new Date(issue.createdAt).toLocaleDateString('pt-BR')}</span>
-                      {issue.completedAt && (
-                        <span style={{ color: '#10b981' }}>✅ {new Date(issue.completedAt).toLocaleDateString('pt-BR')}</span>
+                        <button className="ghost" style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0 }} onClick={() => navigate(`/chat/${member.id}`)}>💬</button>
                       )}
                     </div>
                   </div>
-                  {member && (
-                    <button
-                      className="ghost"
-                      style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0 }}
-                      onClick={() => navigate(`/chat/${member.id}`)}
-                      title={`Falar com ${member.name}`}
-                    >
-                      💬
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* --- ABA ENTREGAS --- */}
+      {tab === 'entregas' && (
+        <div>
+          {outputs.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>
+              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Nenhuma entrega ainda</p>
+              <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 380, margin: '0 auto' }}>
+                Os textos, pesquisas e documentos produzidos pelos agentes aparecem aqui automaticamente após cada tarefa concluída.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {outputs.map(out => {
+                const isExpanded = expandedOutput === out.id;
+                const agent = squadAgents.find(a => a.id === out.agentId);
+                return (
+                  <div key={out.id} className="card" style={{ padding: '14px 16px', borderLeft: '3px solid var(--primary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{out.title}</span>
+                          <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, background: 'rgba(146,48,249,0.12)', color: 'var(--primary)', fontWeight: 600 }}>
+                            {out.type === 'text' ? '📄 Texto' : out.type === 'url' ? '🔗 Link' : out.type === 'code' ? '💻 Código' : '📝 Markdown'}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                          {out.agentName && (
+                            <span style={{ cursor: agent ? 'pointer' : 'default', color: agent ? 'var(--primary)' : undefined }}
+                              onClick={() => agent && navigate(`/chat/${agent.id}`)}>
+                              {agent ? agentEmoji(agent.role) : '🤖'} {out.agentName}
+                            </span>
+                          )}
+                          {out.issueTitle && <span>📋 {out.issueTitle.slice(0, 50)}</span>}
+                          <span>🕐 {formatDate(out.createdAt)}</span>
+                        </div>
+
+                        <div style={{
+                          fontSize: 12, lineHeight: 1.6,
+                          background: 'var(--bg-2)', borderRadius: 8,
+                          padding: '10px 12px',
+                          maxHeight: isExpanded ? 'none' : '80px',
+                          overflow: 'hidden',
+                          whiteSpace: 'pre-wrap',
+                          color: 'var(--fg-2)',
+                        }}>
+                          {out.content}
+                        </div>
+
+                        {out.content.length > 200 && (
+                          <button className="ghost" style={{ fontSize: 11, marginTop: 6, padding: '3px 10px' }}
+                            onClick={() => setExpandedOutput(isExpanded ? null : out.id)}>
+                            {isExpanded ? '▲ Recolher' : '▼ Ver tudo'}
+                          </button>
+                        )}
+                      </div>
+
+                      <button className="ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--danger)', flexShrink: 0 }}
+                        onClick={() => deleteOutput(out.id)} title="Remover entrega">
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Nota sobre outputs */}
-      {done > 0 && (
-        <div style={{
-          marginTop: 20, padding: '12px 16px',
-          background: 'var(--bg-2)', border: '1px solid var(--border)',
-          borderRadius: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6,
-        }}>
-          💡 <strong style={{ color: 'var(--fg-2)' }}>Arquivos e entregas:</strong> Para ver arquivos gerados (vídeos, documentos, código), acesse o chat de cada membro ou peça ao líder um resumo do que foi produzido.
+      {/* Modal Editar Equipe */}
+      {showEdit && (
+        <div className="modal-overlay" onClick={() => setShowEdit(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 560, maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: 16, marginBottom: 20 }}>✏️ Editar Equipe</h2>
+
+            <div className="form-group">
+              <label>Nome da equipe *</label>
+              <input value={editForm.name || ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Grandense" autoFocus />
+            </div>
+            <div className="form-group">
+              <label>Descrição</label>
+              <input value={editForm.description || ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Resumo do propósito da equipe" />
+            </div>
+            <div className="form-group">
+              <label>Missão</label>
+              <textarea value={editForm.mission || ''} onChange={e => setEditForm(f => ({ ...f, mission: e.target.value }))} placeholder="O que esta equipe deve alcançar?" rows={3} style={{ resize: 'vertical' }} />
+            </div>
+
+            <div className="form-group">
+              <label>Membros da equipe</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                {allAgents.length === 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Nenhum agente ativo</span>}
+                {allAgents.map(a => {
+                  const selected = (editForm.agentIds || []).includes(a.id);
+                  return (
+                    <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', padding: '4px 6px', borderRadius: 6, background: selected ? 'rgba(146,48,249,0.08)' : undefined }}>
+                      <input type="checkbox" checked={selected} onChange={() => toggleMember(a.id)} />
+                      <span>{agentEmoji(a.role)}</span>
+                      <span style={{ fontWeight: selected ? 600 : 400 }}>{a.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{a.role}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {(editForm.agentIds || []).length > 0 && (
+              <div className="form-group">
+                <label>Líder da equipe</label>
+                <select value={editForm.leaderId || ''} onChange={e => setEditForm(f => ({ ...f, leaderId: e.target.value }))}>
+                  <option value="">— Sem líder definido —</option>
+                  {(editForm.agentIds || []).map(id => {
+                    const a = allAgents.find(ag => ag.id === id);
+                    return a ? <option key={id} value={id}>👑 {a.name} — {a.role}</option> : null;
+                  })}
+                </select>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label>Status</label>
+              <select value={editForm.status || 'active'} onChange={e => setEditForm(f => ({ ...f, status: e.target.value as Squad['status'] }))}>
+                <option value="active">Ativa</option>
+                <option value="paused">Pausada</option>
+                <option value="completed">Concluída</option>
+              </select>
+            </div>
+
+            {editMsg && (
+              <div style={{ marginBottom: 12, fontSize: 13, color: editMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>{editMsg}</div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="ghost" onClick={() => setShowEdit(false)}>Cancelar</button>
+              <button onClick={saveEdit} disabled={saving || !editForm.name}>
+                {saving ? 'Salvando...' : '💾 Salvar alterações'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
