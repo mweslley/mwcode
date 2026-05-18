@@ -31,3 +31,11 @@ jobs:
           tags: |
             ghcr.io/mweslley/mwcode:latest
             ghcr.io/mweslley/mwcode:${{ github.sha }}
+
+      - name: Deploy no Swarm (força pull da nova imagem)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: docker service update --force --image ghcr.io/mweslley/mwcode:latest mwcode_app
