@@ -6,6 +6,7 @@ import { saveAgentOutput } from '../routes/outputs.js';
 import { getIntegrationKey } from '../routes/user-integrations.js';
 import { generateNarrationAudio } from '../lib/elevenlabs-tts.js';
 import { apifyGoogleSearch, formatSearchResults } from '../lib/apify-search.js';
+import { assembleVideo } from '../lib/video-assembler.js';
 
 interface PipelineStepDef {
   id: number;
@@ -259,4 +260,12 @@ async function executePipelineFrom(
   final.status = 'completed';
   final.completedAt = new Date().toISOString();
   saveRun(userId, final);
+
+  // ── Montagem automática de vídeo ──────────────────────────────────────────
+  // Roda em background para não bloquear a resposta
+  assembleVideo(userId, final).then(videoPath => {
+    if (videoPath) console.log(`[pipeline] Vídeo pronto: ${videoPath}`);
+  }).catch(e => {
+    console.warn('[pipeline] Montagem de vídeo falhou (não crítico):', e.message);
+  });
 }
