@@ -39,7 +39,7 @@ interface RunDetail {
   userRequest: string;
   status: string;
   currentStepId?: number;
-  steps: { stepId: number; stepName: string; agentName: string; output: string; completedAt: string }[];
+  steps: { stepId: number; stepName: string; agentName: string; output: string; audioFile?: string; completedAt: string }[];
   checkpoint?: { stepId: number; description: string };
   userInputs: Record<number, string>;
   theme?: string;
@@ -50,6 +50,30 @@ interface RunDetail {
   completedAt?: string;
   error?: string;
 }
+
+const BRIEFING_FIELDS: {
+  key: string; label: string; type: 'select' | 'textarea' | 'text';
+  options?: string[]; placeholder?: string;
+}[] = [
+  {
+    key: 'plataforma', label: '1. Plataforma de destino', type: 'select',
+    options: ['YouTube', 'Instagram Reels', 'TikTok', 'YouTube Shorts', 'Facebook', 'Twitter/X', 'Outra'],
+  },
+  {
+    key: 'formato', label: '2. Formato de tela', type: 'select',
+    options: ['16:9 (YouTube / Horizontal)', '9:16 (Reels / TikTok / Shorts)', '1:1 (Feed quadrado)', '4:5 (Instagram feed)', '4:3 (Clássico)'],
+  },
+  { key: 'tema', label: '3. Tema / História', type: 'textarea', placeholder: 'Descreva a história que quer contar...' },
+  {
+    key: 'tom', label: '4. Tom / Clima', type: 'select',
+    options: ['Investigativo e sombrio', 'Misterioso', 'Nostálgico', 'Tenso e dramático', 'Emocional', 'Informativo / Didático', 'Humorístico'],
+  },
+  {
+    key: 'duracao', label: '5. Duração', type: 'select',
+    options: ['30s', '60s', '90s', '3min', '5min', '10min+'],
+  },
+  { key: 'referencia', label: '6. Referência de estilo (opcional)', type: 'text', placeholder: 'Ex: True Detective, Canal Dark...' },
+];
 
 const STATUS_LABELS: Record<TarefaStatus, string> = {
   backlog: 'Pendente', todo: 'A fazer', em_progresso: 'Em progresso',
@@ -515,10 +539,10 @@ export function TarefasPage() {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
                     <button className="ghost" style={{ fontSize: 11, padding: '5px 10px' }} onClick={refreshRun}>↻</button>
                     {detailRun.status === 'completed' && (
-                      <a href={`/api/runs/${detailRun.id}/export`} download
-                        style={{ fontSize: 11, padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--fg)', textDecoration: 'none', background: 'var(--bg-3)', fontWeight: 600 }}>
-                        ⬇ Baixar tudo
-                      </a>
+                      <button className="ghost" style={{ fontSize: 11, padding: '5px 12px', fontWeight: 600 }}
+                        onClick={() => api.downloadRun(detailRun.id).catch(e => alert('Erro: ' + e.message))}>
+                        ⬇ Baixar tudo (.md)
+                      </button>
                     )}
                     <button className="ghost" style={{ fontSize: 18, padding: '2px 8px' }} onClick={() => setDetailRun(null)}>×</button>
                   </div>
@@ -563,26 +587,25 @@ export function TarefasPage() {
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
                           📝 Briefing do vídeo
                         </div>
-                        {[
-                          { key: 'plataforma', label: '1. Plataforma de destino',          placeholder: 'YouTube / Instagram Reels / TikTok / YouTube Shorts' },
-                          { key: 'formato',    label: '2. Formato de tela',                placeholder: '16:9 (YouTube) / 9:16 (Reels/TikTok) / 1:1 (feed)' },
-                          { key: 'tema',       label: '3. Tema / História',                placeholder: 'Descreva a história que quer contar...' },
-                          { key: 'tom',        label: '4. Tom / Clima',                    placeholder: 'Sombrio e investigativo / nostálgico / tenso' },
-                          { key: 'duracao',    label: '5. Duração',                        placeholder: '30s / 60s / 90s / 3min' },
-                          { key: 'referencia', label: '6. Referência de estilo (opcional)',placeholder: 'Ex: True Detective, Canal Dark...' },
-                        ].map(field => {
-                          const isTema = field.key === 'tema';
+                        {BRIEFING_FIELDS.map(field => {
                           const updateDecision = (newVal: string) => {
                             const updated = { ...briefFields, [field.key]: newVal };
                             setBriefFields(updated);
-                            const allKeys = ['plataforma', 'formato', 'tema', 'tom', 'duracao', 'referencia'];
-                            const parts = allKeys.map(k => updated[k]?.trim() ? `${k.toUpperCase()}: ${updated[k].trim()}` : null).filter(Boolean);
+                            const parts = BRIEFING_FIELDS
+                              .map(f => updated[f.key]?.trim() ? `${f.key.toUpperCase()}: ${updated[f.key].trim()}` : null)
+                              .filter(Boolean);
                             setCheckpointDecision(parts.join('\n'));
                           };
                           return (
                             <div key={field.key} style={{ marginBottom: 10 }}>
                               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 4 }}>{field.label}</label>
-                              {isTema ? (
+                              {field.type === 'select' ? (
+                                <select value={briefFields[field.key] || ''} onChange={e => updateDecision(e.target.value)}
+                                  style={{ width: '100%', fontSize: 13, padding: '7px 10px' }}>
+                                  <option value="">— Selecionar —</option>
+                                  {field.options!.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                              ) : field.type === 'textarea' ? (
                                 <textarea value={briefFields[field.key] || ''} onChange={e => updateDecision(e.target.value)}
                                   placeholder={field.placeholder} rows={3} style={{ width: '100%', fontSize: 13, padding: '7px 10px', resize: 'vertical' }} />
                               ) : (
@@ -629,13 +652,12 @@ export function TarefasPage() {
                       ✅ Steps concluídos ({detailRun.steps.length})
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {detailRun.steps.map((step, idx) => (
+                      {detailRun.steps.map((step) => (
                         <details key={step.stepId} style={{ borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
                           <summary style={{
                             padding: '12px 16px', background: 'var(--bg-3)', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', gap: 10, listStyle: 'none', userSelect: 'none',
                           }}>
-                            {/* Número do step */}
                             <div style={{
                               width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
                               background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)',
@@ -648,7 +670,20 @@ export function TarefasPage() {
                               <div style={{ fontSize: 13, fontWeight: 700 }}>{step.stepName}</div>
                               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                                 🤖 {step.agentName} · ⏱ {new Date(step.completedAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                                {step.audioFile && <span style={{ marginLeft: 8, color: '#f59e0b' }}>🎙 áudio gerado</span>}
                               </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.preventDefault()}>
+                              <button className="ghost" style={{ fontSize: 10, padding: '2px 7px' }}
+                                onClick={() => api.downloadStepTxt(detailRun.id, step.stepId, step.stepName).catch(() => {})}>
+                                📄 .txt
+                              </button>
+                              {step.audioFile && (
+                                <button className="ghost" style={{ fontSize: 10, padding: '2px 7px', color: '#f59e0b' }}
+                                  onClick={() => api.downloadAudio(detailRun.id, step.stepId).catch(() => {})}>
+                                  🎙 .mp3
+                                </button>
+                              )}
                             </div>
                             <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>▼</span>
                           </summary>
@@ -657,10 +692,7 @@ export function TarefasPage() {
                             borderTop: '1px solid var(--border)',
                             maxHeight: 500, overflowY: 'auto',
                           }}>
-                            <div style={{
-                              fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap',
-                              lineHeight: 1.8, fontFamily: 'inherit',
-                            }}>
+                            <div style={{ fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
                               {stripBriefingEcho(step.output || '(sem output)')}
                             </div>
                           </div>

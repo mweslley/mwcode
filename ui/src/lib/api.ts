@@ -17,7 +17,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function downloadBlob(apiPath: string, fallbackName: string): Promise<void> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${BASE}${apiPath}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+  });
+  if (!res.ok) throw new Error(`Download falhou (${res.status})`);
+  const blob = await res.blob();
+  const cd = res.headers.get('Content-Disposition') || '';
+  const nameMatch = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)/i);
+  const filename = nameMatch ? decodeURIComponent(nameMatch[1].replace(/["']/g, '')) : fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
 export const api = {
+  downloadRun: (runId: string) => downloadBlob(`/runs/${runId}/export`, `run-${runId}.md`),
+  downloadStepTxt: (runId: string, stepId: number, stepName: string) =>
+    downloadBlob(`/runs/${runId}/steps/${stepId}/txt`, `step${stepId}_${stepName}.txt`),
+  downloadAudio: (runId: string, stepId: number) =>
+    downloadBlob(`/runs/${runId}/audio/${stepId}`, `narration_step${stepId}.mp3`),
   health: () => request<{ status: string; version: string }>('/health'),
   
   // AUTH

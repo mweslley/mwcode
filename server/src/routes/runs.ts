@@ -14,6 +14,7 @@ export interface StepResult {
   agentName: string;
   output: string;
   outputFile?: string;
+  audioFile?: string;  // filename: {runId}_step{stepId}.mp3
   startedAt: string;
   completedAt: string;
 }
@@ -234,6 +235,32 @@ runsRouter.get('/:runId/export', (req: any, res: any) => {
   res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(lines.join('\n'));
+});
+
+// ── GET /api/runs/:runId/steps/:stepId/txt — download do output como .txt ────
+
+runsRouter.get('/:runId/steps/:stepId/txt', (req: any, res: any) => {
+  const run = loadRun(req.userId, req.params.runId);
+  if (!run) return res.status(404).json({ error: 'Run não encontrada' });
+  const step = run.steps.find(s => s.stepId === parseInt(req.params.stepId));
+  if (!step) return res.status(404).json({ error: 'Step não encontrado' });
+  const safeName = step.stepName.replace(/[^a-zA-Z0-9À-ÿ ]/g, '_').slice(0, 40);
+  const filename = `step${step.stepId}_${safeName}.txt`;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+  res.send(step.output || '');
+});
+
+// ── GET /api/runs/:runId/audio/:stepId — stream do áudio ElevenLabs ──────────
+
+runsRouter.get('/:runId/audio/:stepId', (req: any, res: any) => {
+  const { runId, stepId } = req.params;
+  const audioDir = dataDir('audio', req.userId);
+  const audioFile = path.join(audioDir, `${runId}_step${stepId}.mp3`);
+  if (!fs.existsSync(audioFile)) return res.status(404).json({ error: 'Áudio não disponível' });
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Content-Disposition', `attachment; filename="narration_step${stepId}.mp3"`);
+  fs.createReadStream(audioFile).pipe(res);
 });
 
 // ── DELETE /api/runs/:runId ───────────────────────────────────────────────────

@@ -2,6 +2,30 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
+const BRIEFING_FIELDS: {
+  key: string; label: string; type: 'select' | 'textarea' | 'text';
+  options?: string[]; placeholder?: string;
+}[] = [
+  {
+    key: 'plataforma', label: '1. Plataforma de destino', type: 'select',
+    options: ['YouTube', 'Instagram Reels', 'TikTok', 'YouTube Shorts', 'Facebook', 'Twitter/X', 'Outra'],
+  },
+  {
+    key: 'formato', label: '2. Formato de tela', type: 'select',
+    options: ['16:9 (YouTube / Horizontal)', '9:16 (Reels / TikTok / Shorts)', '1:1 (Feed quadrado)', '4:5 (Instagram feed)', '4:3 (Clássico)'],
+  },
+  { key: 'tema', label: '3. Tema / História', type: 'textarea', placeholder: 'Descreva a história que quer contar, com detalhes...' },
+  {
+    key: 'tom', label: '4. Tom / Clima', type: 'select',
+    options: ['Investigativo e sombrio', 'Misterioso', 'Nostálgico', 'Tenso e dramático', 'Emocional', 'Informativo / Didático', 'Humorístico'],
+  },
+  {
+    key: 'duracao', label: '5. Duração', type: 'select',
+    options: ['30s', '60s', '90s', '3min', '5min', '10min+'],
+  },
+  { key: 'referencia', label: '6. Referência de estilo (opcional)', type: 'text', placeholder: 'Ex: estilo True Detective, Canal Dark, Choque de Cultura...' },
+];
+
 interface IntegrationReq {
   integrationId: string;
   integrationName: string;
@@ -768,11 +792,10 @@ export function SquadWorkspacePage() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button className="ghost" style={{ fontSize: 11 }} onClick={() => refreshRun(selectedRun.id)}>↻ Atualizar</button>
                 {selectedRun.status === 'completed' && (
-                  <a href={`/api/runs/${selectedRun.id}/export`}
-                    style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--fg)', textDecoration: 'none', background: 'var(--bg-3)' }}
-                    download>
-                    ⬇ Baixar
-                  </a>
+                  <button className="ghost" style={{ fontSize: 11, padding: '4px 10px' }}
+                    onClick={() => api.downloadRun(selectedRun.id).catch(e => alert('Erro: ' + e.message))}>
+                    ⬇ Baixar (.md)
+                  </button>
                 )}
                 <button className="ghost" onClick={() => setSelectedRun(null)} style={{ fontSize: 18, padding: '2px 8px' }}>×</button>
               </div>
@@ -802,7 +825,22 @@ export function SquadWorkspacePage() {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700 }}>{s.stepName}</div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>🤖 {s.agentName} · ⏱ {new Date(s.completedAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                            🤖 {s.agentName} · ⏱ {new Date(s.completedAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                            {s.audioFile && <span style={{ marginLeft: 8, color: '#f59e0b' }}>🎙 áudio gerado</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.preventDefault()}>
+                          <button className="ghost" style={{ fontSize: 10, padding: '2px 7px' }}
+                            onClick={() => api.downloadStepTxt(selectedRun.id, s.stepId, s.stepName).catch(() => {})}>
+                            📄 .txt
+                          </button>
+                          {s.audioFile && (
+                            <button className="ghost" style={{ fontSize: 10, padding: '2px 7px', color: '#f59e0b' }}
+                              onClick={() => api.downloadAudio(selectedRun.id, s.stepId).catch(() => {})}>
+                              🎙 .mp3
+                            </button>
+                          )}
                         </div>
                         <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>▼</span>
                       </summary>
@@ -868,26 +906,25 @@ export function SquadWorkspacePage() {
                       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
                         📝 Preencha o briefing do seu vídeo
                       </div>
-                      {[
-                        { key: 'plataforma', label: '1. Plataforma de destino', placeholder: 'YouTube / Instagram Reels / TikTok / YouTube Shorts' },
-                        { key: 'formato',    label: '2. Formato de tela',        placeholder: '16:9 (YouTube) / 9:16 (Reels/TikTok) / 1:1 (feed)' },
-                        { key: 'tema',       label: '3. Tema / História',        placeholder: 'Descreva a história que quer contar, com detalhes...' },
-                        { key: 'tom',        label: '4. Tom / Clima',            placeholder: 'Sombrio e investigativo / nostálgico / tenso / misterioso' },
-                        { key: 'duracao',    label: '5. Duração',                placeholder: '30s / 60s / 90s / 3min' },
-                        { key: 'referencia', label: '6. Referência de estilo (opcional)', placeholder: 'Ex: estilo True Detective, Canal Dark, Choque de Cultura...' },
-                      ].map(field => {
-                        const isTema = field.key === 'tema';
+                      {BRIEFING_FIELDS.map(field => {
                         const updateDecision = (newVal: string) => {
                           const updated = { ...briefFields, [field.key]: newVal };
                           setBriefFields(updated);
-                          const allKeys = ['plataforma', 'formato', 'tema', 'tom', 'duracao', 'referencia'];
-                          const parts = allKeys.map(k => updated[k]?.trim() ? `${k.toUpperCase()}: ${updated[k].trim()}` : null).filter(Boolean);
+                          const parts = BRIEFING_FIELDS
+                            .map(f => updated[f.key]?.trim() ? `${f.key.toUpperCase()}: ${updated[f.key].trim()}` : null)
+                            .filter(Boolean);
                           setCheckpointDecision(parts.join('\n'));
                         };
                         return (
                           <div key={field.key} style={{ marginBottom: 10 }}>
                             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 4 }}>{field.label}</label>
-                            {isTema ? (
+                            {field.type === 'select' ? (
+                              <select value={briefFields[field.key] || ''} onChange={e => updateDecision(e.target.value)}
+                                style={{ width: '100%', fontSize: 13, padding: '7px 10px' }}>
+                                <option value="">— Selecionar —</option>
+                                {field.options!.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                              </select>
+                            ) : field.type === 'textarea' ? (
                               <textarea
                                 value={briefFields[field.key] || ''}
                                 onChange={e => updateDecision(e.target.value)}

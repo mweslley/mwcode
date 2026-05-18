@@ -3,6 +3,9 @@ import { sendMessageToAgent } from '../lib/agent-chat.js';
 import { fetchGitHubFile } from '../lib/github-fetcher.js';
 import { parseFrontmatter, parsePipelineYaml } from '../lib/yaml-parser.js';
 import { saveAgentOutput } from '../routes/outputs.js';
+import { getIntegrationKey } from '../routes/user-integrations.js';
+import { generateNarrationAudio } from '../lib/elevenlabs-tts.js';
+import { apifyGoogleSearch, formatSearchResults } from '../lib/apify-search.js';
 
 interface PipelineStepDef {
   id: number;
@@ -25,7 +28,8 @@ function buildStepPrompt(
   stepBody: string,
   run: Run,
   stepDef: PipelineStepDef,
-  stepMeta: Record<string, any>
+  stepMeta: Record<string, any>,
+  extraContext?: string
 ): string {
   const parts: string[] = [];
 
@@ -54,6 +58,12 @@ function buildStepPrompt(
     parts.push('');
   }
 
+  // Dados de pesquisa externa (Apify) — injetados antes da instrução do step
+  if (extraContext) {
+    parts.push(extraContext);
+    parts.push('');
+  }
+
   // Instrução do step
   parts.push(`## Sua tarefa: ${stepDef.name}\n${stepBody}`);
 
@@ -64,7 +74,8 @@ async function executeStep(
   userId: string,
   run: Run,
   stepDef: PipelineStepDef,
-  squad: any
+  squad: any,
+  extraContext?: string
 ): Promise<StepResult> {
   const agentIdMap: Record<string, string> = squad.agentIdMap || {};
 
@@ -78,7 +89,7 @@ async function executeStep(
   if (!agentId) throw new Error(`Agente não encontrado para step ${stepDef.id} (${stepMeta.agent})`);
 
   // Montar prompt completo
-  const prompt = buildStepPrompt(stepBody, run, stepDef, stepMeta);
+  const prompt = buildStepPrompt(stepBody, run, stepDef, stepMeta, extraContext);
 
   const startedAt = new Date().toISOString();
   const output = await sendMessageToAgent(userId, agentId, prompt, {
@@ -198,8 +209,40 @@ async function executePipelineFrom(
     saveRun(userId, fresh);
 
     try {
-      const result = await executeStep(userId, fresh, stepDef, squad);
+      // ── Apify: injetar pesquisa real em steps de pesquisa ─────────────────
+      let extraContext: string | undefined;
+      const stepNameLower = stepDef.name.toLowerCase();
+      if (stepNameLower.match(/pesquis|research|investigat/)) {
+        const apifyToken = getIntegrationKey(userId, 'apify', 'api_token');
+        if (apifyToken) {
+          const freshRun = loadRun(userId, run.id) || fresh;
+          const query = freshRun.theme || freshRun.userRequest || '';
+          if (query) {
+            console.log(`[pipeline] Buscando dados Apify para step "${stepDef.name}"...`);
+            const results = await apifyGoogleSearch(apifyToken, query.slice(0, 200));
+            if (results.length > 0) extraContext = formatSearchResults(results);
+          }
+        }
+      }
+
+      const result = await executeStep(userId, fresh, stepDef, squad, extraContext);
       const updated = loadRun(userId, run.id)!;
+
+      // ── ElevenLabs: gerar áudio em steps de narração ──────────────────────
+      if (stepNameLower.match(/narr/)) {
+        const elevenlabsKey = getIntegrationKey(userId, 'elevenlabs', 'api_key');
+        const voiceId = getIntegrationKey(userId, 'elevenlabs', 'voice_id') || undefined;
+        if (elevenlabsKey) {
+          console.log(`[pipeline] Gerando áudio ElevenLabs para step "${stepDef.name}"...`);
+          const audioPath = await generateNarrationAudio(
+            userId, run.id, stepDef.id, result.output, elevenlabsKey, voiceId
+          );
+          if (audioPath) {
+            result.audioFile = `${run.id}_step${stepDef.id}.mp3`;
+          }
+        }
+      }
+
       updated.steps.push(result);
       saveRun(userId, updated);
     } catch (e: any) {
