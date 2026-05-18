@@ -136,6 +136,9 @@ export function SquadWorkspacePage() {
   const [creatingRun, setCreatingRun] = useState(false);
   const [runMsg, setRunMsg] = useState<string | null>(null);
 
+  // Briefing form state (checkpoint 0)
+  const [briefFields, setBriefFields] = useState<Record<string, string>>({});
+
   async function createRun() {
     if (!runRequest.trim() || !squad) return;
     setCreatingRun(true);
@@ -186,6 +189,7 @@ export function SquadWorkspacePage() {
     try {
       await api.post(`/runs/${selectedRun.id}/checkpoint`, { decision: checkpointDecision.trim() });
       setCheckpointDecision('');
+      setBriefFields({});
       // Atualizar run
       const updated = await api.get<any>(`/runs/${selectedRun.id}`);
       setSelectedRun(updated);
@@ -724,7 +728,7 @@ export function SquadWorkspacePage() {
                 const si = statusInfo[run.status] || statusInfo.queued;
                 const completedSteps = run.steps?.length || 0;
                 return (
-                  <div key={run.id} onClick={() => { setSelectedRun(run); setCheckpointDecision(''); }} style={{ padding: '14px 18px', borderRadius: 10, border: `1px solid ${run.status === 'checkpoint' ? '#f59e0b' : 'var(--border)'}`, background: 'var(--bg-2)', cursor: 'pointer', transition: 'all 0.15s' }}
+                  <div key={run.id} onClick={() => { setSelectedRun(run); setCheckpointDecision(''); setBriefFields({}); }} style={{ padding: '14px 18px', borderRadius: 10, border: `1px solid ${run.status === 'checkpoint' ? '#f59e0b' : 'var(--border)'}`, background: 'var(--bg-2)', cursor: 'pointer', transition: 'all 0.15s' }}
                     onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-3)'}
                     onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-2)'}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -847,32 +851,40 @@ export function SquadWorkspacePage() {
                         📝 Preencha o briefing do seu vídeo
                       </div>
                       {[
-                        { key: 'plataforma', label: '1. Plataforma', placeholder: 'YouTube / Instagram Reels / TikTok / YouTube Shorts' },
-                        { key: 'formato', label: '2. Formato de tela', placeholder: '16:9 (YouTube) / 9:16 (Reels/TikTok) / 1:1 (feed)' },
-                        { key: 'tema', label: '3. Tema / História', placeholder: 'Descreva a história que quer contar, com detalhes...' },
-                        { key: 'tom', label: '4. Tom / Clima', placeholder: 'Ex: sombrio e investigativo / nostálgico / tenso / misterioso' },
-                        { key: 'duracao', label: '5. Duração', placeholder: '30s / 60s / 90s' },
+                        { key: 'plataforma', label: '1. Plataforma de destino', placeholder: 'YouTube / Instagram Reels / TikTok / YouTube Shorts' },
+                        { key: 'formato',    label: '2. Formato de tela',        placeholder: '16:9 (YouTube) / 9:16 (Reels/TikTok) / 1:1 (feed)' },
+                        { key: 'tema',       label: '3. Tema / História',        placeholder: 'Descreva a história que quer contar, com detalhes...' },
+                        { key: 'tom',        label: '4. Tom / Clima',            placeholder: 'Sombrio e investigativo / nostálgico / tenso / misterioso' },
+                        { key: 'duracao',    label: '5. Duração',                placeholder: '30s / 60s / 90s / 3min' },
                         { key: 'referencia', label: '6. Referência de estilo (opcional)', placeholder: 'Ex: estilo True Detective, Canal Dark, Choque de Cultura...' },
                       ].map(field => {
-                        const [briefFields, setBriefFields] = (window as any)._briefState || [{}];
+                        const isTema = field.key === 'tema';
+                        const updateDecision = (newVal: string) => {
+                          const updated = { ...briefFields, [field.key]: newVal };
+                          setBriefFields(updated);
+                          const allKeys = ['plataforma', 'formato', 'tema', 'tom', 'duracao', 'referencia'];
+                          const parts = allKeys.map(k => updated[k]?.trim() ? `${k.toUpperCase()}: ${updated[k].trim()}` : null).filter(Boolean);
+                          setCheckpointDecision(parts.join('\n'));
+                        };
                         return (
                           <div key={field.key} style={{ marginBottom: 10 }}>
                             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 4 }}>{field.label}</label>
-                            <input
-                              placeholder={field.placeholder}
-                              style={{ width: '100%', fontSize: 13, padding: '7px 10px' }}
-                              data-brief-key={field.key}
-                              onChange={e => {
-                                const el = document.querySelector(`[data-brief-key="${field.key}"]`) as HTMLInputElement;
-                                // Montar texto do briefing a partir de todos os campos
-                                const allFields = ['plataforma','formato','tema','tom','duracao','referencia'];
-                                const parts = allFields.map(k => {
-                                  const el2 = document.querySelector(`[data-brief-key="${k}"]`) as HTMLInputElement;
-                                  return el2?.value ? `${k.toUpperCase()}: ${el2.value}` : null;
-                                }).filter(Boolean);
-                                setCheckpointDecision(parts.join('\n'));
-                              }}
-                            />
+                            {isTema ? (
+                              <textarea
+                                value={briefFields[field.key] || ''}
+                                onChange={e => updateDecision(e.target.value)}
+                                placeholder={field.placeholder}
+                                rows={3}
+                                style={{ width: '100%', fontSize: 13, padding: '7px 10px', resize: 'vertical' }}
+                              />
+                            ) : (
+                              <input
+                                value={briefFields[field.key] || ''}
+                                onChange={e => updateDecision(e.target.value)}
+                                placeholder={field.placeholder}
+                                style={{ width: '100%', fontSize: 13, padding: '7px 10px' }}
+                              />
+                            )}
                           </div>
                         );
                       })}
