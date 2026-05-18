@@ -763,6 +763,13 @@ export function SquadWorkspacePage() {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button className="ghost" style={{ fontSize: 11 }} onClick={() => refreshRun(selectedRun.id)}>↻ Atualizar</button>
+                {selectedRun.status === 'completed' && (
+                  <a href={`/api/runs/${selectedRun.id}/export`}
+                    style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--fg)', textDecoration: 'none', background: 'var(--bg-3)' }}
+                    download>
+                    ⬇ Baixar
+                  </a>
+                )}
                 <button className="ghost" onClick={() => setSelectedRun(null)} style={{ fontSize: 18, padding: '2px 8px' }}>×</button>
               </div>
             </div>
@@ -810,6 +817,7 @@ export function SquadWorkspacePage() {
 
             {/* Checkpoint — decisão do usuário */}
             {selectedRun.status === 'checkpoint' && selectedRun.checkpoint && (() => {
+              const isBriefing = selectedRun.checkpoint.stepId === 0;
               const lastOutput = selectedRun.steps?.slice(-1)[0]?.output || '';
               // Extrair opções clicáveis do output (tema: "...", **Título**, ## Heading, 1. item)
               const options: { label: string; detail: string }[] = [];
@@ -832,31 +840,63 @@ export function SquadWorkspacePage() {
                     </div>
                   </div>
 
-                  {/* Output do step anterior — legível */}
-                  {lastOutput && (
+                  {/* Briefing: form estruturado */}
+                  {isBriefing && (
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>
+                        📝 Preencha o briefing do seu vídeo
+                      </div>
+                      {[
+                        { key: 'plataforma', label: '1. Plataforma', placeholder: 'YouTube / Instagram Reels / TikTok / YouTube Shorts' },
+                        { key: 'formato', label: '2. Formato de tela', placeholder: '16:9 (YouTube) / 9:16 (Reels/TikTok) / 1:1 (feed)' },
+                        { key: 'tema', label: '3. Tema / História', placeholder: 'Descreva a história que quer contar, com detalhes...' },
+                        { key: 'tom', label: '4. Tom / Clima', placeholder: 'Ex: sombrio e investigativo / nostálgico / tenso / misterioso' },
+                        { key: 'duracao', label: '5. Duração', placeholder: '30s / 60s / 90s' },
+                        { key: 'referencia', label: '6. Referência de estilo (opcional)', placeholder: 'Ex: estilo True Detective, Canal Dark, Choque de Cultura...' },
+                      ].map(field => {
+                        const [briefFields, setBriefFields] = (window as any)._briefState || [{}];
+                        return (
+                          <div key={field.key} style={{ marginBottom: 10 }}>
+                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 4 }}>{field.label}</label>
+                            <input
+                              placeholder={field.placeholder}
+                              style={{ width: '100%', fontSize: 13, padding: '7px 10px' }}
+                              data-brief-key={field.key}
+                              onChange={e => {
+                                const el = document.querySelector(`[data-brief-key="${field.key}"]`) as HTMLInputElement;
+                                // Montar texto do briefing a partir de todos os campos
+                                const allFields = ['plataforma','formato','tema','tom','duracao','referencia'];
+                                const parts = allFields.map(k => {
+                                  const el2 = document.querySelector(`[data-brief-key="${k}"]`) as HTMLInputElement;
+                                  return el2?.value ? `${k.toUpperCase()}: ${el2.value}` : null;
+                                }).filter(Boolean);
+                                setCheckpointDecision(parts.join('\n'));
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Output do step anterior — opções clicáveis */}
+                  {!isBriefing && lastOutput && (
                     <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                         📋 Resultado do step anterior
                       </div>
-                      {/* Opções como cards clicáveis */}
                       {options.length > 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {options.map((opt, i) => (
                             <button key={i} onClick={() => setCheckpointDecision(opt.label)}
                               style={{
                                 textAlign: 'left', padding: '10px 14px', borderRadius: 8,
-                                border: checkpointDecision === opt.label
-                                  ? '2px solid #f59e0b' : '1px solid var(--border)',
-                                background: checkpointDecision === opt.label
-                                  ? 'rgba(245,158,11,0.1)' : 'var(--bg-3)',
+                                border: checkpointDecision === opt.label ? '2px solid #f59e0b' : '1px solid var(--border)',
+                                background: checkpointDecision === opt.label ? 'rgba(245,158,11,0.1)' : 'var(--bg-3)',
                                 cursor: 'pointer', transition: 'all 0.15s',
                               }}>
-                              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--fg)' }}>
-                                {i + 1}. {opt.label}
-                              </div>
-                              {opt.detail && (
-                                <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4 }}>{opt.detail}</div>
-                              )}
+                              <div style={{ fontWeight: 600, fontSize: 13 }}>{i + 1}. {opt.label}</div>
+                              {opt.detail && <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4 }}>{opt.detail}</div>}
                             </button>
                           ))}
                         </div>
@@ -873,13 +913,15 @@ export function SquadWorkspacePage() {
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                       ✏️ Sua escolha
                     </div>
-                    <textarea
-                      value={checkpointDecision}
-                      onChange={e => setCheckpointDecision(e.target.value)}
-                      placeholder="Clique em uma opção acima ou escreva sua decisão..."
-                      rows={2}
-                      style={{ width: '100%', fontSize: 13, marginBottom: 10, resize: 'vertical' }}
-                    />
+                    {!isBriefing && (
+                      <textarea
+                        value={checkpointDecision}
+                        onChange={e => setCheckpointDecision(e.target.value)}
+                        placeholder="Clique em uma opção acima ou escreva sua decisão..."
+                        rows={2}
+                        style={{ width: '100%', fontSize: 13, marginBottom: 10, resize: 'vertical' }}
+                      />
+                    )}
                     <button onClick={submitCheckpoint} disabled={!checkpointDecision.trim() || submittingCheckpoint}
                       style={{ fontWeight: 700, background: '#f59e0b', color: '#000', border: 'none', width: '100%', padding: '10px 0' }}>
                       {submittingCheckpoint ? 'Enviando...' : '▶ Confirmar e continuar pipeline'}

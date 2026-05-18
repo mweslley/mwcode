@@ -35,6 +35,11 @@ export interface Run {
   error?: string;
   userInputs: Record<number, string>;
   userRequest?: string;
+  // Metadados do briefing (extraídos do checkpoint 0)
+  theme?: string;
+  platform?: string;
+  aspectRatio?: string;
+  tone?: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -141,6 +146,24 @@ runsRouter.post('/:runId/checkpoint', async (req: any, res: any) => {
   run.userInputs[checkpointStepId] = decision.trim();
   run.status = 'running';
   run.checkpoint = undefined;
+
+  // Extrair metadados do briefing (checkpoint 0)
+  if (checkpointStepId === 0) {
+    const b = decision;
+    const plat = b.match(/plataforma[:\s]+([^\n]+)/i)?.[1]?.trim();
+    const fmt  = b.match(/formato[:\s]+([^\n]+)/i)?.[1]?.trim();
+    const tema = b.match(/tema[:\s]+([^\n]+)/i)?.[1]?.trim();
+    const tom  = b.match(/tom[:\s]+([^\n]+)/i)?.[1]?.trim();
+    if (plat) run.platform = plat;
+    if (fmt)  run.aspectRatio = fmt;
+    if (tema) run.theme = tema;
+    if (tom)  run.tone = tom;
+  }
+  // Extrair tema do checkpoint 2 se não veio do briefing
+  if (checkpointStepId === 2 && !run.theme) {
+    run.theme = decision.trim().slice(0, 80);
+  }
+
   saveRun(userId, run);
 
   // Carregar squad para passar ao executor
@@ -160,6 +183,57 @@ runsRouter.post('/:runId/checkpoint', async (req: any, res: any) => {
   });
 
   res.json({ ok: true, message: 'Pipeline retomado' });
+});
+
+// ── GET /api/runs/:runId/export — download de todas as entregas em markdown ───
+
+runsRouter.get('/:runId/export', (req: any, res: any) => {
+  const run = loadRun(req.userId, req.params.runId);
+  if (!run) return res.status(404).json({ error: 'Run não encontrada' });
+
+  const theme = run.theme || run.userRequest || 'run';
+  const slug = theme.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50);
+  const date = new Date(run.createdAt).toISOString().slice(0, 10);
+  const filename = `${slug}_${date}_${run.id.slice(0, 8)}.md`;
+
+  const lines: string[] = [
+    `# ${run.squadName} — ${theme}`,
+    `**Run ID:** \`${run.id}\`  `,
+    `**Plataforma:** ${run.platform || '—'}  `,
+    `**Formato:** ${run.aspectRatio || '—'}  `,
+    `**Tom:** ${run.tone || '—'}  `,
+    `**Data:** ${new Date(run.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+    '',
+    '---',
+    '',
+  ];
+
+  // Briefing
+  if (run.userInputs[0]) {
+    lines.push('## Briefing\n');
+    lines.push(run.userInputs[0]);
+    lines.push('\n---\n');
+  }
+
+  // Outputs de cada step
+  for (const step of run.steps) {
+    lines.push(`## Step ${step.stepId}: ${step.stepName}`);
+    lines.push(`*Agente: ${step.agentName} | ${new Date(step.completedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}*`);
+    lines.push('');
+    lines.push(step.output || '');
+    lines.push('\n---\n');
+  }
+
+  // Decisões de checkpoint
+  const decisions = Object.entries(run.userInputs).filter(([k]) => Number(k) > 0);
+  if (decisions.length > 0) {
+    lines.push('## Decisões nos Checkpoints\n');
+    decisions.forEach(([id, dec]) => lines.push(`**Checkpoint ${id}:** ${dec}`));
+  }
+
+  res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(lines.join('\n'));
 });
 
 // ── DELETE /api/runs/:runId ───────────────────────────────────────────────────

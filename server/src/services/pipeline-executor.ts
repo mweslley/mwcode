@@ -96,16 +96,18 @@ async function executeStep(
     completedAt: new Date().toISOString(),
   };
 
-  // Salvar output na aba de entregas automaticamente
+  // Salvar output na aba de entregas automaticamente, nomeado com o tema
   try {
+    const freshRun = loadRun(userId, run.id) || run;
+    const theme = freshRun.theme || freshRun.userRequest || run.squadName;
     saveAgentOutput(userId, {
       agentId,
       agentName: stepMeta.agent || agentId,
       squadId: run.squadId,
       issueId: run.id,
-      issueTitle: `[${run.squadName}] ${run.userRequest || 'Pipeline run'}`,
+      issueTitle: `[${run.id.slice(0, 8)}] ${theme}`,
       type: 'markdown',
-      title: `${stepDef.name} — ${run.squadName}`,
+      title: `[${run.id.slice(0, 8)}] Step ${stepDef.id} — ${stepDef.name}`,
       content: output,
     });
   } catch {}
