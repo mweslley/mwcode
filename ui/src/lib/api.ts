@@ -40,6 +40,15 @@ export const api = {
     downloadBlob(`/runs/${runId}/steps/${stepId}/txt`, `step${stepId}_${stepName}.txt`),
   downloadAudio: (runId: string, stepId: number) =>
     downloadBlob(`/runs/${runId}/audio/${stepId}`, `narration_step${stepId}.mp3`),
+  fetchVideoUrl: async (runId: string): Promise<string> => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${BASE}/runs/${runId}/video`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+    });
+    if (!res.ok) throw new Error(res.status === 404 ? 'Vídeo não disponível ainda' : `Erro ${res.status}`);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
   health: () => request<{ status: string; version: string }>('/health'),
   
   // AUTH

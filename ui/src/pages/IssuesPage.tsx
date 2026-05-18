@@ -172,6 +172,8 @@ export function TarefasPage() {
   const [rejectModal, setRejectModal] = useState<{ id: string; title: string } | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
+  const [videoModal, setVideoModal] = useState<string | null>(null);
+  const [loadingVideo, setLoadingVideo] = useState(false);
 
   async function load() {
     const [list, agList] = await Promise.all([
@@ -539,10 +541,27 @@ export function TarefasPage() {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
                     <button className="ghost" style={{ fontSize: 11, padding: '5px 10px' }} onClick={refreshRun}>↻</button>
                     {detailRun.status === 'completed' && (
-                      <button className="ghost" style={{ fontSize: 11, padding: '5px 12px', fontWeight: 600 }}
-                        onClick={() => api.downloadRun(detailRun.id).catch(e => alert('Erro: ' + e.message))}>
-                        ⬇ Baixar tudo (.md)
-                      </button>
+                      <>
+                        <button className="ghost" style={{ fontSize: 11, padding: '5px 12px', fontWeight: 600, color: '#a78bfa', borderColor: 'rgba(167,139,250,0.4)' }}
+                          disabled={loadingVideo}
+                          onClick={async () => {
+                            setLoadingVideo(true);
+                            try {
+                              const url = await api.fetchVideoUrl(detailRun.id);
+                              setVideoModal(url);
+                            } catch (e: any) {
+                              alert(e.message);
+                            } finally {
+                              setLoadingVideo(false);
+                            }
+                          }}>
+                          {loadingVideo ? '⏳...' : '▶ Assistir vídeo'}
+                        </button>
+                        <button className="ghost" style={{ fontSize: 11, padding: '5px 12px', fontWeight: 600 }}
+                          onClick={() => api.downloadRun(detailRun.id).catch(e => alert('Erro: ' + e.message))}>
+                          ⬇ Baixar tudo (.md)
+                        </button>
+                      </>
                     )}
                     <button className="ghost" style={{ fontSize: 18, padding: '2px 8px' }} onClick={() => setDetailRun(null)}>×</button>
                   </div>
@@ -857,6 +876,21 @@ export function TarefasPage() {
       )}
 
       {/* Modal rejeitar */}
+      {videoModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={() => { URL.revokeObjectURL(videoModal); setVideoModal(null); }}>
+          <div style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 12 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>▶ Vídeo gerado</span>
+              <button className="ghost" style={{ color: '#fff', fontSize: 22, padding: '2px 10px' }}
+                onClick={() => { URL.revokeObjectURL(videoModal); setVideoModal(null); }}>×</button>
+            </div>
+            <video src={videoModal} controls autoPlay style={{ width: '100%', borderRadius: 12, background: '#000', maxHeight: '80vh' }} />
+          </div>
+        </div>
+      )}
+
       {rejectModal && (
         <div className="modal-overlay" onClick={() => setRejectModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 420 }}>
