@@ -263,6 +263,20 @@ runsRouter.get('/:runId/audio/:stepId', (req: any, res: any) => {
   fs.createReadStream(audioFile).pipe(res);
 });
 
+// ── GET /api/runs/:runId/video — stream do vídeo montado ─────────────────────
+
+runsRouter.get('/:runId/video', (req: any, res: any) => {
+  const { runId } = req.params;
+  const videoDir = dataDir('videos', req.userId);
+  const videoFile = path.join(videoDir, `${runId}.mp4`);
+  if (!fs.existsSync(videoFile)) return res.status(404).json({ error: 'Vídeo não disponível ainda' });
+  const stat = fs.statSync(videoFile);
+  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Content-Length', stat.size);
+  res.setHeader('Content-Disposition', `inline; filename="video_${runId.slice(0, 8)}.mp4"`);
+  fs.createReadStream(videoFile).pipe(res);
+});
+
 // ── DELETE /api/runs/:runId ───────────────────────────────────────────────────
 
 runsRouter.delete('/:runId', (req: any, res: any) => {
