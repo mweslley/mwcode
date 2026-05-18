@@ -21,7 +21,7 @@ const BRIEFING_FIELDS: {
   },
   {
     key: 'duracao', label: '5. Duração', type: 'select',
-    options: ['30s', '60s', '90s', '3min', '5min', '10min+'],
+    options: ['30s', '60s', '8min (mín. YouTube)', '15min', '20min', '30min+'],
   },
   { key: 'referencia', label: '6. Referência de estilo (opcional)', type: 'text', placeholder: 'Ex: estilo True Detective, Canal Dark, Choque de Cultura...' },
 ];
@@ -571,6 +571,42 @@ export function SquadWorkspacePage() {
       {/* --- ABA ENTREGAS --- */}
       {tab === 'entregas' && (
         <div>
+          {/* Vídeos gerados pelas runs */}
+          {runs.filter(r => r.status === 'completed').length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--fg-2)' }}>🎬 Vídeos gerados</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {runs.filter(r => r.status === 'completed').map(r => (
+                  <div key={r.id} className="card" style={{ padding: '12px 16px', borderLeft: '3px solid #a78bfa', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span style={{ fontSize: 22 }}>🎬</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{r.theme || r.userRequest?.slice(0, 60) || 'Vídeo'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                        {new Date(r.completedAt || r.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button className="ghost" style={{ fontSize: 11, padding: '4px 10px', color: '#a78bfa', borderColor: 'rgba(167,139,250,0.4)' }}
+                        disabled={loadingVideo}
+                        onClick={async () => {
+                          setLoadingVideo(true);
+                          try { setVideoModal(await api.fetchVideoUrl(r.id)); }
+                          catch (e: any) { alert(e.message); }
+                          finally { setLoadingVideo(false); }
+                        }}>
+                        {loadingVideo ? '⏳' : '▶ Assistir'}
+                      </button>
+                      <button className="ghost" style={{ fontSize: 11, padding: '4px 10px' }}
+                        onClick={() => api.downloadVideo(r.id).catch((e: any) => alert(e.message))}>
+                        ⬇ Baixar .mp4
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {outputs.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>

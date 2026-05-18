@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { dataDir } from './data-dir.js';
 
-const DEFAULT_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam - multilingual
+// Valentino — voz masculina multilingual com ótima pronúncia PT-BR
+const DEFAULT_VOICE_ID = 'onwK4e9ZLuTAKqWW03F9';
 const ELEVEN_BASE = 'https://api.elevenlabs.io/v1';
 
 function cleanForTTS(text: string): string {
@@ -39,8 +40,9 @@ export async function generateNarrationAudio(
       },
       body: JSON.stringify({
         text: cleaned,
-        model_id: 'eleven_multilingual_v2',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        model_id: 'eleven_turbo_v2_5',
+        language_code: 'pt-BR',
+        voice_settings: { stability: 0.55, similarity_boost: 0.80, style: 0.2 },
       }),
     });
 

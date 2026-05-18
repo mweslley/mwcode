@@ -70,7 +70,7 @@ const BRIEFING_FIELDS: {
   },
   {
     key: 'duracao', label: '5. Duração', type: 'select',
-    options: ['30s', '60s', '90s', '3min', '5min', '10min+'],
+    options: ['30s', '60s', '8min (mín. YouTube)', '15min', '20min', '30min+'],
   },
   { key: 'referencia', label: '6. Referência de estilo (opcional)', type: 'text', placeholder: 'Ex: True Detective, Canal Dark...' },
 ];

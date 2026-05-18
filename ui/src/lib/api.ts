@@ -40,6 +40,7 @@ export const api = {
     downloadBlob(`/runs/${runId}/steps/${stepId}/txt`, `step${stepId}_${stepName}.txt`),
   downloadAudio: (runId: string, stepId: number) =>
     downloadBlob(`/runs/${runId}/audio/${stepId}`, `narration_step${stepId}.mp3`),
+  downloadVideo: (runId: string) => downloadBlob(`/runs/${runId}/video`, `video_${runId.slice(0, 8)}.mp4`),
   fetchVideoUrl: async (runId: string): Promise<string> => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${BASE}/runs/${runId}/video`, {
