@@ -14,6 +14,14 @@ interface Equipe {
   status: 'active' | 'paused' | 'completed';
   createdAt: string;
   updatedAt: string;
+  pipelineCode?: string;
+}
+
+interface Run {
+  id: string;
+  squadId: string;
+  status: string;
+  userRequest?: string;
 }
 
 const BLANK: Omit<Equipe, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -54,6 +62,8 @@ export function SquadsPage() {
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  // runs por squadId — para notificações
+  const [runsBySquad, setRunsBySquad] = useState<Record<string, Run[]>>({});
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Equipe | null>(null);
   const [form, setForm] = useState({ ...BLANK });
@@ -116,8 +126,23 @@ export function SquadsPage() {
       api.get<Equipe[]>('/squads').catch(() => []),
       api.get<Agent[]>('/enterprise/agents').catch(() => []),
     ]);
-    setEquipes(sq || []);
-    setAgents((ag || []).filter((a: Agent) => a.status === 'active'));
+    const squads = sq || [];
+    setEquipes(squads);
+    setAgents(((ag as Agent[]) || []).filter(a => a.status === 'active'));
+
+    // Carregar runs apenas para squads com pipeline
+    const pipelineSquads = squads.filter(s => s.pipelineCode);
+    if (pipelineSquads.length > 0) {
+      const runResults = await Promise.all(
+        pipelineSquads.map(s =>
+          api.get<Run[]>(`/runs?squadId=${s.id}`).catch(() => [] as Run[])
+        )
+      );
+      const map: Record<string, Run[]> = {};
+      pipelineSquads.forEach((s, i) => { map[s.id] = runResults[i] || []; });
+      setRunsBySquad(map);
+    }
+
     setLoading(false);
   }
 
@@ -200,20 +225,18 @@ export function SquadsPage() {
         </div>
       </div>
 
-      {/* Banner informativo */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', gap: 12,
-        padding: '12px 16px', marginBottom: 24,
-        background: 'rgba(146,48,249,0.08)', border: '1px solid rgba(146,48,249,0.2)',
-        borderRadius: 10,
-      }}>
-        <span style={{ fontSize: 20, flexShrink: 0 }}>💡</span>
-        <div style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.6 }}>
-          <strong style={{ color: 'var(--primary)' }}>Como funciona:</strong> Uma equipe é um grupo de agentes com missão e liderança definidas.
-          O CEO pode criar equipes a partir do repositório <code>mw-creator</code> (ex: "Grandense" para vídeos de mistério).
-          Pause uma equipe para que o CEO não atribua tarefas a nenhum membro dela.
+      {/* Banner de alerta global: checkpoints pendentes */}
+      {Object.values(runsBySquad).some(runs => runs.some(r => r.status === 'checkpoint')) && (
+        <div style={{ padding: '12px 16px', marginBottom: 16, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 20 }}>⏸</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#f59e0b' }}>Pipelines aguardando sua decisão</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 2 }}>
+              Clique na equipe destacada para ver o checkpoint e continuar o pipeline.
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <div style={{ color: 'var(--muted)', textAlign: 'center', padding: 40 }}>Carregando...</div>
@@ -230,10 +253,14 @@ export function SquadsPage() {
             const info = STATUS_INFO[eq.status];
             const members = eq.agentIds.map(id => agentById[id]).filter(Boolean);
             const leader = eq.leaderId ? agentById[eq.leaderId] : null;
+            const runs = runsBySquad[eq.id] || [];
+            const checkpointRuns = runs.filter(r => r.status === 'checkpoint');
+            const runningRuns = runs.filter(r => r.status === 'running');
+            const hasAlert = checkpointRuns.length > 0;
             return (
               <div key={eq.id} className="card" style={{
                 padding: 0, overflow: 'hidden',
-                borderLeft: `3px solid ${info.color}`,
+                borderLeft: `3px solid ${hasAlert ? '#f59e0b' : info.color}`,
                 opacity: eq.status === 'paused' ? 0.75 : 1,
                 cursor: 'pointer',
               }}
@@ -252,6 +279,17 @@ export function SquadsPage() {
                         }}>
                           {info.label}
                         </span>
+                        {/* Badges de notificação de runs */}
+                        {checkpointRuns.length > 0 && (
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            ⏸ {checkpointRuns.length} aguarda{checkpointRuns.length === 1 ? '' : 'm'} você
+                          </span>
+                        )}
+                        {runningRuns.length > 0 && checkpointRuns.length === 0 && (
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 20, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
+                            ⚙ {runningRuns.length} rodando
+                          </span>
+                        )}
                         {eq.status === 'paused' && (
                           <span style={{ fontSize: 10, color: 'var(--muted)' }}>
                             ⏸ CEO não atribui tarefas enquanto pausada
@@ -361,13 +399,14 @@ export function SquadsPage() {
                 <div style={{
                   padding: '8px 18px',
                   borderTop: '1px solid var(--border)',
-                  background: 'var(--bg-2)',
-                  display: 'flex', gap: 16,
-                  fontSize: 11, color: 'var(--muted)',
+                  background: hasAlert ? 'rgba(245,158,11,0.04)' : 'var(--bg-2)',
+                  display: 'flex', gap: 16, flexWrap: 'wrap',
+                  fontSize: 11, color: 'var(--muted)', alignItems: 'center',
                 }}>
                   <span>👥 {members.length} membro{members.length !== 1 ? 's' : ''}</span>
                   {leader && <span>👑 {leader.name} (líder)</span>}
-                  <span>🕐 Criada {new Date(eq.createdAt).toLocaleDateString('pt-BR')}</span>
+                  {runs.length > 0 && <span>▶ {runs.length} run{runs.length !== 1 ? 's' : ''}</span>}
+                  <span style={{ marginLeft: 'auto' }}>🕐 {new Date(eq.createdAt).toLocaleDateString('pt-BR')}</span>
                 </div>
               </div>
             );

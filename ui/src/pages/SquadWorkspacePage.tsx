@@ -779,50 +779,68 @@ export function SquadWorkspacePage() {
             </div>
 
             {/* Timeline de steps */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
-              {(() => {
-                const { steps: pipelineSteps, checkpoints } = (selectedRun.pipelineCode && squad?.pipelineYaml)
-                  ? { steps: [] as any[], checkpoints: [] as any[] }
-                  : { steps: [] as any[], checkpoints: [] as any[] };
-                const completedIds = new Set((selectedRun.steps || []).map((s: any) => s.stepId));
-                const checkpointIds = new Set(Object.keys(selectedRun.userInputs || {}).map(Number));
-                const allSteps: any[] = selectedRun.steps || [];
-                if (allSteps.length === 0) return (
-                  <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>
-                    {selectedRun.status === 'queued' ? 'Pipeline na fila...' : 'Pipeline iniciando...'}
-                  </div>
-                );
-                return allSteps.map((s: any) => (
-                  <div key={s.stepId} style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                    <div style={{ padding: '8px 14px', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14 }}>✅</span>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>Step {s.stepId}: {s.stepName}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{s.agentName} · {new Date(s.completedAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
+            {(() => {
+              function stripBriefing(output: string): string {
+                const sep = output.indexOf('\n---\n');
+                if (sep !== -1 && output.slice(0, sep).toUpperCase().includes('BRIEFING')) {
+                  return output.slice(sep + 5).trim();
+                }
+                return output;
+              }
+              const allSteps: any[] = selectedRun.steps || [];
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                  {allSteps.length === 0 ? (
+                    <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: 24 }}>
+                      {selectedRun.status === 'queued' ? '⏳ Pipeline na fila...' : '🚀 Pipeline iniciando...'}
                     </div>
-                    {s.output && (
-                      <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto', background: 'var(--bg-2)', fontFamily: 'var(--font-mono, monospace)' }}>
-                        {s.output.slice(0, 1200)}{s.output.length > 1200 ? '\n...(truncado)' : ''}
+                  ) : allSteps.map((s: any) => (
+                    <details key={s.stepId} style={{ borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                      <summary style={{ padding: '12px 16px', background: 'var(--bg-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, listStyle: 'none', userSelect: 'none' }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#10b981' }}>
+                          {s.stepId}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{s.stepName}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>🤖 {s.agentName} · ⏱ {new Date(s.completedAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</div>
+                        </div>
+                        <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>▼</span>
+                      </summary>
+                      <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)', maxHeight: 500, overflowY: 'auto' }}>
+                        <div style={{ fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                          {stripBriefing(s.output || '(sem output)')}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ));
-              })()}
-              {selectedRun.status === 'running' && (
-                <div style={{ padding: '10px 14px', borderRadius: 8, border: '1px dashed var(--border)', color: '#3b82f6', fontSize: 13, textAlign: 'center' }}>
-                  ⏳ Step {selectedRun.currentStepId} em execução...
+                    </details>
+                  ))}
+                  {selectedRun.status === 'running' && (
+                    <div style={{ padding: '12px 16px', borderRadius: 10, border: '1px dashed #3b82f6', color: '#3b82f6', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>⚙</span>
+                      <span>Step {selectedRun.currentStepId} em execução...</span>
+                    </div>
+                  )}
+                  {selectedRun.status === 'failed' && (
+                    <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', fontSize: 13 }}>
+                      ❌ {selectedRun.error}
+                    </div>
+                  )}
                 </div>
-              )}
-              {selectedRun.status === 'failed' && (
-                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', fontSize: 13 }}>
-                  ❌ {selectedRun.error}
-                </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Checkpoint — decisão do usuário */}
             {selectedRun.status === 'checkpoint' && selectedRun.checkpoint && (() => {
               const isBriefing = selectedRun.checkpoint.stepId === 0;
-              const lastOutput = selectedRun.steps?.slice(-1)[0]?.output || '';
+              const rawOutput = selectedRun.steps?.slice(-1)[0]?.output || '';
+              // Remover seção BRIEFING RECEBIDO do output exibido
+              function stripBriefingEcho(output: string): string {
+                const sep = output.indexOf('\n---\n');
+                if (sep !== -1 && output.slice(0, sep).toUpperCase().includes('BRIEFING')) {
+                  return output.slice(sep + 5).trim();
+                }
+                return output;
+              }
+              const lastOutput = stripBriefingEcho(rawOutput);
               // Extrair opções clicáveis do output (tema: "...", **Título**, ## Heading, 1. item)
               const options: { label: string; detail: string }[] = [];
               const temaMatches = [...lastOutput.matchAll(/tema:\s*["']?(.+?)["']?\s*\n\s*(?:gancho|hook|descri):\s*["']?(.+?)["']?(?:\n|$)/gi)];
