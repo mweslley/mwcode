@@ -105,26 +105,52 @@ export async function sendMessageToAgent(
     'deepseek/deepseek-v4-flash:free',
     'nvidia/nemotron-3-super-120b-a12b:free',
     'google/gemma-4-31b-it:free',
+    'qwen/qwen3-235b-a22b:free',
+    'qwen/qwen3-30b-a3b:free',
+    'google/gemma-3-27b-it:free',
+    'mistralai/mistral-7b-instruct:free',
+    'microsoft/phi-4-reasoning-plus:free',
   ].filter(m => m !== primaryModel);
 
   const modelsToTry = [primaryModel, ...FREE_FALLBACKS];
 
   let result: any;
   let modelName = primaryModel;
-  for (const model of modelsToTry) {
-    try {
-      const adapter = getAdapter(adapterName, model, userKeys);
-      result = await adapter.call(text, { system: systemPrompt, history: contextMessages });
-      modelName = model;
-      break;
-    } catch (e: any) {
-      const msg = e?.message || '';
-      const isRateOrNotFound = msg.includes('429') || msg.includes('404') || msg.includes('rate-limit') || msg.includes('No endpoints');
-      if (isRateOrNotFound && model !== modelsToTry[modelsToTry.length - 1]) {
-        console.warn(`[agent-chat] Modelo ${model} indisponível (${msg.slice(0, 80)}), tentando fallback...`);
-        continue;
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+  // Até 3 tentativas com pausa quando todos os modelos estão com 429
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let allRateLimited = true;
+    for (const model of modelsToTry) {
+      try {
+        const adapter = getAdapter(adapterName, model, userKeys);
+        result = await adapter.call(text, { system: systemPrompt, history: contextMessages });
+        modelName = model;
+        allRateLimited = false;
+        break;
+      } catch (e: any) {
+        const msg = e?.message || '';
+        const isRate = msg.includes('429') || msg.includes('rate-limit');
+        const isNotFound = msg.includes('404') || msg.includes('No endpoints');
+        if (isRate) {
+          console.warn(`[agent-chat] Modelo ${model} com 429, tentando próximo...`);
+          continue;
+        }
+        if (isNotFound && model !== modelsToTry[modelsToTry.length - 1]) {
+          console.warn(`[agent-chat] Modelo ${model} não encontrado (${msg.slice(0, 60)}), tentando fallback...`);
+          continue;
+        }
+        allRateLimited = false;
+        throw e;
       }
-      throw e;
+    }
+    if (!allRateLimited) break;
+    if (attempt < 2) {
+      const waitSec = (attempt + 1) * 20;
+      console.warn(`[agent-chat] Todos os modelos com 429 (tentativa ${attempt + 1}/3). Aguardando ${waitSec}s...`);
+      await sleep(waitSec * 1000);
+    } else {
+      throw new Error('Todos os modelos atingiram o limite de taxa (429). Tente novamente em alguns minutos.');
     }
   }
 
