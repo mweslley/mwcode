@@ -29,10 +29,12 @@ function kbEffect(index: number, frames: number): string {
 }
 
 // ── Color grade: dark investigativo (teal shadows, contraste cinematográfico) ─
+// Valores de curva sempre dentro de [0,1]; colorchannelmixer adiciona o teal
 const COLOR_GRADE =
-  "curves=r='0/0 0.5/0.43 1/0.87':g='0/0 0.5/0.46 1/0.83':b='0/0 0.5/0.53 1/1.06'," +
+  "curves=r='0/0 0.5/0.43 1/0.87':g='0/0 0.5/0.46 1/0.83':b='0/0 0.5/0.53 1/0.98'," +
+  "colorchannelmixer=rr=0.97:rb=0.03:gg=0.95:gb=0.02:bb=1.0," +
   "eq=contrast=1.12:brightness=-0.04:saturation=0.76," +
-  "vignette=PI/4";
+  "vignette=PI/5";
 
 // ── Parser de prompts do Step 6 ───────────────────────────────────────────────
 export function extractImagePrompts(stepOutput: string): string[] {
