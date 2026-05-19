@@ -37,7 +37,7 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
       : config.model;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 90_000); // 90s timeout
+    const timer = setTimeout(() => controller.abort(), 180_000); // 3min — respostas longas precisam de mais tempo
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -52,7 +52,7 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
         model: resolvedModel,
         messages,
         temperature: 0.7,
-        max_tokens: 1500,
+        max_tokens: 8000,
       })
     });
     clearTimeout(timer);
@@ -62,8 +62,13 @@ export const createOpenRouterAdapter = (config: OpenRouterConfig): Adapter => ({
     }
 
     const data = await response.json();
+    const choice = data.choices?.[0];
+    const finishReason = choice?.finish_reason;
+    if (finishReason === 'length') {
+      console.warn(`[openrouter] Resposta truncada pelo limite de tokens (model=${resolvedModel}). Considere aumentar max_tokens ou reduzir o prompt.`);
+    }
     return {
-      content: data.choices?.[0]?.message?.content ?? '',
+      content: choice?.message?.content ?? '',
       usage: data.usage,
       model: config.model
     };
