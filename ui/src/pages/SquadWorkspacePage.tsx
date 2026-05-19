@@ -134,7 +134,7 @@ export function SquadWorkspacePage() {
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [outputs, setOutputs] = useState<Output[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'tarefas' | 'entregas' | 'integracoes' | 'runs'>('tarefas');
+  const [tab, setTab] = useState<'tarefas' | 'entregas' | 'integracoes' | 'runs' | 'conteudo'>('tarefas');
   const [runs, setRuns] = useState<any[]>([]);
   const [selectedRun, setSelectedRun] = useState<any | null>(null);
   const [checkpointDecision, setCheckpointDecision] = useState('');
@@ -492,12 +492,17 @@ export function SquadWorkspacePage() {
           )}
         </button>
         {squad?.pipelineCode && (
-          <button onClick={() => { setTab('runs'); api.get<any[]>(`/runs?squadId=${squadId}`).then(r => setRuns(r || [])).catch(() => {}); }} className={tab === 'runs' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px', display: 'flex', alignItems: 'center', gap: 6 }}>
-            ▶ Runs ({runs.length})
-            {runs.some(r => r.status === 'checkpoint') && (
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} title="Aguardando sua decisão" />
-            )}
-          </button>
+          <>
+            <button onClick={() => { setTab('conteudo'); api.get<any[]>(`/runs?squadId=${squadId}`).then(r => setRuns(r || [])).catch(() => {}); }} className={tab === 'conteudo' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px' }}>
+              🎬 Conteúdo ({runs.filter(r => r.status === 'completed').length})
+            </button>
+            <button onClick={() => { setTab('runs'); api.get<any[]>(`/runs?squadId=${squadId}`).then(r => setRuns(r || [])).catch(() => {}); }} className={tab === 'runs' ? '' : 'ghost'} style={{ fontSize: 13, padding: '7px 18px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              ▶ Runs ({runs.length})
+              {runs.some(r => r.status === 'checkpoint') && (
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} title="Aguardando sua decisão" />
+              )}
+            </button>
+          </>
         )}
       </div>
 
@@ -689,6 +694,137 @@ export function SquadWorkspacePage() {
             </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* --- ABA CONTEÚDO --- */}
+      {tab === 'conteudo' && (
+        <div>
+          {runs.filter(r => r.status === 'completed').length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🎬</div>
+              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Nenhum conteúdo produzido ainda</p>
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>Inicie uma run e o pipeline vai gerar roteiro, narração, imagens e vídeo automaticamente.</p>
+              <button style={{ marginTop: 16 }} onClick={() => setShowRunModal(true)}>💬 Iniciar pipeline</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {runs.filter(r => r.status === 'completed').map(run => {
+                const audioStep = run.steps?.find((s: any) => s.audioFile);
+                const scriptStep = run.steps?.find((s: any) => /roteiro|script/i.test(s.stepName));
+                const researchStep = run.steps?.find((s: any) => /pesquisa|research|pauta/i.test(s.stepName));
+                const visualStep = run.steps?.find((s: any) => /visual|dire[cç]/i.test(s.stepName));
+                const images: string[] = run.images || [];
+                const title = run.theme || run.userRequest?.slice(0, 70) || 'Pipeline';
+                const date = new Date(run.completedAt || run.createdAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'short', year: 'numeric' });
+                return (
+                  <div key={run.id} className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                    {/* Cabeçalho da run */}
+                    <div style={{ padding: '14px 18px', background: 'var(--bg-3)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>✅ Concluído em {date}</div>
+                      </div>
+                      <button className="ghost" style={{ fontSize: 11, padding: '4px 10px' }}
+                        onClick={() => { setSelectedRun(run); setCheckpointDecision(''); setBriefFields({}); }}>
+                        📋 Detalhes →
+                      </button>
+                    </div>
+
+                    <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {/* Vídeo + Áudio lado a lado */}
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <button style={{ flex: 1, minWidth: 180, padding: '10px 16px', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}
+                          disabled={loadingVideo === run.id}
+                          onClick={async () => {
+                            setLoadingVideo(run.id);
+                            try { setVideoModal(await api.fetchVideoUrl(run.id)); }
+                            catch (e: any) { alert(e.message); }
+                            finally { setLoadingVideo(null); }
+                          }}>
+                          {loadingVideo === run.id ? '⏳ Carregando...' : '▶ Assistir vídeo'}
+                        </button>
+                        <button className="ghost" style={{ padding: '10px 14px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+                          onClick={() => api.downloadVideo(run.id).catch((e: any) => alert(e.message))}>
+                          ⬇ Baixar .mp4
+                        </button>
+                        {audioStep && (
+                          <button className="ghost" style={{ padding: '10px 14px', fontSize: 13, color: '#f59e0b', borderColor: 'rgba(245,158,11,0.4)', display: 'flex', alignItems: 'center', gap: 6 }}
+                            onClick={() => api.downloadAudio(run.id, audioStep.stepId).catch(() => {})}>
+                            🎙 Narração .mp3
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Imagens geradas */}
+                      {images.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                            🖼 Imagens geradas ({images.length})
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {images.map((img, idx) => (
+                              <img key={img} src={api.imageUrl(run.id, img)}
+                                alt={`Cena ${idx + 1}`}
+                                style={{ width: 140, height: 79, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }}
+                                onClick={() => window.open(api.imageUrl(run.id, img), '_blank')}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Textos — Roteiro e Pesquisa */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        {scriptStep && (
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                            <div style={{ padding: '8px 12px', background: 'var(--bg-3)', fontSize: 11, fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>📝 Roteiro</span>
+                              <button className="ghost" style={{ fontSize: 10, padding: '2px 8px' }}
+                                onClick={() => api.downloadStepTxt(run.id, scriptStep.stepId, scriptStep.stepName).catch(() => {})}>
+                                ⬇ .txt
+                              </button>
+                            </div>
+                            <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--fg-2)', lineHeight: 1.7, maxHeight: 120, overflowY: 'auto', whiteSpace: 'pre-wrap', background: 'var(--bg-2)' }}>
+                              {scriptStep.output.slice(0, 600)}{scriptStep.output.length > 600 ? '…' : ''}
+                            </div>
+                          </div>
+                        )}
+                        {researchStep && (
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                            <div style={{ padding: '8px 12px', background: 'var(--bg-3)', fontSize: 11, fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>🔍 Pesquisa</span>
+                              <button className="ghost" style={{ fontSize: 10, padding: '2px 8px' }}
+                                onClick={() => api.downloadStepTxt(run.id, researchStep.stepId, researchStep.stepName).catch(() => {})}>
+                                ⬇ .txt
+                              </button>
+                            </div>
+                            <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--fg-2)', lineHeight: 1.7, maxHeight: 120, overflowY: 'auto', whiteSpace: 'pre-wrap', background: 'var(--bg-2)' }}>
+                              {researchStep.output.slice(0, 600)}{researchStep.output.length > 600 ? '…' : ''}
+                            </div>
+                          </div>
+                        )}
+                        {visualStep && (
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', gridColumn: (!scriptStep || !researchStep) ? '1 / -1' : undefined }}>
+                            <div style={{ padding: '8px 12px', background: 'var(--bg-3)', fontSize: 11, fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>🎬 Direção Visual</span>
+                              <button className="ghost" style={{ fontSize: 10, padding: '2px 8px' }}
+                                onClick={() => api.downloadStepTxt(run.id, visualStep.stepId, visualStep.stepName).catch(() => {})}>
+                                ⬇ .txt
+                              </button>
+                            </div>
+                            <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--fg-2)', lineHeight: 1.7, maxHeight: 120, overflowY: 'auto', whiteSpace: 'pre-wrap', background: 'var(--bg-2)' }}>
+                              {visualStep.output.slice(0, 600)}{visualStep.output.length > 600 ? '…' : ''}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

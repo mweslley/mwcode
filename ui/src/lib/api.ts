@@ -50,6 +50,11 @@ export const api = {
     const blob = await res.blob();
     return URL.createObjectURL(blob);
   },
+  // URL de imagem com token embutido na query (para uso em <img src>)
+  imageUrl: (runId: string, filename: string): string => {
+    const token = localStorage.getItem('token') || '';
+    return `${BASE}/runs/${runId}/images/${filename}?t=${encodeURIComponent(token)}`;
+  },
   health: () => request<{ status: string; version: string }>('/health'),
   
   // AUTH

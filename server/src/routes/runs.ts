@@ -2,8 +2,11 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { dataDir, dataPath } from '../lib/data-dir.js';
 import { startPipelineRun, resumeAfterCheckpoint } from '../services/pipeline-executor.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'mwcode-secret-key-change-in-production';
 
 export const runsRouter = Router();
 
@@ -44,6 +47,7 @@ export interface Run {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  images?: string[]; // nomes dos arquivos em dataDir('images', userId)/{runId}/
 }
 
 export function runsDir(userId: string): string {
@@ -275,6 +279,30 @@ runsRouter.get('/:runId/video', (req: any, res: any) => {
   res.setHeader('Content-Length', stat.size);
   res.setHeader('Content-Disposition', `inline; filename="video_${runId.slice(0, 8)}.mp4"`);
   fs.createReadStream(videoFile).pipe(res);
+});
+
+// ── GET /api/runs/:runId/images/:filename — serve imagem gerada ──────────────
+
+runsRouter.get('/:runId/images/:filename', (req: any, res: any) => {
+  const { runId, filename } = req.params;
+  if (!/^[\w.-]+$/.test(filename)) return res.status(400).json({ error: 'Nome inválido' });
+  // userId pode vir do authMiddleware (header) ou do token na query string (para <img src>)
+  let userId = req.userId as string | undefined;
+  if (!userId) {
+    const t = req.query.t as string;
+    if (t) {
+      try {
+        const payload = jwt.verify(t, JWT_SECRET) as { userId: string };
+        userId = payload.userId;
+      } catch { /* token inválido */ }
+    }
+  }
+  if (!userId) return res.status(401).json({ error: 'Não autorizado' });
+  const imgFile = path.join(dataDir('images', userId), runId, filename);
+  if (!fs.existsSync(imgFile)) return res.status(404).json({ error: 'Imagem não encontrada' });
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  fs.createReadStream(imgFile).pipe(res);
 });
 
 // ── DELETE /api/runs/:runId ───────────────────────────────────────────────────

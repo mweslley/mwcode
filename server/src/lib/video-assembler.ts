@@ -162,17 +162,20 @@ export async function assembleVideo(userId: string, run: Run): Promise<string | 
   );
   console.log(`[video] Áudio: ${totalDuration.toFixed(1)}s | ${n} cenas × ${sceneDur}s`);
 
-  // 5. Criar diretório de trabalho
-  const workDir = `/tmp/video_${run.id.slice(0, 8)}`;
-  fs.mkdirSync(workDir, { recursive: true });
+  // 5. Criar diretório de imagens (persistente — ficam acessíveis após montagem)
+  const imgDir = path.join(dataDir('images', userId), run.id);
+  fs.mkdirSync(imgDir, { recursive: true });
 
   // 6. Baixar imagens
   const imgFiles: string[] = [];
+  const imgNames: string[] = [];
   for (let i = 0; i < n; i++) {
-    const dest = path.join(workDir, `scene_${String(i + 1).padStart(2, '0')}.jpg`);
+    const name = `scene_${String(i + 1).padStart(2, '0')}.jpg`;
+    const dest = path.join(imgDir, name);
     const seed = 1972 + i * 37;
     await downloadImage(prompts[i], seed, dest);
     imgFiles.push(dest);
+    imgNames.push(name);
     if (i < n - 1) await new Promise(r => setTimeout(r, 2000)); // respeitar rate limit
   }
 
@@ -228,6 +231,10 @@ export async function assembleVideo(userId: string, run: Run): Promise<string | 
     await execAsync(cmd.join(' '), { timeout: 600000 });
     const sizeMb = (fs.statSync(outputFile).size / 1024 / 1024).toFixed(1);
     console.log(`[video] ✅ Vídeo gerado: ${outputFile} (${sizeMb} MB)`);
+    // Salvar lista de imagens na run para exibição na UI
+    const { loadRun, saveRun } = await import('../routes/runs.js');
+    const fresh = loadRun(userId, run.id);
+    if (fresh) saveRun(userId, { ...fresh, images: imgNames } as any);
     return outputFile;
   } catch (e: any) {
     console.error('[video] ❌ FFmpeg falhou:', e.message?.slice(0, 500));
