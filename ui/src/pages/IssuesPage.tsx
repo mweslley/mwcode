@@ -2,6 +2,34 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
+// Converte markdown básico para HTML seguro (conteúdo interno, não user input externo)
+function renderMd(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*\*(.+?)\*\*\*/gs, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/gs, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .replace(/`([^`\n]+)`/g, '<code style="background:rgba(146,48,249,0.12);color:#c084fc;padding:1px 5px;border-radius:4px;font-family:monospace;font-size:0.95em">$1</code>')
+    .replace(/^#### (.+)$/gm, '<strong style="display:block;margin:8px 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)">$1</strong>')
+    .replace(/^### (.+)$/gm, '<strong style="display:block;margin:10px 0 3px;font-size:13px;color:var(--fg)">$1</strong>')
+    .replace(/^## (.+)$/gm, '<strong style="display:block;margin:12px 0 4px;font-size:14px;color:var(--fg)">$1</strong>')
+    .replace(/^# (.+)$/gm, '<strong style="display:block;margin:14px 0 6px;font-size:16px;color:var(--fg)">$1</strong>')
+    .replace(/^[-*] (.+)$/gm, '<span style="display:block;padding-left:16px;position:relative"><span style="position:absolute;left:4px;color:var(--primary)">•</span>$1</span>')
+    .replace(/^\d+\. (.+)$/gm, '<span style="display:block;padding-left:16px;position:relative"><span style="position:absolute;left:0;color:var(--primary)">$1.</span>$1</span>')
+    .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0"/>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
+function MdBlock({ text, style }: { text: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.9, ...style }}
+      dangerouslySetInnerHTML={{ __html: renderMd(text) }}
+    />
+  );
+}
+
 type TarefaStatus = 'backlog' | 'todo' | 'em_progresso' | 'em_revisao' | 'concluido' | 'cancelado';
 type TarefaPriority = 'critico' | 'alto' | 'medio' | 'baixo';
 
@@ -772,40 +800,39 @@ export function TarefasPage() {
               </div>
             )}
 
-            {/* 📋 Briefing — o que foi pedido ao agente */}
+            {/* 📋 Briefing — instrução que o CEO enviou ao agente */}
             {detailIssue.description && (
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
                   📋 Briefing da tarefa
+                  <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 9, textTransform: 'none', letterSpacing: 0, color: 'var(--muted)' }}>
+                    — o que o CEO pediu ao agente
+                  </span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--fg-2)', padding: '12px 14px', background: 'var(--bg-3)', borderRadius: 8, lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto' }}>
-                  {detailIssue.description}
+                <div style={{ padding: '12px 14px', background: 'var(--bg-3)', borderRadius: 8, maxHeight: 260, overflowY: 'auto' }}>
+                  <MdBlock text={detailIssue.description} />
                 </div>
               </div>
             )}
 
-            {/* 🤖 Resultado — resposta do agente (logs longos extraídos) */}
+            {/* 🤖 Resultado — o que o agente produziu */}
             {(() => {
               const agentLogs = (detailIssue.logs || []).filter(e => e.msg.length > 250);
               if (!agentLogs.length) return null;
-              // Pegar o log mais relevante (geralmente o primeiro longo = resposta principal)
               const main = agentLogs[agentLogs.length - 1];
-              // Remover prefixo "NomeAgente: " se existir
-              const body = main.msg.replace(/^[^:]{3,80}:\s*/, '');
+              // Remove prefixo "NomeAgente: " se existir
+              const body = main.msg.replace(/^[^:\n]{3,80}:\s*/, '');
               return (
-                <div style={{ marginBottom: 14 }}>
+                <div style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
                     🤖 Resultado do agente
+                    <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 9, textTransform: 'none', letterSpacing: 0, color: 'var(--muted)' }}>
+                      — o que o agente entregou
+                    </span>
                   </div>
-                  <details style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                    <summary style={{ padding: '10px 14px', background: 'var(--bg-3)', cursor: 'pointer', fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.6, listStyle: 'none', userSelect: 'none' }}>
-                      {body.slice(0, 200).replace(/\*\*/g, '').replace(/^#+\s*/gm, '').trim()}…
-                      <span style={{ fontSize: 10, color: 'var(--primary)', marginLeft: 8 }}>▼ ver completo</span>
-                    </summary>
-                    <div style={{ padding: '12px 14px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>
-                      {body}
-                    </div>
-                  </details>
+                  <div style={{ padding: '12px 14px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 340, overflowY: 'auto' }}>
+                    <MdBlock text={body} />
+                  </div>
                 </div>
               );
             })()}
