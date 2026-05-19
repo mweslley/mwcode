@@ -163,7 +163,7 @@ export function SquadWorkspacePage() {
   // Briefing form state (checkpoint 0)
   const [briefFields, setBriefFields] = useState<Record<string, string>>({});
   const [videoModal, setVideoModal] = useState<string | null>(null);
-  const [loadingVideo, setLoadingVideo] = useState(false);
+  const [loadingVideo, setLoadingVideo] = useState<string | null>(null); // runId sendo carregado
 
   async function createRun() {
     if (!runRequest.trim() || !squad) return;
@@ -587,14 +587,14 @@ export function SquadWorkspacePage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                       <button className="ghost" style={{ fontSize: 11, padding: '4px 10px', color: '#a78bfa', borderColor: 'rgba(167,139,250,0.4)' }}
-                        disabled={loadingVideo}
+                        disabled={loadingVideo === r.id}
                         onClick={async () => {
-                          setLoadingVideo(true);
+                          setLoadingVideo(r.id);
                           try { setVideoModal(await api.fetchVideoUrl(r.id)); }
                           catch (e: any) { alert(e.message); }
-                          finally { setLoadingVideo(false); }
+                          finally { setLoadingVideo(null); }
                         }}>
-                        {loadingVideo ? '⏳' : '▶ Assistir'}
+                        {loadingVideo === r.id ? '⏳' : '▶ Assistir'}
                       </button>
                       <button className="ghost" style={{ fontSize: 11, padding: '4px 10px' }}
                         onClick={() => api.downloadVideo(r.id).catch((e: any) => alert(e.message))}>
@@ -615,9 +615,23 @@ export function SquadWorkspacePage() {
                 Os textos, pesquisas e documentos produzidos pelos agentes aparecem aqui automaticamente após cada tarefa concluída.
               </p>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {outputs.map(out => {
+          ) : (() => {
+            // Agrupar outputs por issueTitle (run) para organização em pastas
+            const groups: Record<string, typeof outputs> = {};
+            for (const out of outputs) {
+              const key = out.issueTitle || '(sem run)';
+              if (!groups[key]) groups[key] = [];
+              groups[key].push(out);
+            }
+            return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {Object.entries(groups).map(([groupTitle, groupOutputs]) => (
+                <div key={groupTitle}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>📁</span> {groupTitle.slice(0, 70)} <span style={{ opacity: 0.5 }}>({groupOutputs.length})</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}>
+                  {groupOutputs.map(out => {
                 const isExpanded = expandedOutput === out.id;
                 const agent = squadAgents.find(a => a.id === out.agentId);
                 return (
@@ -638,7 +652,6 @@ export function SquadWorkspacePage() {
                               {agent ? agentEmoji(agent.role) : '🤖'} {out.agentName}
                             </span>
                           )}
-                          {out.issueTitle && <span>📋 {out.issueTitle.slice(0, 50)}</span>}
                           <span>🕐 {formatDate(out.createdAt)}</span>
                         </div>
 
@@ -670,8 +683,12 @@ export function SquadWorkspacePage() {
                   </div>
                 );
               })}
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -832,19 +849,19 @@ export function SquadWorkspacePage() {
                 {selectedRun.status === 'completed' && (
                   <>
                     <button className="ghost" style={{ fontSize: 11, padding: '4px 10px', color: '#a78bfa', borderColor: 'rgba(167,139,250,0.4)' }}
-                      disabled={loadingVideo}
+                      disabled={loadingVideo === selectedRun.id}
                       onClick={async () => {
-                        setLoadingVideo(true);
+                        setLoadingVideo(selectedRun.id);
                         try {
                           const url = await api.fetchVideoUrl(selectedRun.id);
                           setVideoModal(url);
                         } catch (e: any) {
                           alert(e.message);
                         } finally {
-                          setLoadingVideo(false);
+                          setLoadingVideo(null);
                         }
                       }}>
-                      {loadingVideo ? '⏳...' : '▶ Assistir vídeo'}
+                      {loadingVideo === selectedRun.id ? '⏳...' : '▶ Assistir vídeo'}
                     </button>
                     <button className="ghost" style={{ fontSize: 11, padding: '4px 10px' }}
                       onClick={() => api.downloadRun(selectedRun.id).catch(e => alert('Erro: ' + e.message))}>

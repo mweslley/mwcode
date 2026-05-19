@@ -173,7 +173,7 @@ export function TarefasPage() {
   const [rejectNote, setRejectNote] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
   const [videoModal, setVideoModal] = useState<string | null>(null);
-  const [loadingVideo, setLoadingVideo] = useState(false);
+  const [loadingVideo, setLoadingVideo] = useState<string | null>(null);
 
   async function load() {
     const [list, agList] = await Promise.all([
@@ -543,19 +543,19 @@ export function TarefasPage() {
                     {detailRun.status === 'completed' && (
                       <>
                         <button className="ghost" style={{ fontSize: 11, padding: '5px 12px', fontWeight: 600, color: '#a78bfa', borderColor: 'rgba(167,139,250,0.4)' }}
-                          disabled={loadingVideo}
+                          disabled={loadingVideo === detailRun.id}
                           onClick={async () => {
-                            setLoadingVideo(true);
+                            setLoadingVideo(detailRun.id);
                             try {
                               const url = await api.fetchVideoUrl(detailRun.id);
                               setVideoModal(url);
                             } catch (e: any) {
                               alert(e.message);
                             } finally {
-                              setLoadingVideo(false);
+                              setLoadingVideo(null);
                             }
                           }}>
-                          {loadingVideo ? '⏳...' : '▶ Assistir vídeo'}
+                          {loadingVideo === detailRun.id ? '⏳...' : '▶ Assistir vídeo'}
                         </button>
                         <button className="ghost" style={{ fontSize: 11, padding: '5px 12px', fontWeight: 600 }}
                           onClick={() => api.downloadRun(detailRun.id).catch(e => alert('Erro: ' + e.message))}>
@@ -772,10 +772,27 @@ export function TarefasPage() {
               </div>
             )}
 
-            {/* Descrição */}
+            {/* Descrição + contexto completo */}
             {detailIssue.description && (
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 12, padding: '12px 14px', background: 'var(--bg-3)', borderRadius: 8, lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto' }}>
                 {detailIssue.description}
+              </div>
+            )}
+            {/* Links para squad/run relacionados */}
+            {(detailIssue.squadId || detailIssue.runId) && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                {detailIssue.squadId && (
+                  <button className="ghost" style={{ fontSize: 11, padding: '3px 10px' }}
+                    onClick={() => { setDetailIssue(null); navigate(`/squads/${detailIssue.squadId}`); }}>
+                    🏛 Ver equipe →
+                  </button>
+                )}
+                {detailIssue.runId && (
+                  <button className="ghost" style={{ fontSize: 11, padding: '3px 10px', color: 'var(--primary)' }}
+                    onClick={() => openRunDetail(detailIssue)}>
+                    ▶ Abrir pipeline da run →
+                  </button>
+                )}
               </div>
             )}
 

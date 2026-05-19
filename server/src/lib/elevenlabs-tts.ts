@@ -11,9 +11,14 @@ function cleanForTTS(text: string): string {
     .replace(/^#{1,6}\s+.*$/gm, '')
     .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, '$1')
     .replace(/`[^`]+`/g, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // markdown links → texto
+    .replace(/\[[^\]]{1,80}\]/g, ' ')        // stage directions: [pausa curta], [tom grave], etc.
     .replace(/^[-*]\s+/gm, '')
     .replace(/^\d+\.\s+/gm, '')
+    .replace(/\|[^\n]+\|/g, '')              // tabelas markdown
+    .replace(/^>+\s*/gm, '')                 // blockquotes
+    .replace(/_{2,}[^_]+_{2,}/g, '$1')       // __negrito__
+    .replace(/\s{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
