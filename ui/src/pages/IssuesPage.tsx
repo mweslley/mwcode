@@ -772,12 +772,44 @@ export function TarefasPage() {
               </div>
             )}
 
-            {/* Descrição + contexto completo */}
+            {/* 📋 Briefing — o que foi pedido ao agente */}
             {detailIssue.description && (
-              <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 12, padding: '12px 14px', background: 'var(--bg-3)', borderRadius: 8, lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto' }}>
-                {detailIssue.description}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  📋 Briefing da tarefa
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-2)', padding: '12px 14px', background: 'var(--bg-3)', borderRadius: 8, lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto' }}>
+                  {detailIssue.description}
+                </div>
               </div>
             )}
+
+            {/* 🤖 Resultado — resposta do agente (logs longos extraídos) */}
+            {(() => {
+              const agentLogs = (detailIssue.logs || []).filter(e => e.msg.length > 250);
+              if (!agentLogs.length) return null;
+              // Pegar o log mais relevante (geralmente o primeiro longo = resposta principal)
+              const main = agentLogs[agentLogs.length - 1];
+              // Remover prefixo "NomeAgente: " se existir
+              const body = main.msg.replace(/^[^:]{3,80}:\s*/, '');
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                    🤖 Resultado do agente
+                  </div>
+                  <details style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <summary style={{ padding: '10px 14px', background: 'var(--bg-3)', cursor: 'pointer', fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.6, listStyle: 'none', userSelect: 'none' }}>
+                      {body.slice(0, 200).replace(/\*\*/g, '').replace(/^#+\s*/gm, '').trim()}…
+                      <span style={{ fontSize: 10, color: 'var(--primary)', marginLeft: 8 }}>▼ ver completo</span>
+                    </summary>
+                    <div style={{ padding: '12px 14px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>
+                      {body}
+                    </div>
+                  </details>
+                </div>
+              );
+            })()}
+
             {/* Links para squad/run relacionados */}
             {(detailIssue.squadId || detailIssue.runId) && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -814,19 +846,30 @@ export function TarefasPage() {
                 onClick={() => { remove(detailIssue.id); setDetailIssue(null); }}>🗑 Excluir</button>
             </div>
 
-            {/* Console de logs */}
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 120, background: '#09091a', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
-              {!detailIssue.logs?.length ? (
-                <span style={{ color: '#555' }}>// sem eventos registrados</span>
-              ) : detailIssue.logs.map((entry, i) => (
-                <div key={i} style={{ marginBottom: 4, lineHeight: 1.6 }}>
-                  <span style={{ color: '#555', marginRight: 8 }}>{formatTs(entry.ts)}</span>
-                  <span style={{ color: entry.ok === false ? '#ef4444' : '#10b981', marginRight: 6 }}>
-                    {entry.ok === false ? '✗' : '✓'}
-                  </span>
-                  <span style={{ color: '#e2e8f0' }}>{entry.msg}</span>
-                </div>
-              ))}
+            {/* 📊 Log de status — eventos técnicos curtos */}
+            <div style={{ marginBottom: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                📊 Log de execução
+              </div>
+              <div style={{ overflowY: 'auto', maxHeight: 160, background: '#09091a', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+                {!detailIssue.logs?.length ? (
+                  <span style={{ color: '#555' }}>// sem eventos registrados</span>
+                ) : detailIssue.logs.map((entry, i) => {
+                  // Eventos curtos = status; eventos longos = resposta do agente (já mostrada acima)
+                  const short = entry.msg.length <= 250 ? entry.msg : entry.msg.slice(0, 120).replace(/\*\*/g, '') + '… [ver Resultado acima]';
+                  return (
+                    <div key={i} style={{ marginBottom: 4, lineHeight: 1.6 }}>
+                      <span style={{ color: '#555', marginRight: 8 }}>{formatTs(entry.ts)}</span>
+                      <span style={{ color: entry.ok === false ? '#ef4444' : '#10b981', marginRight: 6 }}>
+                        {entry.ok === false ? '✗' : '✓'}
+                      </span>
+                      <span style={{ color: entry.msg.length > 250 ? '#666' : '#e2e8f0', fontStyle: entry.msg.length > 250 ? 'italic' : 'normal' }}>
+                        {short}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Ações de aprovação */}
