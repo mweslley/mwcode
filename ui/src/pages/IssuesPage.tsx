@@ -174,12 +174,16 @@ const BLANK_FORM = {
   requiresApproval: false,
 };
 
+const PAGE_SIZE = 25;
+
 export function TarefasPage() {
   const navigate = useNavigate();
   const [issues, setTarefas] = useState<Tarefa[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [page, setPage] = useState(1);
 
   // modais
   const [showForm, setShowForm] = useState(false);
@@ -319,12 +323,20 @@ export function TarefasPage() {
   const checkpointRuns  = issues.filter(i => i.id.startsWith('run:') && i.requiresApproval && i.approvalStatus === 'pendente');
   const reproved        = issues.filter(i => i.status === 'todo' && extractReprovalReason(i.logs) !== null);
 
-  const displayed = (() => {
-    if (filter === 'aprovacao') return pendingApprovals;
-    if (filter === 'reprovadas') return reproved;
-    if (filter) return issues.filter(i => i.status === filter);
-    return issues;
+  const displayedAll = (() => {
+    let list: Tarefa[];
+    if (filter === 'aprovacao') list = pendingApprovals;
+    else if (filter === 'reprovadas') list = reproved;
+    else if (filter) list = issues.filter(i => i.status === filter);
+    else list = issues;
+    return sortOrder === 'oldest'
+      ? [...list].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      : [...list].sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
   })();
+
+  const totalPages = Math.max(1, Math.ceil(displayedAll.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const displayed = displayedAll.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // ── card de run ─────────────────────────────────────────────────────────────
   function RunCard({ issue }: { issue: Tarefa }) {
@@ -371,9 +383,9 @@ export function TarefasPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span>📅 {formatDate(issue.createdAt)}</span>
-            {issue.updatedAt !== issue.createdAt && (
-              <span>⏱ {formatTs(issue.updatedAt)}</span>
+            <span title="Criado em">📅 {formatTs(issue.createdAt)}</span>
+            {issue.updatedAt && issue.updatedAt !== issue.createdAt && (
+              <span title="Atualizado em">⏱ {formatTs(issue.updatedAt)}</span>
             )}
             {isCheckpoint && (
               <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚡ Clique para responder o checkpoint</span>
@@ -433,7 +445,13 @@ export function TarefasPage() {
             {issue.logs && issue.logs.length > 0 && (
               <span style={{ fontFamily: 'monospace' }}>[{issue.logs.length} logs]</span>
             )}
-            <span style={{ marginLeft: 'auto' }}>📅 {formatDate(issue.updatedAt || issue.createdAt)}</span>
+            <span style={{ marginLeft: 'auto' }} title="Criado em">📅 {formatTs(issue.createdAt)}</span>
+            {issue.completedAt && (
+              <span style={{ color: '#10b981' }} title="Concluído em">✅ {formatTs(issue.completedAt)}</span>
+            )}
+            {!issue.completedAt && issue.updatedAt && issue.updatedAt !== issue.createdAt && (
+              <span title="Atualizado em">⏱ {formatTs(issue.updatedAt)}</span>
+            )}
           </div>
 
           {isReproved && reprovalReason && (
@@ -500,26 +518,37 @@ export function TarefasPage() {
         </div>
       )}
 
-      {/* Filtros */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+      {/* Filtros + ordenação */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         {FILTER_TABS.map(t => {
           const count = t.key === 'aprovacao' ? pendingApprovals.length
             : t.key === 'reprovadas' ? reproved.length
             : t.key === '' ? issues.length
             : issues.filter(i => i.status === t.key).length;
           return (
-            <button key={t.key} onClick={() => setFilter(t.key)}
+            <button key={t.key} onClick={() => { setFilter(t.key); setPage(1); }}
               className={filter === t.key ? '' : 'ghost'}
               style={{ fontSize: 12, padding: '5px 12px' }}>
               {t.label} <span style={{ marginLeft: 5, opacity: 0.6 }}>{count}</span>
             </button>
           );
         })}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Ordem:</span>
+          <button className={sortOrder === 'newest' ? '' : 'ghost'} style={{ fontSize: 11, padding: '4px 10px' }}
+            onClick={() => { setSortOrder('newest'); setPage(1); }}>
+            ↓ Mais recentes
+          </button>
+          <button className={sortOrder === 'oldest' ? '' : 'ghost'} style={{ fontSize: 11, padding: '4px 10px' }}
+            onClick={() => { setSortOrder('oldest'); setPage(1); }}>
+            ↑ Mais antigas
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <div style={{ color: 'var(--muted)', padding: 32, textAlign: 'center' }}>Carregando...</div>
-      ) : displayed.length === 0 ? (
+      ) : displayedAll.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: 48 }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
           <p style={{ color: 'var(--muted)', fontSize: 13 }}>
@@ -527,16 +556,125 @@ export function TarefasPage() {
           </p>
           {!filter && <button style={{ marginTop: 14 }} onClick={openNew}>Criar primeira tarefa</button>}
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {displayed.map(issue => {
-            const isRun = issue.id.startsWith('run:') || !!issue.runId;
-            return isRun
-              ? <RunCard key={issue.id} issue={issue} />
-              : <IssueCard key={issue.id} issue={issue} />;
-          })}
-        </div>
-      )}
+      ) : (() => {
+        // Agrupar por squad (projeto) — runs têm squadId, issues têm squadId ou não
+        const squadGroups: Record<string, { squadName: string; items: Tarefa[] }> = {};
+        const noSquad: Tarefa[] = [];
+
+        for (const issue of displayed) {
+          const sqId = issue.squadId || (issue.id.startsWith('run:') ? issue.squadId : undefined);
+          if (sqId) {
+            if (!squadGroups[sqId]) {
+              // Extrair nome do squad do título "[Equipe X]" ou usar ID
+              const titleMatch = issue.title.match(/^\[Equipe ([^\]]+)\]/i);
+              squadGroups[sqId] = {
+                squadName: titleMatch?.[1] || 'Equipe ' + sqId.slice(0, 8),
+                items: [],
+              };
+            }
+            squadGroups[sqId].items.push(issue);
+          } else {
+            noSquad.push(issue);
+          }
+        }
+
+        const hasGroups = Object.keys(squadGroups).length > 0;
+
+        return (
+          <div>
+            {/* Info de paginação */}
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>Mostrando <strong>{(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, displayedAll.length)}</strong> de <strong>{displayedAll.length}</strong> tarefas</span>
+              {sortOrder === 'oldest' && <span style={{ color: 'var(--primary)', fontSize: 11 }}>· ordenadas da mais antiga</span>}
+              {sortOrder === 'newest' && <span style={{ color: 'var(--primary)', fontSize: 11 }}>· ordenadas da mais recente</span>}
+            </div>
+
+            {/* Grupos por squad/projeto */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {hasGroups && Object.entries(squadGroups).map(([sqId, group]) => (
+                <div key={sqId}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      🏛 {group.squadName}
+                    </div>
+                    <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{group.items.length} tarefa{group.items.length !== 1 ? 's' : ''}</span>
+                    <button className="ghost" style={{ fontSize: 10, padding: '2px 8px' }}
+                      onClick={() => navigate(`/squads/${sqId}`)}>
+                      Ver equipe →
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {group.items.map(issue => {
+                      const isRun = issue.id.startsWith('run:') || !!issue.runId;
+                      return isRun ? <RunCard key={issue.id} issue={issue} /> : <IssueCard key={issue.id} issue={issue} />;
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {noSquad.length > 0 && (
+                <div>
+                  {hasGroups && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        🤖 Tarefas gerais (sem equipe)
+                      </div>
+                      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>{noSquad.length}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {noSquad.map(issue => {
+                      const isRun = issue.id.startsWith('run:') || !!issue.runId;
+                      return isRun ? <RunCard key={issue.id} issue={issue} /> : <IssueCard key={issue.id} issue={issue} />;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Paginação */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                <button className="ghost" style={{ fontSize: 12, padding: '5px 14px' }}
+                  disabled={safePage <= 1} onClick={() => setPage(1)}>
+                  «
+                </button>
+                <button className="ghost" style={{ fontSize: 12, padding: '5px 14px' }}
+                  disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                  ‹ Anterior
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+                  .reduce<(number | string)[]>((acc, p, i, arr) => {
+                    if (i > 0 && (arr[i - 1] as number) + 1 < p) acc.push('…');
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, i) => item === '…' ? (
+                    <span key={'e' + i} style={{ fontSize: 12, color: 'var(--muted)', padding: '0 4px' }}>…</span>
+                  ) : (
+                    <button key={item} onClick={() => setPage(item as number)}
+                      className={safePage === item ? '' : 'ghost'}
+                      style={{ fontSize: 12, padding: '5px 12px', minWidth: 36 }}>
+                      {item}
+                    </button>
+                  ))
+                }
+                <button className="ghost" style={{ fontSize: 12, padding: '5px 14px' }}
+                  disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+                  Próximo ›
+                </button>
+                <button className="ghost" style={{ fontSize: 12, padding: '5px 14px' }}
+                  disabled={safePage >= totalPages} onClick={() => setPage(totalPages)}>
+                  »
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── MODAL DETALHE DE RUN ──────────────────────────────────────────── */}
       {(loadingRun || detailRun) && (
