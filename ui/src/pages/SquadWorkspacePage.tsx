@@ -842,7 +842,7 @@ export function SquadWorkspacePage() {
                               </div>
                               <div style={{ paddingLeft: 12, borderLeft: '2px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 {/* Vídeo */}
-                                {hasVideo ? (
+                                {hasVideo && (
                                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                     <button style={{ padding: '8px 16px', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}
                                       disabled={loadingVideo === run.id}
@@ -858,10 +858,6 @@ export function SquadWorkspacePage() {
                                       onClick={() => api.downloadVideo(run.id).catch((e: any) => alert(e.message))}>
                                       ⬇ Baixar .mp4
                                     </button>
-                                  </div>
-                                ) : (
-                                  <div style={{ fontSize: 12, color: '#f59e0b', padding: '8px 12px', borderRadius: 8, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                                    ⚠ O vídeo não foi renderizado neste pipeline. O roteiro (EDL) está disponível nos documentos abaixo.
                                   </div>
                                 )}
 
