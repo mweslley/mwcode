@@ -56,6 +56,10 @@ export function Sidebar() {
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
+        }).sort((a, b) => {
+          const aIsCEO = (a.role || '').toLowerCase().includes('ceo');
+          const bIsCEO = (b.role || '').toLowerCase().includes('ceo');
+          return aIsCEO === bIsCEO ? 0 : aIsCEO ? -1 : 1;
         });
         setAgents(deduped);
         const leaders = new Set(

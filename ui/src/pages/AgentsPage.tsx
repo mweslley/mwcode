@@ -48,6 +48,14 @@ interface Skill {
 
 const ADAPTERS = ['openrouter', 'openai', 'gemini', 'ollama', 'deepseek', 'github'];
 
+const PROVIDER_MODELS: Record<string, string[]> = {
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1-mini', 'o1'],
+  gemini: ['gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  github: ['gpt-4o', 'gpt-4o-mini', 'Meta-Llama-3.1-405B-Instruct', 'Mistral-large-2411'],
+  ollama: ['llama3.2', 'llama3.1', 'mistral', 'phi4', 'qwen2.5', 'gemma3:27b'],
+};
+
 function agentEmoji(role: string) {
   const r = role?.toLowerCase() || '';
   if (r.includes('ceo') || r.includes('diretor')) return '👔';
@@ -639,21 +647,44 @@ export function AgentsPage() {
                   label="Modelo"
                   provider="openrouter"
                 />
-              ) : (
-                <>
-                  <label>Modelo</label>
-                  <input
-                    value={form.model}
-                    onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
-                    placeholder={
-                      form.adapter === 'openai' ? 'Ex: gpt-4o-mini' :
-                      form.adapter === 'gemini' ? 'Ex: gemini-1.5-flash' :
-                      form.adapter === 'deepseek' ? 'Ex: deepseek-chat' :
-                      form.adapter === 'ollama' ? 'Ex: llama3' : 'ID do modelo'
-                    }
-                  />
-                </>
-              )}
+              ) : (() => {
+                const models = PROVIDER_MODELS[form.adapter] || [];
+                return (
+                  <>
+                    <label>Modelo</label>
+                    {models.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+                        {models.map(m => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, model: m }))}
+                            style={{
+                              fontSize: 11, padding: '4px 10px', borderRadius: 6,
+                              background: form.model === m ? 'var(--primary)' : 'var(--bg-3)',
+                              color: form.model === m ? '#fff' : 'var(--fg-2)',
+                              borderColor: form.model === m ? 'var(--primary)' : 'var(--border)',
+                            }}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <input
+                      value={form.model}
+                      onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+                      placeholder={models.length > 0 ? 'Ou digite o ID do modelo...' :
+                        form.adapter === 'openai' ? 'Ex: gpt-4o-mini' :
+                        form.adapter === 'gemini' ? 'Ex: gemini-2.0-flash' :
+                        form.adapter === 'deepseek' ? 'Ex: deepseek-chat' :
+                        form.adapter === 'ollama' ? 'Ex: llama3.2' : 'ID do modelo'
+                      }
+                      style={{ fontSize: 12 }}
+                    />
+                  </>
+                );
+              })()}
             </div>
 
             <div className="form-group">
