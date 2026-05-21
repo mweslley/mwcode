@@ -214,6 +214,7 @@ interface ParsedCommands {
   qaRequests: Array<{ url?: string; tipo: QATaskType; descricao: string }>;
   equipes: Array<{ nome: string; descricao: string; missao: string; agentes: string; lider?: string }>;
   reprovals: Array<{ id: string; motivo: string; agentName: string }>;
+  cancellations: Array<{ id: string; motivo: string }>;
 }
 
 function parseCEOResponse(content: string): ParsedCommands {
@@ -224,6 +225,7 @@ function parseCEOResponse(content: string): ParsedCommands {
   const qaRequests: ParsedCommands['qaRequests'] = [];
   const equipes: ParsedCommands['equipes'] = [];
   const reprovals: ParsedCommands['reprovals'] = [];
+  const cancellations: ParsedCommands['cancellations'] = [];
 
   // [CRIAR TAREFA: título="..."; agente="..."; descrição="..."; prioridade="..."]
   const taskRe = /\[CRIAR TAREFA:([^\]]+)\]/gi;
@@ -343,7 +345,20 @@ function parseCEOResponse(content: string): ParsedCommands {
     if (id) reprovals.push({ id, motivo, agentName });
   }
 
-  return { tasks, approvals, hires, focusRecs, qaRequests, equipes, reprovals };
+  // [CANCELAR SOLICITAÇÃO: id="..."; motivo="..."]
+  const cancelRe = /\[CANCELAR SOLICITAÇÃO:([^\]]+)\]/gi;
+  while ((m = cancelRe.exec(content)) !== null) {
+    const p = m[1];
+    const id =
+      p.match(/\bid=["']([^"']+)["']/i)?.[1] ||
+      p.match(/id=["']([^"']+)["']/i)?.[1];
+    const motivo =
+      p.match(/motivo=["']([^"']+)["']/i)?.[1] ||
+      p.match(/reason=["']([^"']+)["']/i)?.[1] || 'CEO cancelou a solicitação';
+    if (id) cancellations.push({ id, motivo });
+  }
+
+  return { tasks, approvals, hires, focusRecs, qaRequests, equipes, reprovals, cancellations };
 }
 
 // ── Executar comandos criados pelo CEO ────────────────────────────────────────
@@ -362,7 +377,7 @@ function executeCommands(
   const hasWork = commands.tasks.length || commands.approvals.length ||
                   commands.hires.length || commands.focusRecs.length ||
                   commands.qaRequests.length || commands.equipes.length ||
-                  commands.reprovals.length;
+                  commands.reprovals.length || commands.cancellations.length;
   if (!hasWork) return;
 
   const company = loadCompany(userId);
@@ -724,6 +739,25 @@ function executeCommands(
     console.log(`[AgentLoop] CEO reprovou tarefa "${issue.title}" — reaberta${assignee ? ` para ${assignee.name}` : ''}`);
   }
 
+  // ── Cancelamentos de solicitações pendentes pelo CEO ─────────────────────
+  for (const cancel of commands.cancellations) {
+    const idx = issues.findIndex(i => i.id === cancel.id);
+    if (idx === -1) {
+      console.log(`[AgentLoop] CEO tentou cancelar solicitação "${cancel.id}" — não encontrada`);
+      continue;
+    }
+    const issue = issues[idx];
+    if (issue.approvalStatus !== 'pendente') {
+      console.log(`[AgentLoop] Solicitação "${issue.title}" não está mais pendente — ignorado`);
+      continue;
+    }
+    issues[idx].approvalStatus = 'retratado';
+    issues[idx].status = 'cancelado';
+    issues[idx].updatedAt = new Date().toISOString();
+    addIssueLog(issues[idx], `↩️ CEO retirou a solicitação. Motivo: ${cancel.motivo}`, true);
+    console.log(`[AgentLoop] CEO cancelou solicitação pendente: "${issue.title}"`);
+  }
+
   saveIssues(userId, issues);
 }
 
@@ -809,6 +843,20 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       pausedSquads.flatMap((s: any) => s.agentIds || [])
     );
 
+    // Mapeia agentes de equipes ativas para mostrar restrição de papel no contexto
+    const agentSquadRole = new Map<string, string>();
+    for (const squad of activeSquads) {
+      const agentIds: string[] = squad.agentIds || [];
+      const memberNames = agentIds
+        .map((id: string) => otherAgents.find(a => a.id === id)?.name)
+        .filter(Boolean);
+      for (const agentId of agentIds) {
+        agentSquadRole.set(agentId, `[EQUIPE ${squad.name} — só tarefas do seu papel no pipeline: ${memberNames.join(' → ')}]`);
+      }
+    }
+
+    const pendingApprovals = issues.filter(i => i.requiresApproval && i.approvalStatus === 'pendente');
+
     const contextMsg =
       `[Sistema MWCode — Atualização Automática]\n\n` +
       `Empresa: ${company.companyName || company.name || 'sua empresa'}\n` +
@@ -838,9 +886,18 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       (otherAgents.length
         ? otherAgents.map(a => {
             const isInPausedSquad = pausedAgentIds.has(a.id);
-            return `- ${a.name}: ${a.role}${isInPausedSquad ? ' [PAUSADO — equipe pausada]' : ''}`;
+            if (isInPausedSquad) return `- ${a.name}: ${a.role} [PAUSADO — equipe pausada, NÃO atribuir tarefas]`;
+            const squadRestriction = agentSquadRole.get(a.id);
+            return `- ${a.name}: ${a.role}${squadRestriction ? ' ' + squadRestriction : ''}`;
           }).join('\n')
         : '- Nenhum agente além de você ainda') +
+      (pendingApprovals.length
+        ? `\n\nSuas solicitações pendentes no inbox do fundador (${pendingApprovals.length}):\n` +
+          pendingApprovals.map(i =>
+            `- [id="${i.id}"] ${i.title} (${i.approvalType || 'geral'})`
+          ).join('\n') +
+          `\nSe uma solicitação não for mais necessária, cancele com: [CANCELAR SOLICITAÇÃO: id="UUID"; motivo="motivo"]\n`
+        : '') +
       `\n\nTarefas em andamento (${inProgress.length}):\n` +
       (inProgress.length ? inProgress.map(i => `- [${i.assigneeAgentName || 'sem agente'}] ${i.title}`).join('\n') : '- Nenhuma') +
       `\n\nTarefas pendentes (${pending.length}):\n` +
@@ -887,6 +944,8 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `\nB) Para criar tarefas aos agentes existentes:\n` +
       `   [CRIAR TAREFA: título="Descrição concreta da tarefa"; agente="Nome Exato do Agente"; descrição="Contexto e resultado esperado"; prioridade="alto|medio|baixo"]\n` +
       `   NUNCA atribua tarefas a agentes de equipes PAUSADAS.\n` +
+      `   Agentes marcados com [EQUIPE X] têm papel fixo no pipeline — só recebem tarefas correspondentes ao seu papel.\n` +
+      `   Para tarefas gerais ou estratégicas, use agentes sem equipe ou contrate um novo agente.\n` +
       `\nC) Para decisões que precisam de aprovação humana:\n` +
       `   [APROVAÇÃO NECESSÁRIA: descrição detalhada da decisão e impacto]\n` +
       `\nD) Se a empresa precisar mudar de foco estratégico:\n` +
@@ -898,6 +957,9 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `\nG) Para reprovar trabalho de um agente e solicitar refeição:\n` +
       `   [REPROVAR TAREFA: id="UUID da tarefa"; motivo="O que está errado e o que precisa ser corrigido"; agente="Nome do Agente"]\n` +
       `   O agente receberá o feedback e reapresentará o trabalho para nova revisão.\n` +
+      `\nI) Para cancelar uma solicitação pendente que você mesmo criou (inbox do fundador):\n` +
+      `   [CANCELAR SOLICITAÇÃO: id="UUID da solicitação"; motivo="Por que não é mais necessária"]\n` +
+      `   Use quando perceber que a contratação ou aprovação que você solicitou não é mais necessária.\n` +
       `\nH) Quando criar uma equipe ou agente que precisa de credenciais externas (Apify, ElevenLabs, Discord, etc.),\n` +
       `   analise quais integrações são necessárias e solicite APENAS as que ainda não estão configuradas.\n` +
       `   Inclua ao final da resposta um bloco por credencial:\n` +

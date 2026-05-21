@@ -31,7 +31,7 @@ export interface Issue {
   createdByAgentName?: string;
   parentId?: string;
   requiresApproval: boolean;
-  approvalStatus?: 'pendente' | 'aprovado' | 'rejeitado';
+  approvalStatus?: 'pendente' | 'aprovado' | 'rejeitado' | 'retratado';
   approvalNote?: string;
   approvalType?: ApprovalType;
   hireData?: { name: string; role: string; instructions: string; model: string };
@@ -326,6 +326,23 @@ issuesRouter.post('/:id/reject', (req: any, res: any) => {
   issues[idx].updatedAt = new Date().toISOString();
   addLog(issues[idx], `❌ Rejeitado pelo usuário.${req.body.note ? ' Motivo: ' + req.body.note : ''}`, false);
 
+  saveIssues(req.userId, issues);
+  res.json(issues[idx]);
+});
+
+// POST /api/issues/:id/retract — CEO retira própria solicitação pendente
+issuesRouter.post('/:id/retract', (req: any, res: any) => {
+  const issues = loadIssues(req.userId);
+  const idx = issues.findIndex(i => i.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Issue não encontrada' });
+  if (issues[idx].approvalStatus !== 'pendente') {
+    return res.status(400).json({ error: 'Solicitação não está mais pendente' });
+  }
+  if (!issues[idx].logs) issues[idx].logs = [];
+  issues[idx].approvalStatus = 'retratado';
+  issues[idx].status = 'cancelado';
+  issues[idx].updatedAt = new Date().toISOString();
+  addLog(issues[idx], `↩️ Solicitação retirada pelo CEO.${req.body.motivo ? ' Motivo: ' + req.body.motivo : ''}`, true);
   saveIssues(req.userId, issues);
   res.json(issues[idx]);
 });
