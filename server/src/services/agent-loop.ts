@@ -783,8 +783,12 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
     }
 
     const issues = loadIssues(userId);
-    const pending   = issues.filter(i => ['todo','backlog'].includes(i.status));
-    const inProgress = issues.filter(i => i.status === 'em_progresso');
+    const pending   = issues.filter(i => ['todo','backlog'].includes(i.status))
+      .sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 15);
+    const inProgress = issues.filter(i => i.status === 'em_progresso')
+      .sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 15);
     const recentDone = issues.filter(i => i.status === 'concluido')
       .sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 5);
