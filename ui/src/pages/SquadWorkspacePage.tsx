@@ -822,6 +822,20 @@ export function SquadWorkspacePage() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                          {hasVideo && (
+                            <button
+                              style={{ fontSize: 11, padding: '3px 10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                              disabled={loadingVideo === run.id}
+                              onClick={async e => {
+                                e.stopPropagation();
+                                setLoadingVideo(run.id);
+                                try { setVideoModal(await api.fetchVideoUrl(run.id)); }
+                                catch (err: any) { alert(err.message); }
+                                finally { setLoadingVideo(null); }
+                              }}>
+                              {loadingVideo === run.id ? '⏳' : '▶ Assistir'}
+                            </button>
+                          )}
                           <button className="ghost" style={{ fontSize: 11, padding: '3px 8px' }}
                             onClick={e => { e.stopPropagation(); setSelectedRun(run); setCheckpointDecision(''); setBriefFields({}); }}>
                             📋 Etapas
