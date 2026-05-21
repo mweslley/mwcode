@@ -474,8 +474,13 @@ function executeCommands(
 
     // Notifica agente responsável e encadeia revisão automática do CEO
     if (assignee) {
+      const companyCtx = company
+        ? (company.mission ? `Missão da empresa: ${company.mission}\n` : '') +
+          (company.goals?.length ? `Objetivo que esta tarefa serve: ${company.goals[0]}\n` : '')
+        : '';
       const msg =
         `[CEO — Nova Tarefa Atribuída]\n\n` +
+        companyCtx +
         `Tarefa: ${task.title}\n` +
         (task.description ? `Descrição: ${task.description}\n` : '') +
         `\nExecute esta tarefa e envie um relatório completo ao CEO com: o que foi feito, resultado obtido e próximos passos sugeridos.`;
@@ -862,7 +867,11 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `Empresa: ${company.companyName || company.name || 'sua empresa'}\n` +
       (hasMission ? `Missão: ${company.mission}\n` : `Missão: não definida ainda\n`) +
       (company.area ? `Área: ${company.area}\n` : '') +
-      (hasGoals ? `Objetivos: ${company.goals.join('; ')}\n` : `Objetivos: não definidos ainda\n`) +
+      (company.employees ? `Tamanho: ${company.employees} colaboradores\n` : '') +
+      (hasGoals
+        ? `\nObjetivos prioritários (aja sempre alinhado a estes):\n` +
+          company.goals.map((g: string, i: number) => `  ${i + 1}. ${g}`).join('\n') + '\n'
+        : `\nObjetivos: não definidos ainda\n`) +
       (!hasContext ? `\n⚠️ ATENÇÃO: O fundador não configurou missão nem objetivos ainda.\n` +
         `Não crie agentes ou tarefas genéricas. Em vez disso, responda ao fundador PERGUNTANDO:\n` +
         `1) Qual é a missão principal da empresa?\n` +
@@ -937,6 +946,7 @@ export async function runCEOHeartbeat(userId: string): Promise<void> {
       `   Os nomes dos agentes devem corresponder exatamente aos agentes já contratados.\n` +
       `   Equipes pausadas não recebem tarefas — respeite esse bloqueio.\n` +
       `\nCom base no contexto acima, tome as ações necessárias AGORA:\n` +
+      (hasGoals ? `⚠️ FOCO: Toda tarefa criada deve avançar pelo menos um dos objetivos listados acima. Não crie trabalho desconexo dos objetivos.\n` : '') +
       `\nA) Para solicitar contratação (requer aprovação do usuário):\n` +
       `   [CONTRATAR AGENTE: nome="COO"; função="Chief Operating Officer — Diretor de Operações"; instruções="Descreva as prioridades reais deste agente para esta empresa específica"; modelo="openrouter/auto"]\n` +
       `   NUNCA use nome="TÍTULO" ou nome="Nome do Agente" — sempre use o título real do cargo.\n` +
