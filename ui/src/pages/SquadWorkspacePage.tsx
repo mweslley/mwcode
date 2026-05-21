@@ -562,8 +562,8 @@ export function SquadWorkspacePage() {
                         )}
                         <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
                           {member && <span style={{ cursor: 'pointer', color: 'var(--primary)' }} onClick={() => navigate(`/chat/${member.id}`)}>{agentEmoji(member.role)} {member.name}</span>}
-                          <span>🕐 {new Date(issue.createdAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
-                          {issue.completedAt && <span style={{ color: '#10b981' }}>✅ {new Date(issue.completedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>}
+                          <span>🕐 {new Date(issue.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })}</span>
+                          {issue.completedAt && <span style={{ color: '#10b981' }}>✅ {new Date(issue.completedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })}</span>}
                         </div>
                       </div>
                       {member && (
@@ -819,17 +819,12 @@ export function SquadWorkspacePage() {
                                 {a.icon} {a.label}
                               </span>
                             ))}
-                            {!hasVideo && (
-                              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
-                                ⚠ Vídeo não renderizado
-                              </span>
-                            )}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                           <button className="ghost" style={{ fontSize: 11, padding: '3px 8px' }}
                             onClick={e => { e.stopPropagation(); setSelectedRun(run); setCheckpointDecision(''); setBriefFields({}); }}>
-                            📋 Steps
+                            📋 Etapas
                           </button>
                           <span style={{ fontSize: 12, color: 'var(--muted)' }}>{isExpanded ? '▲' : '▼'}</span>
                         </div>
@@ -866,7 +861,7 @@ export function SquadWorkspacePage() {
                                   </div>
                                 ) : (
                                   <div style={{ fontSize: 12, color: '#f59e0b', padding: '8px 12px', borderRadius: 8, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                                    ⚠ O pipeline gerou um roteiro de edição (EDL) mas não renderizou o arquivo de vídeo. Confira a seção <strong>Montagem</strong> abaixo.
+                                    ⚠ O vídeo não foi renderizado neste pipeline. O roteiro (EDL) está disponível nos documentos abaixo.
                                   </div>
                                 )}
 
@@ -914,7 +909,7 @@ export function SquadWorkspacePage() {
                                   qcStep       && { icon: '🔬', label: 'QC Automático',     step: qcStep },
                                   verdictStep  && { icon: '⚖️', label: 'Veredito Final',    step: verdictStep },
                                 ].filter(Boolean) as { icon: string; label: string; step: any }[]).map(({ icon, label, step }) => (
-                                  <details key={step.stepId} style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                  <details key={step.stepId} open style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
                                     <summary style={{ padding: '8px 12px', background: 'var(--bg-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, listStyle: 'none', userSelect: 'none' }}>
                                       <span>{icon}</span>
                                       <span style={{ fontWeight: 600, fontSize: 12, flex: 1 }}>{label}</span>
@@ -922,9 +917,8 @@ export function SquadWorkspacePage() {
                                         onClick={e => { e.preventDefault(); api.downloadStepTxt(run.id, step.stepId, step.stepName).catch(() => {}); }}>
                                         ⬇ .txt
                                       </button>
-                                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>▼</span>
                                     </summary>
-                                    <div style={{ padding: '10px 14px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.7, maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
+                                    <div style={{ padding: '10px 14px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.7, maxHeight: 400, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
                                       {step.output}
                                     </div>
                                   </details>
@@ -1065,7 +1059,7 @@ export function SquadWorkspacePage() {
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{run.userRequest?.slice(0, 70) || 'Run sem descrição'}</div>
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-                          {new Date(run.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })} · {completedSteps} steps concluídos
+                          {new Date(run.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })} · {completedSteps} etapa{completedSteps !== 1 ? 's' : ''} concluída{completedSteps !== 1 ? 's' : ''}
                         </div>
                       </div>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10, color: si.color, background: si.bg, whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 10 }}>
@@ -1141,7 +1135,7 @@ export function SquadWorkspacePage() {
                       {selectedRun.status === 'queued' ? '⏳ Pipeline na fila...' : '🚀 Pipeline iniciando...'}
                     </div>
                   ) : allSteps.map((s: any) => (
-                    <details key={s.stepId} style={{ borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <details key={s.stepId} open style={{ borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
                       <summary style={{ padding: '12px 16px', background: 'var(--bg-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, listStyle: 'none', userSelect: 'none' }}>
                         <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#10b981' }}>
                           {s.stepId}
@@ -1149,7 +1143,7 @@ export function SquadWorkspacePage() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700 }}>{s.stepName}</div>
                           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                            🤖 {s.agentName} · ⏱ {new Date(s.completedAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                            🤖 {s.agentName} · ⏱ {new Date(s.completedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })}
                             {s.audioFile && <span style={{ marginLeft: 8, color: '#f59e0b' }}>🎙 áudio gerado</span>}
                           </div>
                         </div>
@@ -1165,9 +1159,8 @@ export function SquadWorkspacePage() {
                             </button>
                           )}
                         </div>
-                        <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>▼</span>
                       </summary>
-                      <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)', maxHeight: 500, overflowY: 'auto' }}>
+                      <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderTop: '1px solid var(--border)', maxHeight: 600, overflowY: 'auto' }}>
                         <div style={{ fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
                           {stripBriefing(s.output || '(sem output)')}
                         </div>

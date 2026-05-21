@@ -67,7 +67,7 @@ export function InboxPage() {
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h1 className="page-title">📥 Caixa de Entrada</h1>
+            <h1 className="page-title">Caixa de Entrada</h1>
             <p className="page-subtitle">Solicitações do CEO e agentes que precisam da sua aprovação.</p>
           </div>
           <button className="ghost" onClick={load} style={{ fontSize: 12, padding: '6px 14px' }}>
@@ -92,10 +92,15 @@ export function InboxPage() {
             const typeInfo = APPROVAL_TYPE_LABELS[item.approvalType || 'geral'] || APPROVAL_TYPE_LABELS.geral;
 
             return (
-              <div key={item.id} className="card" style={{
+              <div key={item.id} className="card" onClick={() => setSelectedIssue(item)} style={{
                 padding: '14px 18px',
                 borderLeft: `3px solid ${PRIORITY_COLORS[item.priority] || '#6b7280'}`,
-              }}>
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-3)'}
+              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = ''}
+              >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                   <div style={{ fontSize: 22, flexShrink: 0, marginTop: 2 }}>{typeInfo.icon}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -141,14 +146,7 @@ export function InboxPage() {
                     </div>
                   </div>
 
-                  {/* Botão detalhes */}
-                  <button
-                    onClick={() => setSelectedIssue(item)}
-                    className="ghost"
-                    style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
-                  >
-                    Ver detalhes →
-                  </button>
+                  <div style={{ color: 'var(--muted)', fontSize: 16, flexShrink: 0 }}>›</div>
                 </div>
               </div>
             );

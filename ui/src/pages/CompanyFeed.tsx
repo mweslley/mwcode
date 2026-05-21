@@ -266,6 +266,7 @@ export function CompanyFeed() {
               return (
                 <div
                   key={msg.id}
+                  onClick={() => needsExpand && toggleExpand(msg.id)}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '72px 130px 1fr',
@@ -275,6 +276,7 @@ export function CompanyFeed() {
                     alignItems: 'baseline',
                     background: isUser ? 'rgba(0,188,138,0.04)' : 'transparent',
                     transition: 'background 0.15s',
+                    cursor: needsExpand ? 'pointer' : 'default',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.background = isUser ? 'rgba(0,188,138,0.08)' : 'var(--bg-2)')}
                   onMouseLeave={e => (e.currentTarget.style.background = isUser ? 'rgba(0,188,138,0.04)' : 'transparent')}

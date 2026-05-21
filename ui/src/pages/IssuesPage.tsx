@@ -1016,24 +1016,20 @@ export function TarefasPage() {
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
                 📊 Log de execução
               </div>
-              <div style={{ overflowY: 'auto', maxHeight: 160, background: '#09091a', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+              <div style={{ overflowY: 'auto', maxHeight: 320, background: '#09091a', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
                 {!detailIssue.logs?.length ? (
                   <span style={{ color: '#555' }}>// sem eventos registrados</span>
-                ) : detailIssue.logs.map((entry, i) => {
-                  // Eventos curtos = status; eventos longos = resposta do agente (já mostrada acima)
-                  const short = entry.msg.length <= 250 ? entry.msg : entry.msg.slice(0, 120).replace(/\*\*/g, '') + '… [ver Resultado acima]';
-                  return (
-                    <div key={i} style={{ marginBottom: 4, lineHeight: 1.6 }}>
-                      <span style={{ color: '#555', marginRight: 8 }}>{formatTs(entry.ts)}</span>
-                      <span style={{ color: entry.ok === false ? '#ef4444' : '#10b981', marginRight: 6 }}>
-                        {entry.ok === false ? '✗' : '✓'}
-                      </span>
-                      <span style={{ color: entry.msg.length > 250 ? '#666' : '#e2e8f0', fontStyle: entry.msg.length > 250 ? 'italic' : 'normal' }}>
-                        {short}
-                      </span>
-                    </div>
-                  );
-                })}
+                ) : detailIssue.logs.map((entry, i) => (
+                  <div key={i} style={{ marginBottom: 6, lineHeight: 1.65 }}>
+                    <span style={{ color: '#555', marginRight: 8 }}>{formatTs(entry.ts)}</span>
+                    <span style={{ color: entry.ok === false ? '#ef4444' : '#10b981', marginRight: 6 }}>
+                      {entry.ok === false ? '✗' : '✓'}
+                    </span>
+                    <span style={{ color: '#e2e8f0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {entry.msg}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
